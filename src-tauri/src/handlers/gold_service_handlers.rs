@@ -38,7 +38,7 @@ pub async fn process_pending_gold_logs(
 
 #[tauri::command]
 pub async fn get_weekly_gold_stats(
-    _roster_id: String, // Parameter kept for compatibility but ignored - we want all rosters
+    _roster_id: Option<String>, // Parameter kept for compatibility but ignored - we want all rosters
     gold_repo: State<'_, crate::database::repositories::GoldRepository>
 ) -> Result<WeeklyGoldSummary, String> {
     // 1. get database connection

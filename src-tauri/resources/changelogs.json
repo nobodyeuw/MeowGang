@@ -1,12 +1,12 @@
 {
   "versions": [
     {
-      "version": "1.0.6",
+      "version": "1.0.7",
       "date": "2026-04-27",
       "changes": [
         {
           "type": "Fixed",
-          "description": "- Dashboard character loading issues #2"
+          "description": "- Dashboard character loading issues #3"
         }
       ]
     }

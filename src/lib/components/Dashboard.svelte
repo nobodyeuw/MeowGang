@@ -70,30 +70,27 @@
     }
   }
 
-  // Calculate global statistics
+  // Calculate global statistics using reactive data
   async function calculateGlobalStats() {
     try {
-      const dashboardSnapshot = await invoke<DashboardSnapshot>('get_dashboard_snapshot', {
-        rosterId: null // Load all characters for all rosters
-      });
-      currentDashboardSnapshot = dashboardSnapshot;
-
-      allCharacters = dashboardSnapshot.characters ?? [];
-
+      // Use reactive data from stores - no manual loading needed
+      const allCharactersData = $characters;
+      
       // Load gold stats for all rosters combined
       console.log('Fetching gold stats for all rosters');
       const result = await invoke('get_weekly_gold_stats', { rosterId: null });
-      console.log('Raw result from backend:', result);
       
       // Backend returns snake_case, map to camelCase for TypeScript interface
       if (result && typeof result === 'object') {
-        const backendResult = result as any; // Type assertion to access snake_case properties
+        const backendResult = result as any;
         goldStats = {
           weekly: {
             tradableGold: backendResult.tradable_gold || 0,
             boundGold: backendResult.bound_gold || 0,
             totalGold: backendResult.total_gold || 0,
-            totalEntries: backendResult.total_entries || 0
+            totalEntries: backendResult.total_entries || 0,
+            extraIncomeGold: 0,
+            boxPurchaseCost: 0
           },
           recentEntries: []
         } as GoldStatsResponse;
@@ -122,11 +119,42 @@
       let dailiesPossible = 0;
       let weekliesPossible = 0;
       
+      // Collect raid configs for all rosters
+      let allRaidConfigsByCharacter: Record<string, RaidConfigEntry[]> = {};
+      
+      // Load data for each roster once
+      const rosterDataMap: Record<string, DashboardSnapshot> = {};
+      for (const roster of $rosters) {
+        const snapshot = await invoke<DashboardSnapshot>('get_dashboard_snapshot', {
+          rosterId: roster.id
+        });
+        rosterDataMap[roster.id] = snapshot;
+      }
+      
       for (const character of allCharacters) {
         try {
           const key = String(character.char_id);
-          const completionStatus = dashboardSnapshot.completion_by_character?.[key] || [];
-          const trackingStatus = dashboardSnapshot.tracking_by_character?.[key] || [];
+          const rosterSnapshot = rosterDataMap[character.roster_id];
+          
+          if (!rosterSnapshot) continue;
+          
+          const completionStatus = rosterSnapshot.completion_by_character?.[key] || [];
+          const trackingStatus = rosterSnapshot.tracking_by_character?.[key] || [];
+          const restedValues = rosterSnapshot.rested_by_character?.[key] || [];
+          const characterRaidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
+          
+          // Populate character data map for CharacterCard
+          characterDataMap[key] = {
+            restedValues,
+            completionStatus,
+            raidConfigs: characterRaidConfigs,
+            trackingStatus
+          };
+          
+          // Collect raid configs for gold calculation
+          if (characterRaidConfigs.length > 0) {
+            allRaidConfigsByCharacter[key] = characterRaidConfigs;
+          }
           
           // Count dailies (chaos + guardian)
           const chaosTracked = trackingStatus.some((t: any) => t.content_id === 'chaos' && t.is_tracked === 1);
@@ -156,7 +184,7 @@
           }
           
           // Count gold raids (unique raids only, not gates)
-          const raidConfigs = dashboardSnapshot.raid_configs_by_character?.[key] || [];
+          const raidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
           const goldRaids = raidConfigs.filter((r: any) => r.take_gold === 1);
           
           // Get unique raid content_ids (not gates)
@@ -180,7 +208,7 @@
       totalWeekliesPossible = weekliesPossible;
       
       // Update progress percentage and maximum gold display
-      const maxGold = await calculateTotalEstimatedGold(allCharacters, dashboardSnapshot.raid_configs_by_character || {});
+      const maxGold = await calculateTotalEstimatedGold(allCharacters, allRaidConfigsByCharacter);
       estimatedGoldDisplay = maxGold;
       
       // Calculate progress percentage using actual gold stats
@@ -262,6 +290,14 @@
     
     return grouped;
   })();
+
+  // Create reactive data map for character cards
+  let characterDataMap: Record<string, {
+    restedValues: Array<{ content_id: string; current_value: number }>;
+    completionStatus: Array<{ content_id: string; is_completed: number }>;
+    raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number }>;
+    trackingStatus: Array<{ content_id: string; is_tracked: number }>;
+  }> = {};
 
   // Calculate maximum possible gold income based on conf_raid data
   async function calculateTotalEstimatedGold(
@@ -442,10 +478,10 @@
                 {character}
                 classIcon={getClassIcon(character.class_id)}
                 className={getClassName(character.class_id)}
-                restedValues={currentDashboardSnapshot?.rested_by_character?.[String(character.char_id)] || []}
-                completionStatus={currentDashboardSnapshot?.completion_by_character?.[String(character.char_id)] || []}
-                raidConfigs={currentDashboardSnapshot?.raid_configs_by_character?.[String(character.char_id)] || []}
-                trackingStatus={currentDashboardSnapshot?.tracking_by_character?.[String(character.char_id)] || []}
+                restedValues={characterDataMap[String(character.char_id)]?.restedValues || []}
+                completionStatus={characterDataMap[String(character.char_id)]?.completionStatus || []}
+                raidConfigs={characterDataMap[String(character.char_id)]?.raidConfigs || []}
+                trackingStatus={characterDataMap[String(character.char_id)]?.trackingStatus || []}
               />
             {/each}
           </div>
