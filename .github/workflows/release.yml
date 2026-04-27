@@ -86,6 +86,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add latest.json update.json
+          git add latest.json
           git commit -m "Auto-update release files for v${{ steps.version.outputs.version }}" || echo "No changes to commit"
           git push

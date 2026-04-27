@@ -1,12 +1,12 @@
 {
   "versions": [
     {
-      "version": "1.2.3",
+      "version": "1.0.0",
       "date": "2026-04-27",
       "changes": [
         {
-          "type": "Fixed",
-          "description": "Auto path detection for Lost Ark executable and encounters database should now work correctly on all supported platforms, including Windows and Linux. This resolves issues where the application failed to locate these files, improving reliability of auto-detection features."
+          "type": "Release",
+          "description": "Initial release for v1.0.0"
         }
       ]
     }
