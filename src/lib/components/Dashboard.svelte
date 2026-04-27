@@ -74,15 +74,15 @@
   async function calculateGlobalStats() {
     try {
       const dashboardSnapshot = await invoke<DashboardSnapshot>('get_dashboard_snapshot', {
-        rosterId: $activeRosterId || null
+        rosterId: null // Load all characters for all rosters
       });
       currentDashboardSnapshot = dashboardSnapshot;
 
       allCharacters = dashboardSnapshot.characters ?? [];
 
-      // Load gold stats using new command
+      // Load gold stats for all rosters combined
       console.log('Fetching gold stats for all rosters');
-      const result = await invoke('get_weekly_gold_stats', { rosterId: $activeRosterId });
+      const result = await invoke('get_weekly_gold_stats', { rosterId: null });
       console.log('Raw result from backend:', result);
       
       // Backend returns snake_case, map to camelCase for TypeScript interface
