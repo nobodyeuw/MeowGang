@@ -6,6 +6,11 @@
     },
 
     {
+      "severity": "Major",
+      "description": "Auto-start options aren't working"
+    },
+
+    {
       "severity": "Minor",
       "description": "Roster-Wide buttons not working/resetting properly"
     },

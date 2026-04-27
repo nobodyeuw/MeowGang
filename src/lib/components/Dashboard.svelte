@@ -232,6 +232,11 @@
     allCharacters = [...$characters];
   }
 
+  // Reload data when active roster changes
+  $: if ($activeRosterId && !loading) {
+    calculateGlobalStats();
+  }
+
   // Group characters by roster
   $: charactersByRoster = (() => {
     const grouped: { [key: string]: Character[] } = {};
@@ -370,6 +375,7 @@
         </div>
         <div class="progress-bar-container">
           <div class="progress-bar" style="width: {progressPercentage}%"></div>
+          <div class="progress-percentage">{Math.round(progressPercentage)}%</div>
         </div>
       </div>
     </div>
@@ -623,6 +629,18 @@
     border-radius: 6px;
     transition: width 0.5s ease;
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+
+  .progress-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px;
+    font-weight: 600;
+    color: #f86008;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+    z-index: 1;
   }
 
   /* Header Stats */

@@ -1,16 +1,12 @@
 {
   "versions": [
     {
-      "version": "1.0.4",
+      "version": "1.0.5",
       "date": "2026-04-27",
       "changes": [
         {
           "type": "Fixed",
-          "description": "- Signature key issue"
-        },
-        {
-          "type": "Fixed",
-          "description": "- Windows registry problems"
+          "description": "- Dashboard character loading issues"
         }
       ]
     }

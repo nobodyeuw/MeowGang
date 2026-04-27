@@ -1,15 +1,15 @@
 {
-  "version": "1.0.4",
-  "notes": "### v1.0.4\n\n- **Fixed:** - Signature key issue\n- **Fixed:** - Windows registry problems\n\n## Installation\nDownload `loatracker_1.0.4_x64-setup.exe` below.",
+  "version": "1.0.5",
+  "notes": "### v1.0.5\n\n- **Fixed:** - Dashboard character loading issues\n\n## Installation\nDownload `loatracker_1.0.5_x64-setup.exe` below.",
   "pub_date": "2026-04-27T14:03:03.384Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3BXRWpoMTh6SWhSNHluN3V1dE4wZlFKOGpJRVJPM1d4bU9rTE9vRjNGa2RNbnAwQTRFK0ZKeUJkb1JBanhUamFxRktKMGJUaWMxdno2azZxU1p5eHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3Mjk4NTc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjRfeDY0LXNldHVwLmV4ZQpGSGJrRmJ2enhHbmdYaGJnTUFGOUNrejJXUXRFUVR0M0VnNTV5NnEvNjkwQlJTeWRkclpuWTdIaVlBQzlGbUo1clhDS3o3OVJ3NmVmcjNLWkJwbVJCdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.4/LOA.Tracker_1.0.4_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.5/LOA.Tracker_1.0.5_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3BXRWpoMTh6SWhSNHluN3V1dE4wZlFKOGpJRVJPM1d4bU9rTE9vRjNGa2RNbnAwQTRFK0ZKeUJkb1JBanhUamFxRktKMGJUaWMxdno2azZxU1p5eHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3Mjk4NTc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjRfeDY0LXNldHVwLmV4ZQpGSGJrRmJ2enhHbmdYaGJnTUFGOUNrejJXUXRFUVR0M0VnNTV5NnEvNjkwQlJTeWRkclpuWTdIaVlBQzlGbUo1clhDS3o3OVJ3NmVmcjNLWkJwbVJCdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.4/LOA.Tracker_1.0.4_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.5/LOA.Tracker_1.0.5_x64-setup.exe"
     }
   }
 }
