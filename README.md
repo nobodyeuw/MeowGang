@@ -76,4 +76,4 @@ cargo fmt              # Format Rust code
 
 Distributed under the MIT License. See LICENSE for more information.
 
-## Made with ❤️ for the MeowGang.
+## Made with ❤️ for MeowGang.
