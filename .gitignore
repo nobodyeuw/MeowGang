@@ -15,4 +15,5 @@ src-tauri/gen/
 # extras
 
 tests/
-VERSION_MANAGEMENT.md
+/scripts
+/.github

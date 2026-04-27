@@ -1,16 +1,16 @@
 {
   "versions": [
     {
-      "version": "1.0.3",
+      "version": "1.0.4",
       "date": "2026-04-27",
       "changes": [
         {
           "type": "Fixed",
-          "description": "- Gold progress calculation"
+          "description": "- Signature key issue"
         },
         {
           "type": "Fixed",
-          "description": "- Countdown timer not updating correctly"
+          "description": "- Windows registry problems"
         }
       ]
     }
