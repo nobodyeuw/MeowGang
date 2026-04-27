@@ -38,8 +38,8 @@
   "plugins": {
     "updater": {
       "active": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEMzdCNTg5Mjc0QzA4MDAKUldRQUNFd25pYlUzUFNZUkk2M1FQaWdPNFZuUHJITzFEQWRaa0FyblZSTWU0TDl3YUxWVWVQS0EK",
-      "endpoints": ["https://raw.githubusercontent.com/nobodyeuw/MeowGang-Tracker/main/latest.json"]
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkyOTE0ODU2MDBDMkM5RTcKUldUbnljSUFWa2lSa2p6U2pacFlVRkZYVDZzZm93d0t2MmVTSHcxdWZVWFdPcmxud1hQNGdwU3UK",
+      "endpoints": ["https://raw.githubusercontent.com/nobodyeuw/MeowGang/main/latest.json"]
     },
 
     "webview": {
