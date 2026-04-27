@@ -11,7 +11,7 @@
     },
     {
       "severity": "Minor", 
-      "description": "Variable naming warnings in backend code - cosmetic only"
+      "description": "Raid difficulty settings not always saving correctly > workaround: change difficulty per gate in child-rows if master-row shows \"mixed\" state unintentionally"
     },
     {
       "severity": "Minor",
