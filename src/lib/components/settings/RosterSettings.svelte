@@ -610,12 +610,12 @@
       </div>
       <div class="dialog-content">
         <div class="form-group">
-          <label for="roster-name">Roster Name</label>
+          <label for="roster-name">Character Name</label>
           <input 
             id="roster-name"
             type="text" 
             bind:value={newRosterName}
-            placeholder="Enter one character name of your Roster (i.e. Vaanyar)"
+            placeholder="Enter 1 character of yours (e.g. Vaanyar)"
             on:keydown={(e) => e.key === 'Enter' && addRoster()}
             disabled={isLoading}
           />

@@ -1,12 +1,12 @@
 {
   "versions": [
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "date": "2026-04-27",
       "changes": [
         {
-          "type": "Release",
-          "description": "Initial release for v1.0.0"
+          "type": "Test",
+          "description": "Testing updater for v1.0.1"
         }
       ]
     }
