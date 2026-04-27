@@ -1,0 +1,91 @@
+name: Release MeowGang Tracker
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (leave empty to use version.json)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version and latest files
+        run: npm run prepare-release
+        if: github.event.inputs.version == ''
+
+      - name: Read version from files
+        id: version
+        shell: pwsh
+        run: |
+          $VERSION = node -p "require('./package.json').version"
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Read release notes from latest.json
+        id: release-notes
+        shell: pwsh
+        run: |
+          $LATEST_JSON = Get-Content -Raw -Path "latest.json" | ConvertFrom-Json
+          $RELEASE_NOTES = $LATEST_JSON.notes -replace '\\n', "`n"
+          echo "release_notes<<EOF" >> $env:GITHUB_OUTPUT
+          echo $RELEASE_NOTES >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+        with:
+          tagName: v${{ steps.version.outputs.version }}
+          releaseName: "MeowGang Tracker v${{ steps.version.outputs.version }}"
+          releaseBody: |
+            ${{ steps.release-notes.outputs.release_notes }}
+            
+            ## Installation
+            Download `loatracker_${{ steps.version.outputs.version }}_x64-setup.exe` below.
+          releaseDraft: false
+          prerelease: false
+
+      - name: Commit updated files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add latest.json update.json
+          git commit -m "Auto-update release files for v${{ steps.version.outputs.version }}" || echo "No changes to commit"
+          git push

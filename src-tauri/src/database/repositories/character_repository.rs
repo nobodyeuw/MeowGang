@@ -1,0 +1,338 @@
+use anyhow::Result;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::{params, Connection};
+use crate::roster::Character;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestedValue {
+    pub char_id: i64,
+    pub content_id: String,
+    pub current_value: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionStatus {
+    pub char_id: i64,
+    pub content_id: String,
+    pub is_completed: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterRaidConfig {
+    pub char_id: i64,
+    pub content_id: String,
+    pub take_gold: i64,
+    pub difficulty: String,
+    pub buy_box: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackingStatus {
+    pub char_id: i64,
+    pub content_id: String,
+    pub is_tracked: i64,
+}
+
+pub struct CharacterRepository {
+    pool: Pool<SqliteConnectionManager>,
+}
+
+impl CharacterRepository {
+    pub fn new(pool: Pool<SqliteConnectionManager>) -> Self {
+        Self { pool }
+    }
+
+    pub fn get_characters_by_roster(&self, roster_id: &str) -> Result<Vec<Character>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
+                    combat_power, display_order, earns_gold
+             FROM conf_character 
+             WHERE roster_id = ?1
+             ORDER BY display_order"
+        )?;
+        
+        let character_iter = stmt.query_map([roster_id], |row| {
+            Ok(Character {
+                char_id: row.get(0)?,
+                char_name: row.get(1)?,
+                roster_id: row.get(2)?,
+                roster_name: row.get(3)?,
+                class_id: row.get(4)?,
+                item_level: row.get(5)?,
+                combat_power: row.get(6)?,
+                display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
+                earns_gold: row.get(8)?,
+                class_display_name: None, // Not available in conf_character table
+            })
+        })?;
+        
+        let mut characters = Vec::new();
+        for character in character_iter {
+            characters.push(character?);
+        }
+        
+        Ok(characters)
+    }
+
+    pub fn get_character_by_id(&self, character_id: i64) -> Result<Option<Character>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
+                    combat_power, display_order, earns_gold, class_display_name
+             FROM conf_character 
+             WHERE char_id = ?1"
+        )?;
+        
+        let character_iter = stmt.query_map([character_id], |row| {
+            Ok(Character {
+                char_id: row.get(0)?,
+                char_name: row.get(1)?,
+                roster_id: row.get(2)?,
+                roster_name: row.get(3)?,
+                class_id: row.get(4)?,
+                item_level: row.get(5)?,
+                combat_power: row.get(6)?,
+                display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
+                earns_gold: row.get(8)?,
+                class_display_name: None, // Not available in conf_character table
+            })
+        })?;
+        
+        for character in character_iter {
+            return Ok(Some(character?));
+        }
+        Ok(None)
+    }
+
+    pub fn get_dashboard_characters(&self) -> Result<Vec<crate::models::DashboardCharacter>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT c.char_id, c.char_name, c.class_id, c.class_display_name, 
+                    c.item_level, c.combat_power, c.roster_name, 
+                    c.display_order, c.earns_gold
+             FROM conf_character c
+             ORDER BY c.display_order, c.char_name"
+        )?;
+        
+        let character_iter = stmt.query_map([], |row| {
+            Ok(crate::models::DashboardCharacter {
+                char_id: row.get(0)?,
+                char_name: row.get(1)?,
+                class_id: row.get(2)?,
+                class_display_name: row.get(3)?,
+                item_level: row.get(4)?,
+                combat_power: row.get(5)?,
+                roster_name: row.get(6)?,
+                last_active: None, // Not in conf_character table
+                earns_gold: row.get(8)?,
+                display_order: row.get(7)?,
+            })
+        })?;
+        
+        let mut characters = Vec::new();
+        for character in character_iter {
+            characters.push(character?);
+        }
+        Ok(characters)
+    }
+
+    pub fn update_character_settings(&self, character_id: i64, settings: &crate::models::CharacterSettings) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE conf_character 
+             SET earns_gold = ?1
+             WHERE char_id = ?2",
+            params![settings.earns_gold, character_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_character_earns_gold(&self, character_id: i64, earns_gold: bool) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE conf_character SET earns_gold = ?1 WHERE char_id = ?2",
+            params![earns_gold, character_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_character_matrix_info(&self, roster_id: &str) -> Result<Vec<crate::models::CharacterMatrixInfo>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, char_name, item_level, combat_power, class_id
+             FROM conf_character 
+             WHERE roster_id = ?1 
+             ORDER BY display_order, char_name"
+        )?;
+        
+        let character_iter = stmt.query_map([roster_id], |row| {
+            Ok(crate::models::CharacterMatrixInfo {
+                char_id: row.get(0)?,
+                char_name: row.get(1)?,
+                item_level: row.get(2)?,
+                combat_power: row.get(3)?,
+                class_id: row.get(4)?,
+                display_order: row.get(5)?,
+            })
+        })?;
+        
+        let mut characters = Vec::new();
+        for character in character_iter {
+            characters.push(character?);
+        }
+        Ok(characters)
+    }
+
+    pub fn save_character_from_scraper(&self, character: &Character, roster_id: &str) -> Result<i64> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO conf_character 
+             (char_id, char_name, roster_id, roster_name, class_id, item_level, 
+              combat_power, display_order, earns_gold, class_display_name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                character.char_id,
+                character.char_name,
+                roster_id,
+                roster_id,
+                character.class_id,
+                character.item_level,
+                character.combat_power,
+                character.display_order,
+                character.earns_gold,
+                character.class_display_name
+            ],
+        )?;
+        Ok(character.char_id)
+    }
+
+    pub fn update_character_order(&self, character_id: i64, new_order: &str) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE conf_character SET display_order = ?1 WHERE char_id = ?2",
+            params![new_order, character_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_character_rested_values(&self, character_id: i64) -> Result<Vec<RestedValue>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, content_id, current_value 
+             FROM rested_values 
+             WHERE char_id = ?1"
+        )?;
+        
+        let rested_iter = stmt.query_map([character_id], |row| {
+            Ok(RestedValue {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                current_value: row.get(2)?,
+            })
+        })?;
+        
+        let mut rested_values = Vec::new();
+        for rested in rested_iter {
+            rested_values.push(rested?);
+        }
+        
+        Ok(rested_values)
+    }
+
+    pub fn get_character_completion_status(&self, character_id: i64) -> Result<Vec<CompletionStatus>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, content_id, is_completed 
+             FROM completion_status 
+             WHERE char_id = ?1"
+        )?;
+        
+        let completion_iter = stmt.query_map([character_id], |row| {
+            Ok(CompletionStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_completed: row.get(2)?,
+            })
+        })?;
+        
+        let mut completion_status = Vec::new();
+        for completion in completion_iter {
+            completion_status.push(completion?);
+        }
+        
+        Ok(completion_status)
+    }
+
+    pub fn get_character_raid_configs(&self, character_id: i64) -> Result<Vec<CharacterRaidConfig>> {
+        let mut conn = self.pool.get()?;
+        
+        let mut stmt = conn.prepare(
+            "SELECT char_id, content_id, take_gold, difficulty, buy_box
+             FROM conf_raid 
+             WHERE char_id = ?1"
+        )?;
+        
+        let raid_iter = stmt.query_map([character_id], |row| {
+            Ok(CharacterRaidConfig {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                take_gold: row.get(2)?,
+                difficulty: row.get(3)?,
+                buy_box: row.get(4)?,
+            })
+        })?;
+        
+        let mut raid_configs = Vec::new();
+        for raid in raid_iter {
+            raid_configs.push(raid?);
+        }
+        
+        Ok(raid_configs)
+    }
+
+    pub fn get_character_tracking_status(&self, character_id: i64) -> Result<Vec<TrackingStatus>> {
+        let mut conn = self.pool.get()?;
+        
+        let mut stmt = conn.prepare(
+            "SELECT char_id, content_id, is_tracked 
+             FROM conf_tracking 
+             WHERE char_id = ?1"
+        )?;
+        
+        let tracking_iter = stmt.query_map([character_id], |row| {
+            Ok(TrackingStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_tracked: row.get(2)?,
+            })
+        })?;
+        
+        let mut tracking_status = Vec::new();
+        for tracking in tracking_iter {
+            tracking_status.push(tracking?);
+        }
+        
+        Ok(tracking_status)
+    }
+
+    pub fn delete_character(&self, character_id: i64) -> Result<()> {
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+        
+        // Delete from related tables first
+        tx.execute("DELETE FROM conf_todo WHERE char_id = ?1", params![character_id])?;
+        tx.execute("DELETE FROM conf_raid WHERE char_id = ?1", params![character_id])?;
+        tx.execute("DELETE FROM completion_status WHERE char_id = ?1", params![character_id])?;
+        tx.execute("DELETE FROM rested_values WHERE char_id = ?1", params![character_id])?;
+        tx.execute("DELETE FROM gold_logs WHERE char_id = ?1", params![character_id])?;
+        
+        // Delete character
+        tx.execute("DELETE FROM conf_character WHERE char_id = ?1", params![character_id])?;
+        
+        tx.commit()?;
+        Ok(())
+    }
+}

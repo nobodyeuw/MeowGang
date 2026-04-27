@@ -1,0 +1,16 @@
+{
+  "bugs": [
+    {
+      "severity": "Minor",
+      "description": "Roster-Wide buttons not working/resetting properly"
+    },
+    {
+      "severity": "Minor", 
+      "description": "Variable naming warnings in backend code - cosmetic only"
+    },
+    {
+      "severity": "Minor",
+      "description": "database updates not always reflecting immediately"
+    }
+  ]
+}

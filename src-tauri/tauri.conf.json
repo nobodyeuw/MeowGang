@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LOA Tracker",
+  "version": "1.0.0",
+  "identifier": "xyz.vaanyar",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LOATracker",
+        "width": 1350,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/*"
+    ]
+  },
+
+  "plugins": {
+    "updater": {
+      "active": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEMzdCNTg5Mjc0QzA4MDAKUldRQUNFd25pYlUzUFNZUkk2M1FQaWdPNFZuUHJITzFEQWRaa0FyblZSTWU0TDl3YUxWVWVQS0EK",
+      "endpoints": ["https://raw.githubusercontent.com/nobodyeuw/MeowGang-Tracker/main/latest.json"]
+    },
+
+    "webview": {
+      "webviewInstallMode": "none"
+    }
+  }
+}
