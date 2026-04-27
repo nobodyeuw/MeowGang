@@ -29,9 +29,9 @@ export function getNextAvailableTime(taskId: string): Date | null {
   
   // Find next available day
   let daysToAdd = 1;
-  let nextDate = new Date(now);
   
   while (daysToAdd <= 7) {
+    const nextDate = new Date(now);
     nextDate.setDate(now.getDate() + daysToAdd);
     const nextDayIndex = nextDate.getDay();
     const nextDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][nextDayIndex];

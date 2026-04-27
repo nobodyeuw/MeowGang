@@ -179,17 +179,17 @@
       totalDailiesPossible = dailiesPossible;
       totalWeekliesPossible = weekliesPossible;
       
-      // Update progress percentage and estimated gold display
-      const estimatedGold = await calculateTotalEstimatedGold(allCharacters, dashboardSnapshot.raid_configs_by_character || {});
-      estimatedGoldDisplay = estimatedGold;
+      // Update progress percentage and maximum gold display
+      const maxGold = await calculateTotalEstimatedGold(allCharacters, dashboardSnapshot.raid_configs_by_character || {});
+      estimatedGoldDisplay = maxGold;
       
       // Calculate progress percentage using actual gold stats
-      if (goldStats && goldStats.weekly && estimatedGold > 0) {
-        progressPercentage = Math.min((goldStats.weekly.totalGold / estimatedGold) * 100, 100);
-        console.log('Progress calculation - Actual gold:', goldStats.weekly.totalGold, 'Estimated gold:', estimatedGold, 'Progress %:', progressPercentage);
+      if (goldStats && goldStats.weekly && maxGold > 0) {
+        progressPercentage = Math.min((goldStats.weekly.totalGold / maxGold) * 100, 100);
+        console.log('Progress calculation - Actual gold:', goldStats.weekly.totalGold, 'Max gold:', maxGold, 'Progress %:', progressPercentage);
       } else {
         progressPercentage = 0;
-        console.log('Progress calculation failed - goldStats:', goldStats, 'estimatedGold:', estimatedGold);
+        console.log('Progress calculation failed - goldStats:', goldStats, 'maxGold:', maxGold);
       }
       
     } catch (error) {
@@ -258,7 +258,7 @@
     return grouped;
   })();
 
-  // Calculate total estimated gold income based on conf_raid data
+  // Calculate maximum possible gold income based on conf_raid data
   async function calculateTotalEstimatedGold(
     characters: Character[],
     raidConfigsByCharacter: Record<string, RaidConfigEntry[]>

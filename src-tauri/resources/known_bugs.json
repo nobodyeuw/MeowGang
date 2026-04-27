@@ -1,6 +1,11 @@
 {
   "bugs": [
     {
+      "severity": "Major",
+      "description": "Raid completion isnt loading immediately, currently requires a restart/reload to show updated data"
+    },
+
+    {
       "severity": "Minor",
       "description": "Roster-Wide buttons not working/resetting properly"
     },

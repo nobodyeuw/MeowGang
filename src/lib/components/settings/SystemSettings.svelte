@@ -558,20 +558,7 @@
               {/if}
             </div>
 
-                        {#if !updateAvailable && !isCheckingUpdate}
-              <div class="up-to-date">
-                <div class="update-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                    <polyline points="22 4 12 14.01 9 11.01"/>
-                  </svg>
-                </div>
-                <div class="update-content">
-                  <h4>Up to Date</h4>
-                  <p>You're running the latest version of LOA Tracker</p>
-                </div>
-              </div>
-            {:else}
+                        {#if isCheckingUpdate}
               <div class="checking-updates">
                 <div class="update-icon checking">
                   <div class="spinner"></div>
@@ -579,6 +566,33 @@
                 <div class="update-content">
                   <h4>Checking for Updates...</h4>
                   <p>Please wait while we check for the latest version</p>
+                </div>
+              </div>
+            {:else if updateAvailable}
+              <div class="update-available">
+                <div class="update-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </div>
+                <div class="update-content">
+                  <h4>Update Available</h4>
+                  <p>Version {latestVersion} is available (current: {currentVersion})</p>
+                </div>
+              </div>
+            {:else}
+              <div class="up-to-date">
+                <div class="update-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 011-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                </div>
+                <div class="update-content">
+                  <h4>Up to Date</h4>
+                  <p>You're running the latest version of LOA Tracker</p>
                 </div>
               </div>
             {/if}
