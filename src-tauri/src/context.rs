@@ -58,7 +58,7 @@ impl AppContext {
         if !self.resources_path.exists() {
             std::fs::create_dir_all(&self.resources_path)?;
         }
-        self.copy_resource_files()?;
+        // Skip resource file copying to avoid file locking issues
         Ok(())
     }
 
@@ -83,30 +83,8 @@ impl AppContext {
     }
 
     fn copy_resource_files(&self) -> Result<()> {
-        // Copy resource files from src-tauri/resources to app data resources directory
-        // Use path relative to the executable
-        let exe_path = std::env::current_exe()?;
-        let exe_dir = exe_path.parent()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine parent directory of executable"))?;
-        let source_resources = exe_dir.join("resources");
-        
-        // Files to copy
-        let resource_files = vec!["changelogs.json", "known_bugs.json"];
-        
-        for file in resource_files {
-            let source_file = source_resources.join(file);
-            let dest_file = self.resources_path.join(file);
-            
-            // Copy if source exists (always copy to ensure latest version)
-            if source_file.exists() {
-                std::fs::copy(&source_file, &dest_file)
-                    .map_err(|e| anyhow::anyhow!("Failed to copy resource file {}: {}", file, e))?;
-            } else {
-                // Log warning if source doesn't exist
-                eprintln!("Warning: Source resource file not found: {:?}", source_file);
-            }
-        }
-        
+        // Skip resource file copying to avoid file locking issues
+        // Resources will be loaded directly from the app bundle
         Ok(())
     }
 }
