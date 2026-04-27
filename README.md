@@ -1,14 +1,14 @@
 # 🐾 MeowGang Tracker
 **The sharpest, high-performance companion for your Lost Ark journey.**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/nobodyeuw/meowgang-tracker/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
 
 Stop scribbling on napkins. **MeowGang Tracker** is a lightweight, native desktop application designed to eliminate the "mental load" of managing your roster. Track your gold, raids, and dailies with razor-sharp precision and zero friction.
 
-[Download Latest Release](https://github.com/nobodyeuw/meowgang-tracker/releases) | [Report Bug](https://github.com/nobodyeuw/meowgang-tracker/issues)
+[Download Latest Release](https://github.com/nobodyeuw/MeowGang/releases) | [Report Bug](https://github.com/nobodyeuw/MeowGang/issues)
 
 ---
 
@@ -27,7 +27,7 @@ Stop scribbling on napkins. **MeowGang Tracker** is a lightweight, native deskto
 ## 🚀 Quick Start
 
 ### Installation
-1. Download the `.exe` from the [Releases](https://github.com/nobodyeuw/meowgang-tracker/releases) page.
+1. Download the `.exe` from the [Releases](https://github.com/nobodyeuw/MeowGang/releases) page.
 2. Run the installer and launch the app.
 3. **Setup:** The app detects your Lost Ark path automatically. Add your characters and start stacking that gold!
 
@@ -35,8 +35,8 @@ Stop scribbling on napkins. **MeowGang Tracker** is a lightweight, native deskto
 Want to help the gang improve the code?
 ```bash
 # Clone & Install
-git clone https://github.com/nobodyeuw/meowgang-tracker.git
-cd meowgang-tracker
+git clone https://github.com/nobodyeuw/MeowGang.git
+cd MeowGang
 npm install
  
 # Prerequisites
