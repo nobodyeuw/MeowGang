@@ -1,14 +1,14 @@
 {
   "version": "1.0.7",
   "notes": "### v1.0.7\n\n- **Fixed:** - Dashboard character loading issues #3\n\n## Installation\nDownload `loatracker_1.0.7_x64-setup.exe` below.",
-  "pub_date": "2026-04-27T15:00:33.389Z",
+  "pub_date": "2026-04-27T15:29:42.861Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2lVMEM4M1VmdTNNRTl5aUZ1RFpGdzJpZzdaYUNERUl2dGhGUWVuNGovY0tFeGNhNFhYck51WVhuMnc0eWNTb1R3VXVUeVJmN2xLeXRRcXdTUElqNFFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAyMDI5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjZfeDY0LXNldHVwLmV4ZQpWOWlKbDlpSkJPYmVZanUwNjAwOWNTSUMrVXF5RkluTGlvZ0lMUStLOGVWRVY5SWFvRDh1bXF3WTJoejF0YTUxVkk3bzZ1RFJHRXlWODJYc2kyRmZDZz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3R3SVlaWkhPY2VDbHBKWTd4ay93dVhoQXNCOUN1cDFiMzVEeVRuNmxVTENkOVBkbm10N1hRelR4S05uRTZKWmVEK21DbzdudEcwdHFtSWZBWE4ycHdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAzNzc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjdfeDY0LXNldHVwLmV4ZQp6a3oySi8rSUI2VkZtSmQ5MERPNzh5bzNjeGE4MElDTThlQ0Z3c29HcXJObnFlczJpeGtpZFJtSXJLL0pNL3Ywak9RRG9sTHVzMGZVdEttTFpRU21EZz09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.7/LOA.Tracker_1.0.7_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2lVMEM4M1VmdTNNRTl5aUZ1RFpGdzJpZzdaYUNERUl2dGhGUWVuNGovY0tFeGNhNFhYck51WVhuMnc0eWNTb1R3VXVUeVJmN2xLeXRRcXdTUElqNFFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAyMDI5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjZfeDY0LXNldHVwLmV4ZQpWOWlKbDlpSkJPYmVZanUwNjAwOWNTSUMrVXF5RkluTGlvZ0lMUStLOGVWRVY5SWFvRDh1bXF3WTJoejF0YTUxVkk3bzZ1RFJHRXlWODJYc2kyRmZDZz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3R3SVlaWkhPY2VDbHBKWTd4ay93dVhoQXNCOUN1cDFiMzVEeVRuNmxVTENkOVBkbm10N1hRelR4S05uRTZKWmVEK21DbzdudEcwdHFtSWZBWE4ycHdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAzNzc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjdfeDY0LXNldHVwLmV4ZQp6a3oySi8rSUI2VkZtSmQ5MERPNzh5bzNjeGE4MElDTThlQ0Z3c29HcXJObnFlczJpeGtpZFJtSXJLL0pNL3Ywak9RRG9sTHVzMGZVdEttTFpRU21EZz09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.7/LOA.Tracker_1.0.7_x64-setup.exe"
     }
   }
