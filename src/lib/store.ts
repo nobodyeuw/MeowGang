@@ -185,13 +185,37 @@ export const activeCharacters = derived(
 export function initializeSyncEvents() {
   console.log('Initializing sync event listeners...');
   
-  // Listen for sync completion events
-  listen('sync-finished', (event) => {
+  // Listen for sync completion events and refresh UI when backend data changes
+  listen('sync-finished', async (event) => {
     console.log('Sync finished event received:', event.payload);
-    // Reload characters to get the updated data
-    const currentRosterId = localStorage.getItem('activeRosterId') || '';
+    const currentRosterId = get(activeRosterId);
     if (currentRosterId) {
-      loadCharacters(currentRosterId);
+      await loadCharacters(currentRosterId);
+      await loadTodoMatrix(currentRosterId);
+    }
+  });
+
+  listen('encounter-sync-complete', async (event) => {
+    console.log('Encounter sync completed:', event.payload);
+    const currentRosterId = get(activeRosterId);
+    if (currentRosterId) {
+      await loadTodoMatrix(currentRosterId);
+    }
+  });
+
+  listen('encounters-force-sync-complete', async (event) => {
+    console.log('Forced encounters sync completed:', event.payload);
+    const currentRosterId = get(activeRosterId);
+    if (currentRosterId) {
+      await loadTodoMatrix(currentRosterId);
+    }
+  });
+
+  listen('encounters-auto-sync-complete', async (event) => {
+    console.log('Auto encounters sync event received:', event.payload);
+    const currentRosterId = get(activeRosterId);
+    if (currentRosterId) {
+      await loadTodoMatrix(currentRosterId);
     }
   });
 

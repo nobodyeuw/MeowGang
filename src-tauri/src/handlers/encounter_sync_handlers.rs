@@ -178,9 +178,9 @@ fn get_cleared_encounters(encounters_db_path: &str, pool: &r2d2::Pool<r2d2_sqlit
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
     ).map_err(|e| format!("Failed to open encounters.db in read-only mode: {}", e))?;
     
-        
     // Get weekly reset timestamp from app_state table
     let weekly_reset_ts = get_weekly_reset_from_app_state(pool)?;
+    println!("DEBUG: Filtering encounters since weekly_reset_ts: {} (milliseconds)", weekly_reset_ts);
     
     let mut stmt = conn.prepare(
         "SELECT id, current_boss, local_player, difficulty, fight_start, cleared 
@@ -189,7 +189,7 @@ fn get_cleared_encounters(encounters_db_path: &str, pool: &r2d2::Pool<r2d2_sqlit
          ORDER BY fight_start DESC"
     ).map_err(|e| format!("Failed to prepare statement: {}", e))?;
     
-        let encounters_iter = stmt.query_map([weekly_reset_ts], |row| {
+    let encounters_iter = stmt.query_map([weekly_reset_ts], |row| {
         Ok(EncounterPreview {
             id: row.get(0).unwrap_or(0),
             current_boss: row.get(1).unwrap_or_else(|_| "Unknown".to_string()),
@@ -204,6 +204,8 @@ fn get_cleared_encounters(encounters_db_path: &str, pool: &r2d2::Pool<r2d2_sqlit
     for encounter in encounters_iter {
         encounters.push(encounter.map_err(|e| format!("Failed to process encounter: {}", e))?);
     }
+    
+    println!("DEBUG: Found {} cleared encounters since last weekly reset", encounters.len());
     
     Ok(encounters)
 }
@@ -222,6 +224,7 @@ fn process_encounter(
                         mapping
         },
         None => {
+                        eprintln!("Skipping encounter: Boss '{}' not found in boss_mapping", encounter.current_boss);
                         return Ok(false);
         }
     };
@@ -235,38 +238,55 @@ fn process_encounter(
                         char_id
         },
         None => {
+                        eprintln!("Skipping encounter: Character '{}' not found in database. Please add this character to the app.", encounter.local_player);
                         return Ok(false); // Skip this encounter
         }
     };
 
-    // Generate base session_id without difficulty for consistent identification
-    let base_session_id = format!(
+    // Generate session_id for the gate; only create a new entry if it doesn't already exist
+    let session_id = format!(
         "{}_Gate {}",
         mapping.content_id, mapping.gate
     );
-    
-    // Check if entry already exists
-    let conn = todo_repo.pool.get()?;
-    let existing_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM completion_status 
-         WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3",
-        params![char_id, &mapping.content_id, &base_session_id],
-        |row| row.get(0)
-    ).unwrap_or(0);
-    
-    if existing_count > 0 {
-        return Ok(false); // Skip duplicate - already processed
-    }
 
-    // Create new completion entry
-    create_completion_entry(
-        todo_repo,
-        char_id,
-        &mapping.content_id,
-        &base_session_id,
-        encounter.fight_start,
-        &normalized_difficulty,
-    )?;
+    let conn = todo_repo.pool.get()?;
+    let existing_entry: Option<(i64, Option<i64>)> = conn.query_row(
+        "SELECT is_completed, timestamp FROM completion_status 
+         WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3 LIMIT 1",
+        params![char_id, &mapping.content_id, &session_id],
+        |row| Ok((row.get(0)?, row.get(1)?))
+    ).optional()?;
+
+    match existing_entry {
+        Some((is_completed, existing_timestamp)) => {
+            if is_completed == 1 {
+                eprintln!("Skipping encounter: {} - {} already completed for char_id {}", encounter.local_player, encounter.current_boss, char_id);
+                return Ok(false);
+            }
+
+            // Mark existing entry as completed instead of inserting a duplicate row
+            conn.execute(
+                "UPDATE completion_status SET is_completed = 1, timestamp = ?1, completion_source = ?2, details = ?3 WHERE char_id = ?4 AND content_id = ?5 AND session_id = ?6",
+                params![encounter.fight_start, "LOAlogs", normalized_difficulty, char_id, &mapping.content_id, &session_id],
+            )?;
+
+            println!(
+                "Updated existing completion_status for {} (char_id={}, content_id={}, session_id={}) from timestamp {:?} to {}",
+                encounter.current_boss, char_id, mapping.content_id, session_id, existing_timestamp, encounter.fight_start
+            );
+        }
+        None => {
+            // Create new completion entry when there is no existing gate-specific session_id
+            create_completion_entry(
+                todo_repo,
+                char_id,
+                &mapping.content_id,
+                &session_id,
+                encounter.fight_start,
+                &normalized_difficulty,
+            )?;
+        }
+    }
 
     // Sync entity data for this encounter
     if let Err(e) = sync_entity_data_for_encounter(todo_repo, &*settings_manager, encounter.id) {
@@ -306,6 +326,7 @@ fn sync_entity_data_for_encounter(todo_repo: &TodoRepository, settings_manager: 
 fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -> Result<Option<i64>> {
     let conn = todo_repo.pool.get()?;
     
+    // Try exact match first
     let mut stmt = conn.prepare(
         "SELECT char_id FROM conf_character WHERE char_name = ?1"
     )?;
@@ -313,6 +334,23 @@ fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -
     let result: Option<i64> = stmt
         .query_row([character_name], |row| row.get(0))
         .optional()?;
+    
+    if result.is_some() {
+        return Ok(result);
+    }
+    
+    // If exact match fails, try case-insensitive match
+    let mut stmt = conn.prepare(
+        "SELECT char_id FROM conf_character WHERE LOWER(char_name) = LOWER(?1)"
+    )?;
+    
+    let result: Option<i64> = stmt
+        .query_row([character_name], |row| row.get(0))
+        .optional()?;
+    
+    if result.is_none() {
+        eprintln!("Character '{}' not found in conf_character table (checked both exact and case-insensitive)", character_name);
+    }
     
     Ok(result)
 }

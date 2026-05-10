@@ -31,6 +31,18 @@ impl ResetService {
                 
                 println!("Next daily reset scheduled for: {}", next_reset.format("%Y-%m-%d %H:%M:%S UTC"));
                 
+                // Perform a startup / recovery reset check immediately.
+                let service = ResetService::new(pool.clone());
+                match service.perform_reset().await {
+                    Ok(message) => {
+                        println!("Startup reset check completed successfully: {}", message);
+                    },
+                    Err(e) => {
+                        eprintln!("Startup reset check failed: {}", e);
+                        eprintln!("Error details: {:?}", e);
+                    }
+                }
+
                 // Sleep until next reset time
                 sleep(sleep_duration).await;
                 

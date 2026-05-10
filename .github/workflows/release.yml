@@ -43,10 +43,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Update version and latest files
-        run: npm run prepare-release
-        if: github.event.inputs.version == ''
-
       - name: Read version from files
         id: version
         shell: pwsh

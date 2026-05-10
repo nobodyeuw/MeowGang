@@ -17,8 +17,8 @@ impl ResetRepository {
     }
 
     /// Reset all tasks based on their reset_schedule
-    /// - Daily tasks: reset if last_daily_reset is older than current daily reset time (11:00 UTC)
-    /// - Weekly tasks: reset if last_weekly_reset is older than current weekly reset time (Wednesday 11:00 UTC)
+    /// - Daily tasks: reset if last_daily_reset is older than the most recent daily reset time (10:00 UTC)
+    /// - Weekly tasks: reset if last_weekly_reset is older than the most recent weekly reset time (Wednesday 10:00 UTC)
     /// - Raids: reset with weekly schedule (no reset_schedule entry)
     pub fn reset_tasks_by_schedule(&self, tasks: &HashMap<String, GameTask>) -> Result<()> {
         let mut conn = self.pool.get()?;
@@ -36,31 +36,29 @@ impl ResetRepository {
         // Calculate current reset times - use UTC consistently
         // Tasks completed before this time should be reset
         let daily_reset_time = {
-            // Today's daily reset at 10:00 UTC
+            // Most recent daily reset at 10:00 UTC
             let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
-            if now >= today_reset {
-                today_reset.timestamp()
+            let reset_time = if now >= today_reset {
+                today_reset
             } else {
-                // If before 10:00 UTC today, use yesterday's reset time
-                (today_reset - chrono::Duration::days(1)).timestamp()
-            }
+                today_reset - chrono::Duration::days(1)
+            };
+            reset_time.timestamp_millis()
         };
 
         let weekly_reset_time = {
-            // Find next Wednesday at 10:00 UTC
+            // Most recent Wednesday reset at 10:00 UTC
             let mut reset_date = now.date_naive();
-            while reset_date.weekday().num_days_from_sunday() != 3 { // Wednesday (0=Sunday, 3=Wednesday)
-                reset_date = reset_date + chrono::Duration::days(1);
+            while reset_date.weekday().num_days_from_monday() != 2 { // Wednesday (0=Monday, 2=Wednesday)
+                reset_date = reset_date - chrono::Duration::days(1);
             }
-            // Set to 10:00 UTC
             let reset_time = reset_date.and_hms_opt(10, 0, 0).unwrap().and_utc();
-            let final_reset_time = if now >= reset_time {
-                // If we're past Wednesday's reset, go to next week
-                reset_time + chrono::Duration::weeks(1)
+            let final_reset_time = if now < reset_time {
+                reset_time - chrono::Duration::weeks(1)
             } else {
                 reset_time
             };
-            final_reset_time.timestamp()
+            final_reset_time.timestamp_millis()
         };
 
         // Update rested values for chaos and guardian (runs daily regardless of reset condition)

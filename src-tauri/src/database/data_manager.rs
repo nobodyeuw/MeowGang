@@ -149,59 +149,9 @@ impl DataManager {
 
     /// Update reset timestamps based on current time
     pub fn update_reset_timestamps(pool: &Pool<SqliteConnectionManager>) -> Result<()> {
-        let mut conn = pool.get()?;
-        let tx = conn.transaction()?;
-
-        let now = chrono::Utc::now();
-        let _timestamp = now.timestamp_millis();
-
-        // Get current reset times
-        let (last_daily, last_weekly): (i64, i64) = tx.query_row(
-            "SELECT last_daily_reset, last_weekly_reset FROM app_state LIMIT 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?))
-        ).unwrap_or((0, 0));
-
-        // Calculate daily reset (10 AM UTC)
-        let daily_reset_time = {
-            let mut reset_time = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
-            if now < reset_time {
-                reset_time = reset_time - chrono::Duration::days(1);
-            }
-            reset_time.timestamp_millis()
-        };
-
-        // Calculate weekly reset (Wednesday 10 AM UTC)
-        let weekly_reset_time = {
-            let mut reset_time = now.date_naive();
-            while reset_time.weekday().num_days_from_monday() != 2 { // Wednesday (0=Monday, 2=Wednesday)
-                reset_time = reset_time - chrono::Duration::days(1);
-            }
-            let mut reset_time = reset_time.and_hms_opt(10, 0, 0).unwrap().and_utc();
-            if now < reset_time {
-                reset_time = reset_time - chrono::Duration::weeks(1);
-            }
-            reset_time.timestamp_millis()
-        };
-
-        // Update if needed
-        if last_daily < daily_reset_time {
-            tx.execute(
-                "UPDATE app_state SET last_daily_reset = ?1",
-                params![daily_reset_time],
-            )?;
-            println!("Daily reset updated to {}", daily_reset_time);
-        }
-
-        if last_weekly < weekly_reset_time {
-            tx.execute(
-                "UPDATE app_state SET last_weekly_reset = ?1",
-                params![weekly_reset_time],
-            )?;
-            println!("Weekly reset updated to {}", weekly_reset_time);
-        }
-
-        tx.commit()?;
+        // Do not advance reset timestamps without actually performing a reset.
+        // The reset schedule is handled by ResetService, and last_daily_reset
+        // / last_weekly_reset should only change when a reset is executed.
         Ok(())
     }
 
