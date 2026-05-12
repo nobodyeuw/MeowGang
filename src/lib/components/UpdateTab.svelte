@@ -135,7 +135,7 @@
     </div>
     <div class="status-card">
       <span class="status-label">Latest Version</span>
-      <span class="status-value">{latestVersion ?? 'Unknown'}</span>
+      <span class="status-value">{latestVersion ?? currentVersion ?? 'Unknown'}</span>
     </div>
     <div class="status-card">
       <span class="status-label">Update Status</span>
@@ -216,7 +216,11 @@
   .update-tab {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
+    max-width: 1280px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 1rem;
   }
 
   .header-panel {
@@ -374,67 +378,62 @@
 
   .bug-severity {
     font-weight: 700;
-    padding: 0.2rem 0.55rem;
+    padding: 0.3rem 0.75rem;
     border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-width: auto;
-    box-shadow: inset 0 0 0 1px transparent;
     position: relative;
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   }
 
-  .bug-severity::before {
+  .bug-severity::after {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05));
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    -webkit-mask-composite: xor;
+    background: linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.04) 25%, rgba(255,255,255,0) 45%);
+    opacity: 0.55;
+    pointer-events: none;
+    transform: translateY(-10%) skewY(-3deg);
   }
 
   .bug-severity.severity-critical {
-    background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(239, 68, 68, 0.15));
-    color: #dc2626;
-    border: 1px solid rgba(244, 63, 94, 0.4);
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 45%, #b91c1c 100%);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow:
-      0 0 0 1px rgba(244, 63, 94, 0.2),
-      0 2px 8px rgba(244, 63, 94, 0.25),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 3px 12px rgba(220, 38, 38, 0.28);
   }
 
   .bug-severity.severity-critical:hover {
     transform: translateY(-1px);
     box-shadow:
-      0 0 0 1px rgba(244, 63, 94, 0.3),
-      0 4px 12px rgba(244, 63, 94, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 5px 16px rgba(220, 38, 38, 0.35);
   }
 
   .bug-severity.severity-low-priority {
-    background: linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(245, 158, 11, 0.15));
-    color: #b45309;
-    border: 1px solid rgba(250, 204, 21, 0.4);
+    background: linear-gradient(135deg, #fde68a 0%, #f59e0b 45%, #d97706 100%);
+    color: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow:
-      0 0 0 1px rgba(250, 204, 21, 0.2),
-      0 2px 8px rgba(250, 204, 21, 0.25),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 3px 12px rgba(245, 158, 11, 0.24);
   }
 
   .bug-severity.severity-low-priority:hover {
     transform: translateY(-1px);
     box-shadow:
-      0 0 0 1px rgba(250, 204, 21, 0.3),
-      0 4px 12px rgba(250, 204, 21, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 5px 16px rgba(245, 158, 11, 0.32);
   }
 
   .bug-severity.severity-moderate {

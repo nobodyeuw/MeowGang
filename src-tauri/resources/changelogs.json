@@ -1,5 +1,17 @@
 {
   "versions": [
+
+    {
+      "version": "1.0.10",
+      "date": "2026-05-12",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "UI updates in the Updates tab"
+        }
+      ]
+    },
+
     {
       "version": "1.0.9",
       "date": "2026-05-12",
@@ -15,16 +27,6 @@
         {
           "type": "Fixed",
           "description": "Fixed encounters.db sync delay so new encounter entries appear immediately without requiring a reload."
-        }
-      ]
-    },
-    {
-      "version": "1.0.8",
-      "date": "2026-05-10",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "- Fixed an issue related to the reset handler that wouldn't properly reset the state of tasks. This fix ensures that all tasks are now correctly reset to their initial state at 10am UTC, improving the overall functionality and user experience of the application."
         }
       ]
     }
