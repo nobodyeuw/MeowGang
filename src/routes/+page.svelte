@@ -5,9 +5,10 @@
   import Dashboard from '$lib/components/Dashboard.svelte';
   import Todo from '$lib/components/Todo.svelte';
   import Settings from '$lib/components/Settings.svelte';
+  import UpdateTab from '$lib/components/UpdateTab.svelte';
   import EncounterSyncStatus from '$lib/components/EncounterSyncStatus.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
-  import { initializeApp, activeFilterCharId, nextDailyReset } from '$lib/store';
+  import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
   import { GAME_TASKS } from '$lib/data/tasks';
   import { RAIDS } from '$lib/data/raids';
@@ -55,6 +56,7 @@
 
     (async () => {
       await initializeApp();
+      checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
       
       // Initialize gold logging system
       initializeGoldLogging();
@@ -225,6 +227,20 @@
         {#if headerContent}
           <div class="header-info">{headerContent}</div>
         {/if}
+
+        {#if $updateAvailable}
+          <div class="app-alert update-banner">
+            <div class="alert-copy">
+              <strong>Update available:</strong> version {$latestAppVersion} is ready. Current version: {$currentAppVersion}.
+            </div>
+            <div class="banner-actions">
+              <button class="banner-button" on:click={() => switchTab('updates')}>View updates</button>
+              <button class="banner-button secondary" on:click={checkForAppUpdates} disabled={$isUpdateChecking}>
+                {$isUpdateChecking ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+        {/if}
       </div>
       
       <!-- Settings Sub-Tabs (only shown when settings tab is active) -->
@@ -270,6 +286,8 @@
         <Todo highlightCharId={$activeFilterCharId} />
       {:else if activeTab === 'settings'}
         <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e) => activeSettingsTab = e.detail} />
+      {:else if activeTab === 'updates'}
+        <UpdateTab />
       {:else if activeTab === 'encounters'}
         <EncounterSyncStatus />
       {/if}
@@ -367,6 +385,49 @@
 
   .header-title {
     flex: 1;
+  }
+
+  .update-banner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.9rem 1rem;
+    margin-top: 0.75rem;
+    border-radius: 16px;
+    background: rgba(255, 210, 0, 0.12);
+    border: 1px solid rgba(255, 191, 0, 0.25);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .alert-copy {
+    font-size: 0.95rem;
+  }
+
+  .banner-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .banner-button {
+    border: none;
+    border-radius: 12px;
+    padding: 0.65rem 1rem;
+    background: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .banner-button.secondary {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .banner-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .title-row {

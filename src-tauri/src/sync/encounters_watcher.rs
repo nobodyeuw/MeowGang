@@ -1,16 +1,18 @@
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, command};
+use tauri::{AppHandle, Emitter, Manager, command};
 use serde_json::json;
+use notify::{recommended_watcher, EventKind, RecursiveMode, Watcher};
 
 use crate::database::repositories::todo_repository::TodoRepository;
-use crate::handlers::encounter_sync_handlers::sync_encounters_to_completions;
+use crate::handlers::encounter_sync_handlers::{sync_encounters_to_completions, sync_encounters_to_completions_internal};
 
-/// Simple periodic checker for encounters.db changes
+/// File watcher for encounters.db changes that triggers live sync
 pub struct EncountersFileWatcher {
     app: AppHandle,
     todo_repo: Arc<TodoRepository>,
-    last_sync: Arc<std::sync::Mutex<Instant>>,
+    last_sync: Arc<Mutex<Instant>>,
     encounters_db_path: String,
 }
 
@@ -19,72 +21,98 @@ impl EncountersFileWatcher {
         Self {
             app,
             todo_repo,
-            last_sync: Arc::new(std::sync::Mutex::new(Instant::now())),
+            last_sync: Arc::new(Mutex::new(Instant::now())),
             encounters_db_path,
         }
     }
 
-    /// Start periodic checking for encounters.db changes
+    /// Start watching encounters.db for file changes and sync new entries immediately
     pub fn start_watching(&self) -> Result<(), Box<dyn std::error::Error>> {
         let app = self.app.clone();
         let todo_repo = self.todo_repo.clone();
         let last_sync = self.last_sync.clone();
-
-        // Spawn background task to periodically check for changes
         let encounters_db_path = self.encounters_db_path.clone();
+        let watch_path = PathBuf::from(&encounters_db_path);
+        let print_watch_path = watch_path.clone();
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<notify::Result<notify::Event>>();
+
+        let mut watcher = recommended_watcher(move |res| {
+            let _ = tx.send(res);
+        })?;
+
+        watcher.watch(&watch_path, RecursiveMode::NonRecursive)?;
+
         tauri::async_runtime::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(30)).await; // Check every 30 seconds
-                
-                // Check if enough time has passed since last sync (minimum 60 seconds)
-                let now = Instant::now();
-                let should_sync = {
-                    let last_sync_guard = last_sync.lock().unwrap();
-                    now.duration_since(*last_sync_guard) > Duration::from_secs(60)
-                };
-                
-                if should_sync {
-                    println!("Periodic check: checking for encounters.db changes...");
-                    println!("Using configured encounters.db path: {}", encounters_db_path);
-                    
-                    // Check file modification time
-                    let file_modified = match std::fs::metadata(&encounters_db_path) {
-                        Ok(metadata) => metadata.modified().ok(),
-                        Err(e) => {
-                            eprintln!("Failed to read encounters.db metadata: {}", e);
-                            None
+            let _watcher = watcher;
+            while let Some(event_res) = rx.recv().await {
+                match event_res {
+                    Ok(event) => {
+                        let is_relevant = matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
+                            && event.paths.iter().any(|path| path == &watch_path || path.ends_with(&watch_path));
+
+                        if !is_relevant {
+                            continue;
                         }
-                    };
-                    
-                    // For now, just emit monitoring event with file check info
-                    let sync_result = crate::handlers::encounter_sync_handlers::SyncResult {
-                        synced_count: 0,
-                        skipped_count: 0,
-                        errors: vec![],
-                        duration_ms: 0,
-                    };
-                    
-                    // Update last sync time
-                    *last_sync.lock().unwrap() = now;
-                    
-                    // Emit event to frontend with file check info
-                    let _ = app.emit("encounters-auto-sync-complete", json!({
-                        "synced_count": sync_result.synced_count,
-                        "skipped_count": sync_result.skipped_count,
-                        "errors": &sync_result.errors,
-                        "duration_ms": sync_result.duration_ms,
-                        "trigger": "periodic_check",
-                        "encounters_db_path": encounters_db_path,
-                        "file_modified": file_modified.map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()).unwrap_or(0),
-                        "message": "File watcher active - checking for new entries"
-                    }));
-                    
-                    println!("Periodic check completed - monitoring: {}", encounters_db_path);
+
+                        let now = Instant::now();
+                        let should_sync = {
+                            let last_sync_guard = last_sync.lock().unwrap();
+                            now.duration_since(*last_sync_guard) > Duration::from_secs(10)
+                        };
+
+                        if !should_sync {
+                            continue;
+                        }
+
+                        println!("Detected encounters.db change, starting auto sync: {}", &encounters_db_path);
+                        // Give the external writer a moment to finish updating the file.
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+
+                        let settings_manager = app.state::<crate::settings::SettingsManager>();
+                        let sync_result = sync_encounters_to_completions_internal(
+                            app.clone(),
+                            todo_repo.clone(),
+                            settings_manager.inner(),
+                        );
+
+                        let sync_payload = match sync_result {
+                            Ok(result) => {
+                                *last_sync.lock().unwrap() = now;
+                                json!({
+                                    "synced_count": result.synced_count,
+                                    "skipped_count": result.skipped_count,
+                                    "errors": result.errors,
+                                    "duration_ms": result.duration_ms,
+                                    "trigger": "file_change",
+                                    "encounters_db_path": encounters_db_path,
+                                    "message": "Auto synced new encounters from encounters.db"
+                                })
+                            }
+                            Err(error_message) => {
+                                eprintln!("Encounter auto-sync failed: {}", error_message);
+                                json!({
+                                    "synced_count": 0,
+                                    "skipped_count": 0,
+                                    "errors": [error_message],
+                                    "duration_ms": 0,
+                                    "trigger": "file_change",
+                                    "encounters_db_path": encounters_db_path,
+                                    "message": "Encounter auto-sync failed"
+                                })
+                            }
+                        };
+
+                        let _ = app.emit("encounters-auto-sync-complete", sync_payload);
+                    }
+                    Err(err) => {
+                        eprintln!("Encounter watcher error: {}", err);
+                    }
                 }
             }
         });
 
-        println!("Started periodic encounters.db monitoring (every 30 seconds)");
+        println!("Started encounters.db watcher for path {:?}", print_watch_path);
         Ok(())
     }
 }

@@ -1,12 +1,30 @@
 {
   "versions": [
     {
-      "version": "1.0.7",
-      "date": "2026-04-27",
+      "version": "1.0.9",
+      "date": "2026-05-12",
       "changes": [
         {
           "type": "Fixed",
-          "description": "- Dashboard character loading issues #3"
+          "description": "Fixed roster add refresh so new rosters appear immediately without requiring a page reload."
+        },
+        {
+          "type": "Fixed",
+          "description": "Fixed settings tab UI so tracking and raid matrices can now use the full window space."
+        },
+        {
+          "type": "Fixed",
+          "description": "Fixed encounters.db sync delay so new encounter entries appear immediately without requiring a reload."
+        }
+      ]
+    },
+    {
+      "version": "1.0.8",
+      "date": "2026-05-10",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "- Fixed an issue related to the reset handler that wouldn't properly reset the state of tasks. This fix ensures that all tasks are now correctly reset to their initial state at 10am UTC, improving the overall functionality and user experience of the application."
         }
       ]
     }

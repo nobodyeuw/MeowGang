@@ -25,11 +25,10 @@ pub struct EncounterPreview {
     pub cleared: bool,
 }
 
-#[command]
-pub fn sync_encounters_to_completions(
+pub fn sync_encounters_to_completions_internal(
     app: AppHandle,
-    todo_repo: State<'_, Arc<TodoRepository>>,
-    settings_manager: State<'_, crate::settings::SettingsManager>,
+    todo_repo: Arc<TodoRepository>,
+    settings_manager: &crate::settings::SettingsManager,
 ) -> Result<SyncResult, String> {
     let start_time = std::time::Instant::now();
     let boss_mapper = BossMapper::new();
@@ -42,7 +41,7 @@ pub fn sync_encounters_to_completions(
     let mut errors = Vec::new();
 
     // Get encounters.db path from JSON settings
-    let encounters_db_path = get_encounters_db_path_from_settings(settings_manager.inner())?;
+    let encounters_db_path = get_encounters_db_path_from_settings(settings_manager)?;
         
     // Get new cleared encounters from encounters.db
     let encounters = match get_cleared_encounters(&encounters_db_path, &todo_repo.pool) {
@@ -62,7 +61,7 @@ pub fn sync_encounters_to_completions(
     // Process each encounter
     let total_encounters = encounters.len();
     for encounter in encounters {
-        match process_encounter(&encounter, &boss_mapper, &*todo_repo, &*settings_manager) {
+        match process_encounter(&encounter, &boss_mapper, &todo_repo, settings_manager) {
             Ok(success) => {
                 if success {
                     synced_count += 1;
@@ -100,6 +99,19 @@ pub fn sync_encounters_to_completions(
         errors,
         duration_ms: duration,
     })
+}
+
+#[command]
+pub fn sync_encounters_to_completions(
+    app: AppHandle,
+    todo_repo: State<'_, Arc<TodoRepository>>,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<SyncResult, String> {
+    sync_encounters_to_completions_internal(
+        app,
+        todo_repo.inner().clone(),
+        settings_manager.inner(),
+    )
 }
 
 #[command]

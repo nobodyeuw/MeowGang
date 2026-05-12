@@ -1450,8 +1450,11 @@
 
   <style>
   .raid-matrix-settings {
+    display: flex;
+    flex-direction: column;
     padding: 0;
     height: 100%;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -1511,15 +1514,19 @@
   }
 
   .matrix-container {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
     background: var(--md-sys-color-surface);
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--md-sys-color-outline);
-    height: calc(100vh - 200px);
-    max-height: 600px;
+    height: 100%;
+    max-height: none;
   }
 
   .matrix-wrapper {
+    min-height: 0;
     overflow-x: auto;
     overflow-y: auto;
     height: 100%;

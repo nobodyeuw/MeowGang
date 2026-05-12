@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { rosters, characters, activeRosterId, gameClasses, loadCharacters, setActiveRoster, updateCharacter, loadRosters, scrapeRoster } from '$lib/store';
+  import { rosters, characters, activeRosterId, gameClasses, loadCharacters, updateCharacter, loadRosters, scrapeRoster } from '$lib/store';
   import type { Character } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
   import { dndzone } from 'svelte-dnd-action';
@@ -17,10 +17,6 @@
   let showSuccessMessage = false;
   let dndItems: any[] = [];
   let isDragging = false;
-
-  // Import activeRosterId store for direct access
-  import { writable } from 'svelte/store';
-  const activeRosterIdStore = writable('');
 
   // Load all characters for all rosters on component mount
   onMount(async () => {
@@ -152,19 +148,12 @@
     items: dndItems
   };
 
-  // Load initial data when component mounts
-  onMount(async () => {
-    const { loadRosters } = await import('$lib/store');
-    console.log('Component mounted, loading rosters...');
-    await loadRosters();
-    console.log('Rosters loaded, count:', $rosters.length);
-    console.log('Current activeRosterId:', $activeRosterId);
-  });
 
   // Auto-select first roster when rosters are loaded and no roster is active
   $: if ($rosters.length > 0 && !$activeRosterId) {
     console.log('Auto-selecting first roster:', $rosters[0].id);
-    setActiveRoster($rosters[0].id);
+    activeRosterId.set($rosters[0].id);
+    localStorage.setItem('activeRosterId', $rosters[0].id);
   }
 
   // Debug reactive statement to track changes
@@ -173,17 +162,29 @@
   async function addRoster() {
     if (newRosterName.trim()) {
       isLoading = true;
+      const rosterName = newRosterName.trim();
+
       try {
         // Call scrapeRoster frontend function (includes complete initialization)
-        const result = await scrapeRoster(newRosterName.trim());
+        const result = await scrapeRoster(rosterName);
         console.log('Roster scraped successfully:', result);
-        
-        // Reload rosters and characters
-        await loadRostersAndCharacters();
-        
-        // Set the newly created roster as active
-        activeRosterId.set(newRosterName.trim());
-        
+
+        // Reload rosters to resolve the newly created roster id
+        const allRosters = await loadRosters();
+        const newRoster = allRosters.find(roster => roster.roster_name === rosterName)
+          || allRosters.find(roster => roster.roster_name.toLowerCase() === rosterName.toLowerCase());
+
+        await loadAllCharacters();
+
+        if (newRoster) {
+          activeRosterId.set(newRoster.id);
+          localStorage.setItem('activeRosterId', newRoster.id);
+        } else {
+          console.warn('Could not resolve new roster id after scrape; falling back to roster name', rosterName);
+          activeRosterId.set(rosterName);
+          localStorage.setItem('activeRosterId', rosterName);
+        }
+
         newRosterName = '';
         showAddRosterDialog = false;
       } catch (error) {
@@ -192,19 +193,6 @@
       } finally {
         isLoading = false;
       }
-    }
-  }
-
-  async function loadRostersAndCharacters() {
-    // Import loadRosters function
-    const { loadRosters } = await import('$lib/store');
-    await loadRosters();
-    
-    // Wait a tick for the store to update
-    await new Promise(resolve => setTimeout(resolve, 0));
-    
-    if ($activeRosterId) {
-      await loadCharacters($activeRosterId);
     }
   }
 

@@ -171,6 +171,11 @@ export const gameTasks = writable<GameTask[]>([]);
 export const todoMatrix = writable<TodoMatrixResponse | null>(null);
 export const activeFilterCharId = writable<number | null>(null);
 export const nextDailyReset = writable<string>('');
+export const updateAvailable = writable<boolean>(false);
+export const currentAppVersion = writable<string>('');
+export const latestAppVersion = writable<string | null>(null);
+export const isUpdateChecking = writable<boolean>(false);
+export const updateReleaseNotes = writable<string | null>(null);
 
 // Derived Store - filter characters by active roster
 export const activeCharacters = derived(
@@ -341,11 +346,11 @@ export function removeRoster(rosterId: string) {
   activeRosterId.update(current => current === rosterId ? '' : current);
 }
 
-export function setActiveRoster(rosterId: string) {
+export async function setActiveRoster(rosterId: string) {
   console.log('setActiveRoster called with:', rosterId);
   activeRosterId.set(rosterId);
   localStorage.setItem('activeRosterId', rosterId);
-  loadCharacters(rosterId); // Load characters for the selected roster
+  await loadCharacters(rosterId); // Load characters for the selected roster
 }
 
 export function addCharacter(character: Character) {
@@ -711,6 +716,23 @@ export async function updateRaidGateStatus(characterId: number, raidId: string, 
   } catch (error) {
     console.error('Failed to update raid gate status:', error);
     throw error;
+  }
+}
+
+export async function checkForAppUpdates() {
+  try {
+    isUpdateChecking.set(true);
+    const updateData: any = await invoke('check_for_updates');
+    currentAppVersion.set(updateData.current_version ?? '');
+    latestAppVersion.set(updateData.latest_version ?? null);
+    updateAvailable.set(!!updateData.update_available);
+    updateReleaseNotes.set(updateData.body ?? null);
+    return updateData;
+  } catch (error) {
+    console.error('Failed to fetch update info:', error);
+    return null;
+  } finally {
+    isUpdateChecking.set(false);
   }
 }
 

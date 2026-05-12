@@ -1,26 +1,17 @@
 {
   "bugs": [
     {
-      "severity": "Major",
-      "description": "Raid completion isnt loading immediately, currently requires a restart/reload to show updated data"
-    },
-
-    {
-      "severity": "Major",
+      "severity": "Critical",
       "description": "Auto-start options aren't working"
     },
 
     {
-      "severity": "Minor",
+      "severity": "Low Priority",
       "description": "Roster-Wide buttons not working/resetting properly"
     },
     {
-      "severity": "Minor", 
+      "severity": "Low Priority", 
       "description": "Raid difficulty settings not always saving correctly > workaround: change difficulty per gate in child-rows if master-row shows \"mixed\" state unintentionally"
-    },
-    {
-      "severity": "Minor",
-      "description": "database updates not always reflecting immediately"
     }
   ]
 }

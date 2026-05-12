@@ -33,6 +33,15 @@
       <span class="nav-icon">⚙️</span>
       <span class="nav-text">Settings</span>
     </button>
+
+    <button 
+      class="nav-item"
+      class:active={activeTab === 'updates'}
+      on:click={() => switchTab('updates')}
+    >
+      <span class="nav-icon">🧾</span>
+      <span class="nav-text">Updates</span>
+    </button>
       </div>
   
   <PlannedFeatures />

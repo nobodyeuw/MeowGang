@@ -3,7 +3,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use std::collections::HashMap;
-use chrono::Datelike;
+use chrono::{Datelike, TimeZone};
 use crate::database::data_manager::GameTask;
 
 #[derive(Debug, Clone)]
@@ -203,13 +203,15 @@ impl ResetRepository {
                 let now = chrono::Utc::now();
                 let days_since_update = if last_updated > 0 {
                     // Calculate full days since last update
-                    let last_updated_date = chrono::DateTime::from_timestamp(last_updated, 0).unwrap_or(now);
-                    let days = (now - last_updated_date).num_days();
-                    // Only count full days that have passed (not including today)
-                    if days > 0 { days as i32 } else { 0 }
-                } else {
-                    // No last_updated timestamp, assume maximum accumulation
-                    10 // Default to 1 day if no history
+let last_updated_date = chrono::Utc.timestamp_millis_opt(last_updated)
+                    .single()
+                    .unwrap_or(now);
+                let days = (now - last_updated_date).num_days();
+                // Only count full days that have passed (not including today)
+                if days > 0 { days as i32 } else { 0 }
+            } else {
+                // No last_updated timestamp, assume one day of accumulation
+                1
                 };
                 
                 // Add +10 for each day not completed (max 100)
