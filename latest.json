@@ -1,14 +1,14 @@
 {
   "version": "1.0.9",
-  "notes": "### v1.0.9\n\n- **Fixed:** - Fixed roster add refresh so new rosters appear immediately without requiring a page reload.\n\n- **Fixed:** - encounters.db sync delay\n\n- **Fixed:** - Fixed settings tab UI so tracking and raid matrices can now use the full window space.\n\n## Installation\nDownload `loatracker_1.0.9_x64-setup.exe` below.",
-  "pub_date": "2026-05-12T15:29:42.861Z",
+  "notes": "### v1.0.9\n\n- **Fixed:** - Fixed roster add refresh so new rosters appear immediately without requiring a page reload.\n\n- **Fixed:** - encounters.db sync delay\n\n- **Fixed:** - Fixed settings tab UI so tracking and raid matrices can now use the full window space.\n\n## Installation\nDownload `loatracker_1.0.9_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.0.9_x64-setup.exe` below.",
+  "pub_date": "2026-05-12T14:39:46.241Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3R3SVlaWkhPY2VDbHBKWTd4ay93dVhoQXNCOUN1cDFiMzVEeVRuNmxVTENkOVBkbm10N1hRelR4S05uRTZKWmVEK21DbzdudEcwdHFtSWZBWE4ycHdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAzNzc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjdfeDY0LXNldHVwLmV4ZQp6a3oySi8rSUI2VkZtSmQ5MERPNzh5bzNjeGE4MElDTThlQ0Z3c29HcXJObnFlczJpeGtpZFJtSXJLL0pNL3Ywak9RRG9sTHVzMGZVdEttTFpRU21EZz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3NuV3BFdWMwdjk4OVRtZmVPMU1GRmVQVXFmK3A4TWdhZnBZTzZNOWJjL2NpTEIybGg5YWl1REJpTUFsNHYrUWU1U1UwN2NTbGZkQXNnSm5FQnoxb1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTk2NzgxCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjlfeDY0LXNldHVwLmV4ZQpLcDFLWGV5UG5NWXdpbGxZZGpvc3VNTTMrMG1rSFlMZGF5ZGtkaUZlaXpwTjJYcDRSWVpUbjVJN3NOOEpGZ0ExUm9oMVhWRW1SbjJiL1dHZHp4QWdEUT09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.9/LOA.Tracker_1.0.9_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3R3SVlaWkhPY2VDbHBKWTd4ay93dVhoQXNCOUN1cDFiMzVEeVRuNmxVTENkOVBkbm10N1hRelR4S05uRTZKWmVEK21DbzdudEcwdHFtSWZBWE4ycHdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MzAzNzc5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjdfeDY0LXNldHVwLmV4ZQp6a3oySi8rSUI2VkZtSmQ5MERPNzh5bzNjeGE4MElDTThlQ0Z3c29HcXJObnFlczJpeGtpZFJtSXJLL0pNL3Ywak9RRG9sTHVzMGZVdEttTFpRU21EZz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3NuV3BFdWMwdjk4OVRtZmVPMU1GRmVQVXFmK3A4TWdhZnBZTzZNOWJjL2NpTEIybGg5YWl1REJpTUFsNHYrUWU1U1UwN2NTbGZkQXNnSm5FQnoxb1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTk2NzgxCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjlfeDY0LXNldHVwLmV4ZQpLcDFLWGV5UG5NWXdpbGxZZGpvc3VNTTMrMG1rSFlMZGF5ZGtkaUZlaXpwTjJYcDRSWVpUbjVJN3NOOEpGZ0ExUm9oMVhWRW1SbjJiL1dHZHp4QWdEUT09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.9/LOA.Tracker_1.0.9_x64-setup.exe"
     }
   }
