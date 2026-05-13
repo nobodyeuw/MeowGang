@@ -2,6 +2,17 @@
   "versions": [
 
     {
+      "version": "1.0.13",
+      "date": "2026-05-13",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "Another typo in the backend. This should be the last one, I promise."
+        }
+      ]
+    },
+
+    {
       "version": "1.0.12",
       "date": "2026-05-13",
       "changes": [
