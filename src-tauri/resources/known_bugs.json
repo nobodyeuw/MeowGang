@@ -4,7 +4,7 @@
     {
       "severity": "Critical",
       "description": "Rested logic isn't working correctly, which causes no increase in rested values on daily reset. This issue is being actively investigated."
-    }
+    },
 
     {
       "severity": "Critical",
