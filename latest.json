@@ -1,15 +1,15 @@
 {
-  "version": "1.0.11",
-  "notes": "### v1.0.11\n\n- **Fixed:** UI changes in the Updates tab.\n\n-**Added:** 'HIDE FROM DASHBOARD' option for characters. This allows you to hide specific characters from the dashboard view while still keeping them in the app for tracking purposes. You can find this option in the roster settings.\n\n## Installation\nDownload `loatracker_1.0.11_x64-setup.exe` below.",
-  "pub_date": "2026-05-13T08:43:54.361Z",
+  "version": "1.0.12",
+  "notes": "### v1.0.12\n\n- **Fixed:** Typo in the backend",
+  "pub_date": "2026-05-13T12:43:54.361Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa25Qa2hMc0VVVUpXRVF0R09XaW5WSFVnNElMcldvbnQ2Nm8xd0x4ek10aUZxZGFzUTVZZUZIdHVWbjV0NkxtRE9vbzZBMmluRjgwaTNaZGpwdjBIdEE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NjYxODMwCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjExX3g2NC1zZXR1cC5leGUKcmh1R25aTWw3QlJHaEl5Q2VVWXdpd3Y1bkRodElDT1FQK3BCdU9zSGpjNHVqUG8vMytuODV2eWVYWlVyNXJQb2tzNUxsNytiNUNwaXZZakh2UVRxQmc9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.11/LOA.Tracker_1.0.11_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.12/LOA.Tracker_1.0.12_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa25Qa2hMc0VVVUpXRVF0R09XaW5WSFVnNElMcldvbnQ2Nm8xd0x4ek10aUZxZGFzUTVZZUZIdHVWbjV0NkxtRE9vbzZBMmluRjgwaTNaZGpwdjBIdEE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NjYxODMwCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjExX3g2NC1zZXR1cC5leGUKcmh1R25aTWw3QlJHaEl5Q2VVWXdpd3Y1bkRodElDT1FQK3BCdU9zSGpjNHVqUG8vMytuODV2eWVYWlVyNXJQb2tzNUxsNytiNUNwaXZZakh2UVRxQmc9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.11/LOA.Tracker_1.0.11_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.12/LOA.Tracker_1.0.12_x64-setup.exe"
     }
   }
 }

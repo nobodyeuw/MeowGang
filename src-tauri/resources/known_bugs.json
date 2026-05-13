@@ -1,8 +1,19 @@
 {
   "bugs": [
+
+    {
+      "severity": "Critical",
+      "description": "Rested logic isn't working correctly, which causes no increase in rested values on daily reset. This issue is being actively investigated."
+    }
+
     {
       "severity": "Critical",
       "description": "Auto-start options aren't working"
+    },
+
+    {
+      "severity": "Critical",
+      "description": "encounters.db sync may toggle all gates to 'completed' state even if only gate 1 was completed. This is a known issue with the encounters.db sync logic and is being actively investigated. The workaround is to not get jailed and fully complete the raid in one go."
     },
 
     {

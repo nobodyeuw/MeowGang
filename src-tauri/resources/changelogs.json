@@ -2,6 +2,17 @@
   "versions": [
 
     {
+      "version": "1.0.12",
+      "date": "2026-05-13",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "Typo in the backend."
+        }
+      ]
+    },
+
+    {
       "version": "1.0.11",
       "date": "2026-05-13",
       "changes": [
@@ -12,36 +23,6 @@
         {
           "type": "Added",
           "description": "'HIDE FROM DASHBOARD' option for characters. This allows you to hide specific characters from the dashboard view while still keeping them in the app for tracking purposes. You can find this option in the roster settings."
-        }
-      ]
-    },
-
-    {
-      "version": "1.0.10",
-      "date": "2026-05-12",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "UI updates in the Updates tab"
-        }
-      ]
-    },
-
-    {
-      "version": "1.0.9",
-      "date": "2026-05-12",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "Fixed roster add refresh so new rosters appear immediately without requiring a page reload."
-        },
-        {
-          "type": "Fixed",
-          "description": "Fixed settings tab UI so tracking and raid matrices can now use the full window space."
-        },
-        {
-          "type": "Fixed",
-          "description": "Fixed encounters.db sync delay so new encounter entries appear immediately without requiring a reload."
         }
       ]
     }
