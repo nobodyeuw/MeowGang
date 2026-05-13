@@ -81,6 +81,7 @@ pub async fn scrape_roster(
         combat_power: char.combat_power,
         display_order: char.display_order,
         earns_gold: char.earns_gold,
+        hide_from_dashboard: false,
         class_display_name: char.class_display_name,
     }).collect();
     

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter};
 use crate::roster::Character;
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold
+                    combat_power, display_order, earns_gold, hide_from_dashboard
              FROM conf_character 
              WHERE roster_id = ?1
              ORDER BY display_order"
@@ -65,6 +65,7 @@ impl CharacterRepository {
                 combat_power: row.get(6)?,
                 display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
                 earns_gold: row.get(8)?,
+                hide_from_dashboard: row.get(9)?,
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
@@ -81,7 +82,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold, class_display_name
+                    combat_power, display_order, earns_gold, hide_from_dashboard, class_display_name
              FROM conf_character 
              WHERE char_id = ?1"
         )?;
@@ -97,6 +98,7 @@ impl CharacterRepository {
                 combat_power: row.get(6)?,
                 display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
                 earns_gold: row.get(8)?,
+                hide_from_dashboard: row.get(9)?,
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
@@ -112,7 +114,7 @@ impl CharacterRepository {
         let mut stmt = conn.prepare(
             "SELECT c.char_id, c.char_name, c.class_id, c.class_display_name, 
                     c.item_level, c.combat_power, c.roster_name, 
-                    c.display_order, c.earns_gold
+                    c.display_order, c.earns_gold, c.hide_from_dashboard
              FROM conf_character c
              ORDER BY c.display_order, c.char_name"
         )?;
@@ -141,12 +143,31 @@ impl CharacterRepository {
 
     pub fn update_character_settings(&self, character_id: i64, settings: &crate::models::CharacterSettings) -> Result<()> {
         let conn = self.pool.get()?;
-        conn.execute(
-            "UPDATE conf_character 
-             SET earns_gold = ?1
-             WHERE char_id = ?2",
-            params![settings.earns_gold, character_id],
-        )?;
+
+        let mut set_clauses = Vec::new();
+        let mut params: Vec<rusqlite::types::Value> = Vec::new();
+
+        if let Some(earns_gold) = settings.earns_gold {
+            set_clauses.push("earns_gold = ?".to_string());
+            params.push(earns_gold.into());
+        }
+
+        if let Some(hide_from_dashboard) = settings.hide_from_dashboard {
+            set_clauses.push("hide_from_dashboard = ?".to_string());
+            params.push(hide_from_dashboard.into());
+        }
+
+        if set_clauses.is_empty() {
+            return Ok(());
+        }
+
+        let sql = format!(
+            "UPDATE conf_character SET {} WHERE char_id = ?",
+            set_clauses.join(", ")
+        );
+
+        params.push(character_id.into());
+        conn.execute(&sql, params_from_iter(params.iter()))?;
         Ok(())
     }
 
@@ -189,10 +210,20 @@ impl CharacterRepository {
     pub fn save_character_from_scraper(&self, character: &Character, roster_id: &str) -> Result<i64> {
         let conn = self.pool.get()?;
         conn.execute(
-            "INSERT OR REPLACE INTO conf_character 
+            "INSERT INTO conf_character 
              (char_id, char_name, roster_id, roster_name, class_id, item_level, 
-              combat_power, display_order, earns_gold, class_display_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+              combat_power, display_order, earns_gold, hide_from_dashboard, class_display_name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(char_id) DO UPDATE SET
+               char_name = excluded.char_name,
+               roster_id = excluded.roster_id,
+               roster_name = excluded.roster_name,
+               class_id = excluded.class_id,
+               item_level = excluded.item_level,
+               combat_power = excluded.combat_power,
+               display_order = excluded.display_order,
+               earns_gold = excluded.earns_gold,
+               class_display_name = excluded.class_display_name",
             params![
                 character.char_id,
                 character.char_name,
@@ -203,6 +234,7 @@ impl CharacterRepository {
                 character.combat_power,
                 character.display_order,
                 character.earns_gold,
+                false,
                 character.class_display_name
             ],
         )?;

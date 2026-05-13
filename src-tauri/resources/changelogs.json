@@ -2,6 +2,21 @@
   "versions": [
 
     {
+      "version": "1.0.11",
+      "date": "2026-05-13",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "UI changes in the Updates tab."
+        },
+        {
+          "type": "Added",
+          "description": "'HIDE FROM DASHBOARD' option for characters. This allows you to hide specific characters from the dashboard view while still keeping them in the app for tracking purposes. You can find this option in the roster settings."
+        }
+      ]
+    },
+
+    {
       "version": "1.0.10",
       "date": "2026-05-12",
       "changes": [

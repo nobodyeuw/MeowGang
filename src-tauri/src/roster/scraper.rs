@@ -41,6 +41,7 @@ pub struct Character {
     pub combat_power: f64,
     pub display_order: i64,
     pub earns_gold: bool,
+    pub hide_from_dashboard: bool,
     pub class_display_name: Option<String>,
 }
 
@@ -330,6 +331,7 @@ impl HumanizedScraper {
                     combat_power: combat_power,
                     display_order: (i + 1) as i64,
                     earns_gold: false,
+                    hide_from_dashboard: false,
                     class_display_name: None,
                 });
             }

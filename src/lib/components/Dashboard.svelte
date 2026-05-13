@@ -12,7 +12,7 @@
   export let setHeaderContent: (content: string) => void;
 
   // State
-  let allCharacters: Character[] = [];
+  let visibleCharacters: Character[] = [];
   let loading = true;
   let goldStats: GoldStatsResponse | null = null;
   let totalRaidsCompleted = 0;
@@ -58,11 +58,11 @@
 
   // Load characters for ALL rosters
   async function loadAllCharacters() {
-    allCharacters = [...$characters];
+    visibleCharacters = $characters.filter(char => !char.hide_from_dashboard);
     loading = false;
     
     // Calculate stats
-    await calculateGlobalStats();
+    await calculateGlobalStats(visibleCharacters);
     
     // Update header
     if (setHeaderContent) {
@@ -71,11 +71,8 @@
   }
 
   // Calculate global statistics using reactive data
-  async function calculateGlobalStats() {
+  async function calculateGlobalStats(characters: Character[]) {
     try {
-      // Use reactive data from stores - no manual loading needed
-      const allCharactersData = $characters;
-      
       // Load gold stats for all rosters combined
       console.log('Fetching gold stats for all rosters');
       const result = await invoke('get_weekly_gold_stats', { rosterId: null });
@@ -131,7 +128,7 @@
         rosterDataMap[roster.id] = snapshot;
       }
       
-      for (const character of allCharacters) {
+      for (const character of characters) {
         try {
           const key = String(character.char_id);
           const rosterSnapshot = rosterDataMap[character.roster_id];
@@ -208,7 +205,7 @@
       totalWeekliesPossible = weekliesPossible;
       
       // Update progress percentage and maximum gold display
-      const maxGold = await calculateTotalEstimatedGold(allCharacters, allRaidConfigsByCharacter);
+      const maxGold = await calculateTotalEstimatedGold(characters, allRaidConfigsByCharacter);
       estimatedGoldDisplay = maxGold;
       
       // Calculate progress percentage using actual gold stats
@@ -237,13 +234,13 @@
       console.log('Raid settings updated, refreshing dashboard...');
       // Add small delay to ensure database updates are committed
       await new Promise(resolve => setTimeout(resolve, 100));
-      await calculateGlobalStats();
+      await calculateGlobalStats(visibleCharacters);
     };
     
     // Listen for raid completions
     const handleRaidCompleted = async () => {
       console.log('Raid completed, refreshing dashboard...');
-      await calculateGlobalStats();
+      await calculateGlobalStats(visibleCharacters);
     };
     
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
@@ -257,12 +254,12 @@
   });
 
   $: if (!loading && $characters) {
-    allCharacters = [...$characters];
+    visibleCharacters = $characters.filter(char => !char.hide_from_dashboard);
   }
 
   // Reload data when active roster changes
   $: if ($activeRosterId && !loading) {
-    calculateGlobalStats();
+    calculateGlobalStats(visibleCharacters);
   }
 
   // Group characters by roster
@@ -276,7 +273,7 @@
     });
     
     // Group characters by roster
-    allCharacters.forEach(character => {
+    visibleCharacters.forEach(character => {
       const rosterId = character.roster_id;
       if (grouped[rosterId]) {
         grouped[rosterId].push(character);
@@ -360,7 +357,7 @@
       rosterId: $activeRosterId || null
     });
     const estimatedGold = await calculateTotalEstimatedGold(
-      dashboardSnapshot.characters ?? allCharacters,
+      dashboardSnapshot.characters?.filter(char => !char.hide_from_dashboard) ?? visibleCharacters,
       dashboardSnapshot.raid_configs_by_character || {}
     );
     if (estimatedGold === 0) return 0;
@@ -450,7 +447,7 @@
           <img src="/images/gold.png" alt="Gold Earners" />
         </div>
         <div class="stat-content">
-          <div class="stat-value">{allCharacters.filter(c => c.earns_gold).length}</div>
+          <div class="stat-value">{visibleCharacters.filter(c => c.earns_gold).length}</div>
           <div class="stat-label">Gold Earners</div>
         </div>
       </div>

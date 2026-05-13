@@ -406,6 +406,16 @@
     }
   }
 
+  async function toggleHideFromDashboard(char: any) {
+    const newStatus = !char.hide_from_dashboard;
+    try {
+      await updateCharacter(char.char_id, { hide_from_dashboard: newStatus });
+      console.log(`FRONTEND: Set hide_from_dashboard=${newStatus} for ${char.char_name}`);
+    } catch (err) {
+      console.error("FRONTEND: Hide toggle failed:", err);
+    }
+  }
+
   async function updateCharacterEarnsGold(charId: number, earnsGold: boolean) {
     try {
       await invoke('update_character_earns_gold', { charId, earnsGold });
@@ -538,6 +548,13 @@
                 on:click|stopPropagation={() => toggleGold(char)}
               >
                 {char.earns_gold ? 'EARNS GOLD' : 'RAT'}
+              </button>
+              <button
+                class="toggle-btn hide"
+                class:active={char.hide_from_dashboard}
+                on:click|stopPropagation={() => toggleHideFromDashboard(char)}
+              >
+                {char.hide_from_dashboard ? 'HIDDEN' : 'SHOW ON DASHBOARD'}
               </button>
             </div>
           </div>

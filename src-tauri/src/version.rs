@@ -1,2 +1,2 @@
 /// Auto-generated version from tauri.conf.json
-pub const APP_VERSION: &str = "1.0.8";
+pub const APP_VERSION: &str = "1.0.10";

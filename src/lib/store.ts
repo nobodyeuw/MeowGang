@@ -15,7 +15,8 @@ export interface Roster {
 }
 
 export interface CharacterSettings {
-  earns_gold: boolean;
+  earns_gold?: boolean;
+  hide_from_dashboard?: boolean;
 }
 
 export interface Character {
@@ -28,6 +29,7 @@ export interface Character {
   combat_power: number;
   display_order: number;
   earns_gold: boolean;
+  hide_from_dashboard?: boolean;
   icon_id?: string;
   class_display_name?: string;
   last_active?: string;
@@ -361,7 +363,7 @@ export function removeCharacter(charId: number) {
   characters.update(current => current.filter(c => c.char_id !== charId));
 }
 
-export async function updateCharacter(charId: number, updates: CharacterSettings) {
+export async function updateCharacter(charId: number, updates: Partial<CharacterSettings>) {
   console.log(`STORE: updateCharacter called - charId: ${charId}, updates:`, updates);
   
   try {

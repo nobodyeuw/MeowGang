@@ -33,17 +33,20 @@
       <span class="nav-icon">⚙️</span>
       <span class="nav-text">Settings</span>
     </button>
+  </div>
 
+  <div class="sidebar-footer">
+    <div class="sidebar-divider"></div>
     <button 
-      class="nav-item"
+      class="nav-item update-item"
       class:active={activeTab === 'updates'}
       on:click={() => switchTab('updates')}
     >
-      <span class="nav-icon">🧾</span>
+      <span class="nav-icon">🔄</span>
       <span class="nav-text">Updates</span>
     </button>
-      </div>
-  
+  </div>
+
   <PlannedFeatures />
 </nav>
 
@@ -71,6 +74,20 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .sidebar-footer {
+    padding: 0 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--md-sys-color-outline);
+    opacity: 0.35;
+    margin: 0 1.5rem;
   }
 
   .sidebar.isOpen {

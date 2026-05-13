@@ -1,7 +1,7 @@
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use crate::roster::{Character, ScraperData};
 
 pub struct RosterRepository {
@@ -41,7 +41,7 @@ impl RosterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, CAST(display_order AS INTEGER), earns_gold
+                    combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard
              FROM conf_character 
              WHERE roster_id = ?1 
              ORDER BY CAST(display_order AS INTEGER), char_name"
@@ -58,6 +58,7 @@ impl RosterRepository {
                 combat_power: row.get(6)?,
                 display_order: row.get(7)?,
                 earns_gold: row.get(8)?,
+                hide_from_dashboard: row.get(9)?,
                 class_display_name: None,
             })
         })?;
@@ -76,10 +77,19 @@ impl RosterRepository {
         // Insert characters from scraper data
         for character in &scraper_data.characters {
             tx.execute(
-                "INSERT OR REPLACE INTO conf_character 
+                "INSERT INTO conf_character 
                  (char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                  combat_power, display_order, earns_gold)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                  combat_power, display_order, earns_gold, hide_from_dashboard)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(char_id) DO UPDATE SET
+                   char_name = excluded.char_name,
+                   roster_id = excluded.roster_id,
+                   roster_name = excluded.roster_name,
+                   class_id = excluded.class_id,
+                   item_level = excluded.item_level,
+                   combat_power = excluded.combat_power,
+                   display_order = excluded.display_order,
+                   earns_gold = excluded.earns_gold",
                 params![
                     character.char_id,
                     character.char_name,
@@ -89,7 +99,8 @@ impl RosterRepository {
                     character.item_level,
                     character.combat_power,
                     character.display_order,
-                    character.earns_gold
+                    character.earns_gold,
+                    false
                 ],
             )?;
         }

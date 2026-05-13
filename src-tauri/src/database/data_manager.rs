@@ -105,10 +105,17 @@ impl DataManager {
         let tx = conn.transaction()?;
 
         // Add migration steps here as needed
-        // Example for version 2:
-        // if current_version < 2 {
-        //     tx.execute("ALTER TABLE conf_character ADD COLUMN class_display_name TEXT", [])?;
-        // }
+        if current_version < 2 {
+            tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard BOOLEAN DEFAULT 0", [])?;
+        }
+
+        if current_version < 3 {
+            // Fix hide_from_dashboard column type from TEXT to BOOLEAN
+            tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard_temp BOOLEAN DEFAULT 0", [])?;
+            tx.execute("UPDATE conf_character SET hide_from_dashboard_temp = CASE WHEN hide_from_dashboard = 'false' THEN 0 ELSE 1 END", [])?;
+            tx.execute("ALTER TABLE conf_character DROP COLUMN hide_from_dashboard", [])?;
+            tx.execute("ALTER TABLE conf_character RENAME COLUMN hide_from_dashboard_temp TO hide_from_dashboard", [])?;
+        }
 
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;

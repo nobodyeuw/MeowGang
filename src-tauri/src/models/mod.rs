@@ -279,7 +279,8 @@ pub struct TaskSettingsStruct {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterSettings {
-    pub earns_gold: bool,
+    pub earns_gold: Option<bool>,
+    pub hide_from_dashboard: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

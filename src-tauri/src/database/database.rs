@@ -86,7 +86,8 @@ impl DatabaseManager {
                     item_level REAL,
                     combat_power REAL,
                     display_order TEXT,
-                    earns_gold BOOLEAN DEFAULT 'false',
+                    earns_gold BOOLEAN DEFAULT 0,
+                    hide_from_dashboard BOOLEAN DEFAULT 0,
                     PRIMARY KEY(char_id)
                 )"),
             ("app_state",
