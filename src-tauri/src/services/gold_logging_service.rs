@@ -39,12 +39,19 @@ impl GoldLoggingService {
             ))
         })?;
 
-        // Collect all pending entries first
-        let mut pending_entries = Vec::new();
+        // Materialize pending row tuples before doing any additional DB work
+        let mut pending_rows = Vec::new();
         for row_result in rows {
-            let (char_id, content_id, difficulty, timestamp, session_id) = row_result?;
-            
-            // Extract gate from session_id: "act_4_armoche_Gate 2" -> "Gate 2"
+            pending_rows.push(row_result?);
+        }
+
+        drop(stmt);
+        drop(conn);
+
+        // Evaluate pending entries on a fresh connection to avoid nested active statements
+        let conn = self.pool.get()?;
+        let mut pending_entries = Vec::new();
+        for (char_id, content_id, difficulty, timestamp, session_id) in pending_rows {
             let gate = if let Some(gate_part) = session_id.split('_').last() {
                 gate_part.to_string()
             } else {
@@ -57,7 +64,7 @@ impl GoldLoggingService {
                 "SELECT earns_gold FROM conf_character WHERE char_id = ?1",
                 [char_id],
                 |row| row.get(0)
-            ).unwrap_or(false);
+            ).optional()?.unwrap_or(false);
 
             if !earns_gold {
                 continue; // Skip characters that don't earn gold
@@ -95,9 +102,7 @@ impl GoldLoggingService {
 
             pending_entries.push((char_id, content_id, difficulty, gate, timestamp, raid_data, take_gold, buy_box));
         }
-        
-        // Drop the read connection before starting write operations
-        drop(stmt);
+
         drop(conn);
 
         // Process all entries in a single transaction for better performance

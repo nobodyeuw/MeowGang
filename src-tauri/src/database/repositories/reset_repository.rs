@@ -167,17 +167,25 @@ impl ResetRepository {
         for char_result in char_iter {
             let char_id = char_result?;
             
-            // Check if task was completed yesterday
             let now = chrono::Utc::now();
-            let yesterday_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc() - chrono::Duration::days(1);
-            let yesterday_end = now.date_naive().and_hms_opt(23, 59, 59).unwrap().and_utc() - chrono::Duration::days(1);
-            
+
+            // Check if task was completed during the last daily reset cycle
+            let current_reset = {
+                let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+                if now >= today_reset {
+                    today_reset
+                } else {
+                    today_reset - chrono::Duration::days(1)
+                }
+            };
+            let previous_reset = current_reset - chrono::Duration::days(1);
+
             let was_completed = tx.query_row(
-                "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4",
-                (char_id, task_id, 
-                 yesterday_start.timestamp_millis(),
-                 yesterday_end.timestamp_millis()),
-                |row| Ok(row.get::<_, i64>(0)? == 1)
+                "SELECT MAX(is_completed) FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND timestamp >= ?3 AND timestamp < ?4",
+                (char_id, task_id,
+                 previous_reset.timestamp_millis(),
+                 current_reset.timestamp_millis()),
+                |row| Ok(row.get::<_, Option<i64>>(0)?.unwrap_or(0) == 1)
             ).unwrap_or(false);
 
             // Get roster_id for this character
@@ -195,26 +203,23 @@ impl ResetRepository {
             ).unwrap_or((0, 0));
 
             // Calculate new rested value based on days since last update
+            let updated_at = chrono::Utc::now();
             let new_rested = if was_completed {
-                // Completed yesterday: no bonus (+0)
+                // Completed during the last reset cycle: no bonus
                 current_rested
             } else {
-                // Not completed yesterday: calculate days since last update
-                let now = chrono::Utc::now();
+                // Not completed during the last reset cycle: add at least one day of rested
                 let days_since_update = if last_updated > 0 {
-                    // Calculate full days since last update
-let last_updated_date = chrono::Utc.timestamp_millis_opt(last_updated)
-                    .single()
-                    .unwrap_or(now);
-                let days = (now - last_updated_date).num_days();
-                // Only count full days that have passed (not including today)
-                if days > 0 { days as i32 } else { 0 }
-            } else {
-                // No last_updated timestamp, assume one day of accumulation
-                1
+                    let last_updated_date = chrono::Utc.timestamp_millis_opt(last_updated)
+                        .single()
+                        .unwrap_or(updated_at);
+                    let days = (updated_at.date_naive() - last_updated_date.date_naive()).num_days();
+                    if days >= 1 { days as i32 } else { 1 }
+                } else {
+                    1
                 };
-                
-                // Add +10 for each day not completed (max 100)
+
+                // Add +10 for each day not completed (cap at 100)
                 let bonus = (days_since_update * 10) as i64;
                 std::cmp::min(current_rested + bonus, 100)
             };

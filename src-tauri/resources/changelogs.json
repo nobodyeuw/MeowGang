@@ -2,6 +2,17 @@
   "versions": [
 
     {
+      "version": "1.0.14",
+      "date": "2026-05-13",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "gold logging"
+        }
+      ]
+    },
+
+    {
       "version": "1.0.13",
       "date": "2026-05-13",
       "changes": [
@@ -19,21 +30,6 @@
         {
           "type": "Fixed",
           "description": "Typo in the backend."
-        }
-      ]
-    },
-
-    {
-      "version": "1.0.11",
-      "date": "2026-05-13",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "UI changes in the Updates tab."
-        },
-        {
-          "type": "Added",
-          "description": "'HIDE FROM DASHBOARD' option for characters. This allows you to hide specific characters from the dashboard view while still keeping them in the app for tracking purposes. You can find this option in the roster settings."
         }
       ]
     }
