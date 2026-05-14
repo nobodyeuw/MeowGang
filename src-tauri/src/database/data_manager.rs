@@ -95,6 +95,20 @@ impl DataManager {
         Ok(())
     }
 
+    /// Check whether a column exists on a table (uses the same connection/transaction).
+    fn column_exists(conn: &rusqlite::Connection, table: &str, column: &str) -> bool {
+        conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = ?1",
+                table
+            ),
+            [column],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|count| count > 0)
+        .unwrap_or(false)
+    }
+
     /// Migrate database schema from current to target version
     pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i32, target_version: i32) -> Result<()> {
         if current_version >= target_version {
@@ -104,17 +118,24 @@ impl DataManager {
         let mut conn = pool.get()?;
         let tx = conn.transaction()?;
 
-        // Add migration steps here as needed
         if current_version < 2 {
-            tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard BOOLEAN DEFAULT 0", [])?;
+            // Column already exists on fresh installs (CREATE TABLE includes it)
+            if !Self::column_exists(&tx, "conf_character", "hide_from_dashboard") {
+                tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard BOOLEAN DEFAULT 0", [])?;
+            }
         }
 
         if current_version < 3 {
-            // Fix hide_from_dashboard column type from TEXT to BOOLEAN
-            tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard_temp BOOLEAN DEFAULT 0", [])?;
-            tx.execute("UPDATE conf_character SET hide_from_dashboard_temp = CASE WHEN hide_from_dashboard = 'false' THEN 0 ELSE 1 END", [])?;
-            tx.execute("ALTER TABLE conf_character DROP COLUMN hide_from_dashboard", [])?;
-            tx.execute("ALTER TABLE conf_character RENAME COLUMN hide_from_dashboard_temp TO hide_from_dashboard", [])?;
+            // Only needed for databases where migration v2 created the column as TEXT
+            if !Self::column_exists(&tx, "conf_character", "hide_from_dashboard_temp") {
+                let needs_fix = Self::column_exists(&tx, "conf_character", "hide_from_dashboard");
+                if needs_fix {
+                    tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard_temp BOOLEAN DEFAULT 0", [])?;
+                    tx.execute("UPDATE conf_character SET hide_from_dashboard_temp = CASE WHEN hide_from_dashboard = 'false' THEN 0 ELSE 1 END", [])?;
+                    tx.execute("ALTER TABLE conf_character DROP COLUMN hide_from_dashboard", [])?;
+                    tx.execute("ALTER TABLE conf_character RENAME COLUMN hide_from_dashboard_temp TO hide_from_dashboard", [])?;
+                }
+            }
         }
 
         tx.commit()?;
