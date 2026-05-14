@@ -2,6 +2,17 @@
   "versions": [
 
     {
+      "version": "1.0.16",
+      "date": "2026-05-14",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "initial database migration crash on fresh installs"
+        }
+      ]
+    },
+
+    {
       "version": "1.0.15",
       "date": "2026-05-14",
       "changes": [
