@@ -208,6 +208,15 @@ export function initializeSyncEvents() {
     if (currentRosterId) {
       await loadTodoMatrix(currentRosterId);
     }
+    const payload = event.payload as any;
+    if (payload?.synced_count > 0) {
+      try {
+        await invoke('trigger_gold_processing');
+        dispatchEvent(new CustomEvent('raid-completed'));
+      } catch (e) {
+        console.error('Gold processing after encounter sync failed:', e);
+      }
+    }
   });
 
   listen('encounters-force-sync-complete', async (event) => {
@@ -216,6 +225,15 @@ export function initializeSyncEvents() {
     if (currentRosterId) {
       await loadTodoMatrix(currentRosterId);
     }
+    const payload = event.payload as any;
+    if (payload?.synced_count > 0) {
+      try {
+        await invoke('trigger_gold_processing');
+        dispatchEvent(new CustomEvent('raid-completed'));
+      } catch (e) {
+        console.error('Gold processing after force sync failed:', e);
+      }
+    }
   });
 
   listen('encounters-auto-sync-complete', async (event) => {
@@ -223,6 +241,15 @@ export function initializeSyncEvents() {
     const currentRosterId = get(activeRosterId);
     if (currentRosterId) {
       await loadTodoMatrix(currentRosterId);
+    }
+    const payload = event.payload as any;
+    if (payload?.synced_count > 0) {
+      try {
+        await invoke('trigger_gold_processing');
+        dispatchEvent(new CustomEvent('raid-completed'));
+      } catch (e) {
+        console.error('Gold processing after auto sync failed:', e);
+      }
     }
   });
 
