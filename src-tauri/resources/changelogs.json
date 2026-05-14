@@ -2,34 +2,22 @@
   "versions": [
 
     {
-      "version": "1.0.14",
-      "date": "2026-05-13",
+      "version": "1.0.15",
+      "date": "2026-05-14",
       "changes": [
         {
           "type": "Fixed",
-          "description": "gold logging"
-        }
-      ]
-    },
+          "description": "gold logging issue"
+        },
 
-    {
-      "version": "1.0.13",
-      "date": "2026-05-13",
-      "changes": [
         {
-          "type": "Fixed",
-          "description": "Another typo in the backend. This should be the last one, I promise."
-        }
-      ]
-    },
+          "type": "Improved",
+          "description": "roster wide toggle functionality"
+        },
 
-    {
-      "version": "1.0.12",
-      "date": "2026-05-13",
-      "changes": [
         {
           "type": "Fixed",
-          "description": "Typo in the backend."
+          "description": "rested value calculation"
         }
       ]
     }

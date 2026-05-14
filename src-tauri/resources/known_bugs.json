@@ -3,11 +3,6 @@
 
     {
       "severity": "Critical",
-      "description": "Rested logic isn't working correctly, which causes no increase in rested values on daily reset. This issue is being actively investigated."
-    },
-
-    {
-      "severity": "Critical",
       "description": "Auto-start options aren't working"
     },
 
@@ -18,18 +13,9 @@
 
     {
       "severity": "Low Priority",
-      "description": "Gold-Logs not updating in real-time due to locked database file. It takes the app a few minutes to detect the change and update the gold logs accordingly. The workaround is to simply wait a few minutes after completing an encounter before expecting them to appear in the app."
-    },
-
-    {
-      "severity": "Low Priority",
       "description": "App may show 'Update available' notification before the latest version is actually available for download. This is due to the update check running before the new release assets are fully propagated on GitHub. The workaround is to simply ignore the notification and check for updates again after a few minutes, at which point the latest version should be correctly detected and available for download."
     },
 
-    {
-      "severity": "Low Priority",
-      "description": "Roster-Wide buttons not working/resetting properly"
-    },
     {
       "severity": "Low Priority", 
       "description": "Raid difficulty settings not always saving correctly > workaround: change difficulty per gate in child-rows if master-row shows \"mixed\" state unintentionally"
