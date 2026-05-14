@@ -2,7 +2,14 @@ import { CALENDAR, type CalendarDay } from '../data/tasks';
 
 export function getCurrentDayName(): string {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[new Date().getDay()];
+  const now = new Date();
+  // Use the game day based on the 10:00 UTC daily reset boundary.
+  // Before 10:00 UTC the previous day's schedule is still active.
+  let dayIndex = now.getUTCDay();
+  if (now.getUTCHours() < 10) {
+    dayIndex = (dayIndex + 6) % 7; // previous day
+  }
+  return days[dayIndex];
 }
 
 export function isTaskAvailable(taskId: string): boolean {
@@ -25,30 +32,30 @@ export function getNextAvailableTime(taskId: string): Date | null {
   if (isTaskAvailable(taskId)) return null;
   
   const now = new Date();
-  const currentDayIndex = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   
-  // Find next available day
-  let daysToAdd = 1;
+  // Start from the next game-day boundary (10:00 UTC).
+  // Before 10:00 UTC → next boundary is today 10:00 UTC.
+  // After  10:00 UTC → next boundary is tomorrow 10:00 UTC.
+  const nextReset = new Date(now);
+  nextReset.setUTCHours(10, 0, 0, 0);
+  if (now.getTime() >= nextReset.getTime()) {
+    nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+  }
   
-  while (daysToAdd <= 7) {
-    const nextDate = new Date(now);
-    nextDate.setDate(now.getDate() + daysToAdd);
-    const nextDayIndex = nextDate.getDay();
-    const nextDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][nextDayIndex];
-    const dayData = CALENDAR.find(day => day.day_name === nextDayName);
+  for (let i = 0; i < 7; i++) {
+    const checkDate = new Date(nextReset);
+    checkDate.setUTCDate(nextReset.getUTCDate() + i);
+    const dayName = days[checkDate.getUTCDay()];
+    const dayData = CALENDAR.find(day => day.day_name === dayName);
     
     if (dayData) {
-      const isAvailable = taskId === 'gate' ? dayData.gate_available : 
-                        taskId === 'boss' ? dayData.boss_available : true;
-      
+      const isAvailable = taskId === 'gate' ? dayData.gate_available :
+                          taskId === 'boss' ? dayData.boss_available : true;
       if (isAvailable) {
-        // Set to 10:00 AM UTC (daily reset time)
-        nextDate.setUTCHours(10, 0, 0, 0);
-        return nextDate;
+        return checkDate;
       }
     }
-    
-    daysToAdd++;
   }
   
   return null;

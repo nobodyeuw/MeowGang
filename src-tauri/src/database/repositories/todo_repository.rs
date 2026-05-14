@@ -204,6 +204,8 @@ impl TodoRepository {
         
         // Get first character ID for roster task checking
         let first_char_id = characters.first().map(|c| c.id);
+        // Track which roster tasks have already been processed to avoid duplicates
+        let mut processed_roster_tasks = std::collections::HashSet::new();
         
         for character in &characters {
             for (char_id, content_id, is_tracked) in &todo_entries {
@@ -230,12 +232,6 @@ impl TodoRepository {
                                 |row| row.get(0)
                             ).unwrap_or(0);
                             
-                            // Debug logging
-                            if content_id == "boss" {
-                                println!("DEBUG BOSS: char_id={}, content_id={}, count={}, completed={}", 
-                                         character.id, content_id, count, count > 0);
-                            }
-                            
                             count > 0
                         } else {
                             false
@@ -259,7 +255,7 @@ impl TodoRepository {
                 
                 // Create roster task states for all characters using first character's entry
                 if let Some(first_id) = first_char_id {
-                    if *char_id == first_id {
+                    if *char_id == first_id && !processed_roster_tasks.contains(content_id.as_str()) {
                         // Check if this is a roster task by checking if it exists in completion_status with the first character
                         // and has session_id IS NULL (indicating it's a roster-wide task)
                         let is_roster_task = if let Ok(conn) = self.pool.get() {
@@ -281,15 +277,14 @@ impl TodoRepository {
                         };
                         
                         if is_roster_task {
+                            processed_roster_tasks.insert(content_id.clone());
+                            
                             // Get completion status from first character's entry (per-roster)
                             let completed = if let Ok(is_completed) = self.get_task_completed(first_id, content_id) {
                                 is_completed
                             } else {
                                 false
                             };
-                            
-                            // Debug logging for roster task state creation
-                            println!("DEBUG BACKEND: Creating roster task states - roster_id={}, task_id={}, first_char_id={}, completed={}", roster_id, content_id, first_id, completed);
                             
                             // Create state for all characters in roster for this roster task
                             for roster_char in &characters {
@@ -300,7 +295,6 @@ impl TodoRepository {
                                 
                                 let key = format!("{}_{}", roster_char.id, content_id);
                                 character_states.insert(key.clone(), state);
-                                println!("DEBUG BACKEND: Created character state - key={}, completed={}", key, completed);
                             }
                         }
                     }
