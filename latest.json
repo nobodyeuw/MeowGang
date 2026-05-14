@@ -1,15 +1,15 @@
 {
-  "version": "1.0.16",
-  "notes": "### v1.0.16\n\n- **Fixed:** initial database migration crash on fresh installs",
-  "pub_date": "2026-05-14T13:52:19.984Z",
+  "version": "1.0.15",
+  "notes": "### v1.0.16\n\n- **Fixed:** initial database migration crash on fresh installs\n\n## Installation\nDownload `loatracker_1.0.16_x64-setup.exe` below.",
+  "pub_date": "2026-05-14T14:23:32.744Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZKbWlwTWEyNUczN2FmOVR3M25LN2hobG9hdmV6RTB4V3Z1UGI4V0tCTHArYXV4MXBCazEweTFZQ0tZRWpsckdhSkJvTVhYcktMa1NvbHJTem0zTHdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY2NzM2CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE1X3g2NC1zZXR1cC5leGUKYTNOS1U2Mlppd01qU0VFK05mM0VVU0M1Y0NzdDVXcGlubmVRTmY1ZXJ4U3d2K0lPbHRURjNsR2JMbmpOdEs3RnIxM1V4RFZ2MXpjOXhFOUE1RnFjRHc9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.16/LOA.Tracker_1.0.16_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZvSnVFVGt3VmhQeXE3RmR6MU5kdXczanBJTWVwejN5ZXpUNTF5UlRWTHlxaWVrYWs3MmRuSXEwQVlmNGxwKzhReDRwVSsvS2pySSszVXE3UGVJUFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY4NjA5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE1X3g2NC1zZXR1cC5leGUKMnZkemFxalVCWHE3Vy9jc2hiMmpQYVh0R3U5RHJWUFFlb2NYZWhaM0pXd3VZNUhuNXVOaDNvRHM3cHorY1FkYlhVMmFJalR1akQ3R2hEMGQyaTE4RGc9PQo=",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.16/LOA.Tracker_1.0.15_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZKbWlwTWEyNUczN2FmOVR3M25LN2hobG9hdmV6RTB4V3Z1UGI4V0tCTHArYXV4MXBCazEweTFZQ0tZRWpsckdhSkJvTVhYcktMa1NvbHJTem0zTHdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY2NzM2CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE1X3g2NC1zZXR1cC5leGUKYTNOS1U2Mlppd01qU0VFK05mM0VVU0M1Y0NzdDVXcGlubmVRTmY1ZXJ4U3d2K0lPbHRURjNsR2JMbmpOdEs3RnIxM1V4RFZ2MXpjOXhFOUE1RnFjRHc9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.16/LOA.Tracker_1.0.16_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZvSnVFVGt3VmhQeXE3RmR6MU5kdXczanBJTWVwejN5ZXpUNTF5UlRWTHlxaWVrYWs3MmRuSXEwQVlmNGxwKzhReDRwVSsvS2pySSszVXE3UGVJUFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY4NjA5CWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE1X3g2NC1zZXR1cC5leGUKMnZkemFxalVCWHE3Vy9jc2hiMmpQYVh0R3U5RHJWUFFlb2NYZWhaM0pXd3VZNUhuNXVOaDNvRHM3cHorY1FkYlhVMmFJalR1akQ3R2hEMGQyaTE4RGc9PQo=",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.16/LOA.Tracker_1.0.15_x64-setup.exe"
     }
   }
 }
