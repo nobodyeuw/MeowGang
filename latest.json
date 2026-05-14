@@ -1,14 +1,14 @@
 {
   "version": "1.0.14",
-  "notes": "### v1.0.14\n\n- **Fixed:** gold logging\n\n## Installation\nDownload `loatracker_1.0.14_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.0.14_x64-setup.exe` below.",
-  "pub_date": "2026-05-14T13:04:35.875Z",
+  "notes": "### v1.0.14\n\n- **Fixed:** gold logging\n\n## Installation\nDownload `loatracker_1.0.14_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.0.14_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.0.14_x64-setup.exe` below.",
+  "pub_date": "2026-05-14T13:17:43.457Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa20rWkM1QjR6K1NsSlJNODRjY2x5Z0c0cjVycGJXMG1sckV3UVdNa0ZXWXN2RUdveGVQeFEzQkRJaFA0Sm1mZ3lTNkNPV2VvVkkwQkhTY1ZMMlJLZ3drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzYzODczCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE0X3g2NC1zZXR1cC5leGUKazNEckVIZmFzQ1czSGNDclZTUER5L2hnb0Zuc2cwWGk4T1RXRXBuRDdEUHI3dURRY0QzNVRxa1dvOVpXSWd6RE1QbWZUMHRsQmhidk9wUDQvUTRJRFE9PQo=",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2pGTTAzUXhQV041NVcvbVlTaksrSFAzemdvNUpiU0p3dCsxeFVsRVdjcmZET2ZnZnR5OTNJaFVaa2RJZkNmRlFzT0d2Rm01VUxRbG84LzdxMGl5MUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY0NjYxCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE0X3g2NC1zZXR1cC5leGUKbkNTQzA2QVQzc2tyNURzRXBRTEJJQWRsY25hNWQ0c2ZFNnpuQ2E4Q2dLei9PVGtVOGNjQTgrUERtamExNVhvWTNPbzFKR01Fa2xPUmdpbjYzODg1RGc9PQo=",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.14/LOA.Tracker_1.0.14_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa20rWkM1QjR6K1NsSlJNODRjY2x5Z0c0cjVycGJXMG1sckV3UVdNa0ZXWXN2RUdveGVQeFEzQkRJaFA0Sm1mZ3lTNkNPV2VvVkkwQkhTY1ZMMlJLZ3drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzYzODczCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE0X3g2NC1zZXR1cC5leGUKazNEckVIZmFzQ1czSGNDclZTUER5L2hnb0Zuc2cwWGk4T1RXRXBuRDdEUHI3dURRY0QzNVRxa1dvOVpXSWd6RE1QbWZUMHRsQmhidk9wUDQvUTRJRFE9PQo=",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2pGTTAzUXhQV041NVcvbVlTaksrSFAzemdvNUpiU0p3dCsxeFVsRVdjcmZET2ZnZnR5OTNJaFVaa2RJZkNmRlFzT0d2Rm01VUxRbG84LzdxMGl5MUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzY0NjYxCWZpbGU6TE9BIFRyYWNrZXJfMS4wLjE0X3g2NC1zZXR1cC5leGUKbkNTQzA2QVQzc2tyNURzRXBRTEJJQWRsY25hNWQ0c2ZFNnpuQ2E4Q2dLei9PVGtVOGNjQTgrUERtamExNVhvWTNPbzFKR01Fa2xPUmdpbjYzODg1RGc9PQo=",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.0.14/LOA.Tracker_1.0.14_x64-setup.exe"
     }
   }
