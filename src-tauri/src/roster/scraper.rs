@@ -313,7 +313,15 @@ impl HumanizedScraper {
             })
             .to_string();
 
-        crate::log_debug!("After string value quoting: {}", cleaned);
+        // Normalize shorthand decimals: .59 -> 0.59 (valid JS but invalid JSON)
+        let re3 = Regex::new(r"(?P<pre>[:\[,])(?P<dot>\.\d)")?;
+        cleaned = re3
+            .replace_all(&cleaned, |caps: &regex::Captures| {
+                format!("{}0{}", &caps["pre"], &caps["dot"])
+            })
+            .to_string();
+
+        crate::log_debug!("After cleanup: {}", cleaned);
 
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&cleaned)?;
         let roster_id = self.generate_roster_id();
