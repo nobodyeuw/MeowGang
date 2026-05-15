@@ -313,7 +313,7 @@
 <div class="progression-planner">
   <div class="planner-header">
     <h2 class="planner-title">Progression Planner</h2>
-    <p class="planner-subtitle">Market prices from LOA Buddy (Europe Central)</p>
+    <p class="planner-subtitle">Market prices from Lost Ark (Europe Central)</p>
   </div>
 
   <div class="market-section">

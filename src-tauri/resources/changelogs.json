@@ -1,27 +1,38 @@
 {
-  "versions": [
-
+  "version": "1.1.1",
+  "date": "2026-05-15",
+  "changes": [
     {
-      "version": "1.1.0",
-      "date": "2026-05-15",
-      "changes": [
-        {
-          "type": "Added",
-          "description": "Progression Planner (in progress)"
-        }
-      ]
+      "type": "Added",
+      "description": "Progression Planner tab with market data infrastructure"
     },
-
     {
-      "version": "1.0.16",
-      "date": "2026-05-14",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "initial database migration crash on fresh installs"
-        }
-      ]
+      "type": "Added",
+      "description": "Market data: Engravings (43 items), Honing Materials (36 items), Additional Honing Materials (21 items) with live prices from LOA Buddy API"
+    },
+    {
+      "type": "Added",
+      "description": "Gems category (40 items): T3/T4 Damage & Cooldown Lv.1-10 with manual price input"
+    },
+    {
+      "type": "Added",
+      "description": "Price history charts: click any item to view 30-day min/max/avg price graph with 7d/14d/30d toggle"
+    },
+    {
+      "type": "Added",
+      "description": "Manual price override system with visual badge and fallback to API prices"
+    },
+    {
+      "type": "Fixed",
+      "description": "Roster scraper failing for rosters with characters that have combat power below 1.0 (e.g. Rexlul)"
+    },
+    {
+      "type": "Fixed",
+      "description": "Roster scraper now detects Cloudflare blocks and retries up to 3 times with clear error message"
+    },
+    {
+      "type": "Improved",
+      "description": "Reduced post-scrape delays from ~10s to ~1s"
     }
-
   ]
 }

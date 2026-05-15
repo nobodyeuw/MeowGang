@@ -1,11 +1,11 @@
 {
-  "version": "1.1.0",
-  "notes": "### v1.1.0\n\n- **Added:** Progression Planner\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.",
+  "version": "1.1.1",
+  "notes": "### v1.1.1\n\n#### ✨ New Features\n- **Progression Planner** — New sidebar tab with full market data infrastructure\n- **Market Data Module** — Separate database with live prices from LOA Buddy API (EUC, hourly refresh)\n  - Engravings (43 items), Honing Materials (36 items), Additional Honing Materials (21 items)\n  - Gems (40 items): T3/T4 Damage & Cooldown Lv.1-10 (manual price input)\n- **Price History Charts** — Click any item to view a 30-day price graph with min/max/avg lines and 7d/14d/30d toggle\n- **Manual Price Override** — Set custom prices for any item with visual override badge\n\n#### 🐛 Bug Fixes\n- Fixed roster import failing silently for rosters with low combat power characters (score < 1.0)\n- Roster scraper now detects Cloudflare blocks and retries automatically (up to 3 attempts)\n\n#### 🔧 Improvements\n- Reduced post-scrape delays from ~10s to ~1s\n- Removed redundant Planned Features sidebar section",
   "pub_date": "2026-05-15T15:40:46.115Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3A5VVB4Rk0xZHM2cUtGanJTekNOblkwbG0raWU3Z2xhWlppM29kb3V1RjRXQUJqZmlEaDhTdGc3Rjl1ejN6WHI0bE9xY0Vsa2FmbFE3Q2l3ekt4WmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5NjQzCWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpyd2I0bG5EWTZSOGlyQXdmY3dWbnZmTzJXN2hsWUtrUEMvemFYd1dEZjU1blJkVm1jN2xTeHE0aWttNDlNY2M2MG9QOEJTano4SUZnUkMzRXUrVnhEUT09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.0/LOA.Tracker_1.1.0_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.1/LOA.Tracker_1.1.1_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3A5VVB4Rk0xZHM2cUtGanJTekNOblkwbG0raWU3Z2xhWlppM29kb3V1RjRXQUJqZmlEaDhTdGc3Rjl1ejN6WHI0bE9xY0Vsa2FmbFE3Q2l3ekt4WmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5NjQzCWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpyd2I0bG5EWTZSOGlyQXdmY3dWbnZmTzJXN2hsWUtrUEMvemFYd1dEZjU1blJkVm1jN2xTeHE0aWttNDlNY2M2MG9QOEJTano4SUZnUkMzRXUrVnhEUT09Cg==",
