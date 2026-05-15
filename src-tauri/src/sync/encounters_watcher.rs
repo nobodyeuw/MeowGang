@@ -65,7 +65,7 @@ impl EncountersFileWatcher {
                             continue;
                         }
 
-                        println!("Detected encounters.db change, starting auto sync: {}", &encounters_db_path);
+                        crate::log_info!("Detected encounters.db change, starting auto sync: {}", &encounters_db_path);
                         // Give the external writer a moment to finish updating the file.
                         tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -90,7 +90,7 @@ impl EncountersFileWatcher {
                                 })
                             }
                             Err(error_message) => {
-                                eprintln!("Encounter auto-sync failed: {}", error_message);
+                                crate::log_error!("Encounter auto-sync failed: {}", error_message);
                                 json!({
                                     "synced_count": 0,
                                     "skipped_count": 0,
@@ -106,13 +106,13 @@ impl EncountersFileWatcher {
                         let _ = app.emit("encounters-auto-sync-complete", sync_payload);
                     }
                     Err(err) => {
-                        eprintln!("Encounter watcher error: {}", err);
+                        crate::log_error!("Encounter watcher error: {}", err);
                     }
                 }
             }
         });
 
-        println!("Started encounters.db watcher for path {:?}", print_watch_path);
+        crate::log_info!("Started encounters.db watcher for path {:?}", print_watch_path);
         Ok(())
     }
 }

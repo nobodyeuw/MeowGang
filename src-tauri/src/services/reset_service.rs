@@ -29,17 +29,16 @@ impl ResetService {
                 
                 let sleep_duration = (next_reset - now).to_std().unwrap_or(Duration::from_secs(86400));
                 
-                println!("Next daily reset scheduled for: {}", next_reset.format("%Y-%m-%d %H:%M:%S UTC"));
+                crate::log_info!("Next daily reset scheduled for: {}", next_reset.format("%Y-%m-%d %H:%M:%S UTC"));
                 
                 // Perform a startup / recovery reset check immediately.
                 let service = ResetService::new(pool.clone());
                 match service.perform_reset().await {
                     Ok(message) => {
-                        println!("Startup reset check completed successfully: {}", message);
+                        crate::log_info!("Startup reset check completed: {}", message);
                     },
                     Err(e) => {
-                        eprintln!("Startup reset check failed: {}", e);
-                        eprintln!("Error details: {:?}", e);
+                        crate::log_error!("Startup reset check failed: {} ({:?})", e, e);
                     }
                 }
 
@@ -50,11 +49,10 @@ impl ResetService {
                 let service = ResetService::new(pool.clone());
                 match service.perform_reset().await {
                     Ok(message) => {
-                        println!("Scheduled daily reset completed successfully: {}", message);
+                        crate::log_info!("Scheduled daily reset completed: {}", message);
                     },
                     Err(e) => {
-                        eprintln!("Scheduled daily reset failed: {}", e);
-                        eprintln!("Error details: {:?}", e);
+                        crate::log_error!("Scheduled daily reset failed: {} ({:?})", e, e);
                         // Continue the loop even if reset fails
                     }
                 }
@@ -95,10 +93,10 @@ impl ResetService {
         
         // If weekly reset is happening, delete old gold logs
         if last_weekly < weekly_reset_time {
-            println!("Weekly reset detected, cleaning old gold logs...");
+            crate::log_info!("Weekly reset detected, cleaning old gold logs");
             match gold_repo.delete_old_gold_logs(weekly_reset_time) {
-                Ok(count) => println!("Deleted {} old gold log entries", count),
-                Err(e) => eprintln!("Failed to delete old gold logs: {}", e),
+                Ok(count) => crate::log_info!("Deleted {} old gold log entries", count),
+                Err(e) => crate::log_error!("Failed to delete old gold logs: {}", e),
             }
         }
         
@@ -110,7 +108,7 @@ impl ResetService {
 
     /// Force an immediate reset (for testing/debugging)
     pub async fn force_reset(&self) -> Result<String> {
-        println!("Force reset triggered - bypassing schedule checks");
+        crate::log_info!("Force reset triggered - bypassing schedule checks");
         
         let reset_repo = crate::database::repositories::ResetRepository::new(self.pool.clone());
         let tasks = crate::database::data_manager::DataManager::get_game_tasks()?;
@@ -138,7 +136,7 @@ impl ResetService {
 
     /// Update rested values only (without performing full reset)
     pub async fn update_rested_values_only(&self) -> Result<String> {
-        println!("Updating rested values immediately");
+        crate::log_info!("Updating rested values immediately");
         
         let reset_repo = crate::database::repositories::ResetRepository::new(self.pool.clone());
         

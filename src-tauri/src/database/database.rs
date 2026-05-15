@@ -3,12 +3,16 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 
+/// Manages the SQLite database connection pool and schema migrations.
+///
+/// Uses r2d2 connection pooling with WAL mode for concurrent access.
 #[derive(Clone)]
 pub struct DatabaseManager {
     pub pool: Pool<SqliteConnectionManager>,
 }
 
 impl DatabaseManager {
+    /// Opens (or creates) the database at `db_path` and runs any pending migrations.
     pub fn new(db_path: &str) -> Result<Self> {
         crate::log_info!("Initializing database manager with path: {}", db_path);
         

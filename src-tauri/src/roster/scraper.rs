@@ -337,7 +337,7 @@ impl HumanizedScraper {
             }
         }
 
-        println!("DEBUG: Successfully parsed {} characters", characters.len());
+        crate::log_debug!("Successfully parsed {} characters", characters.len());
         Ok(characters)
     }
 

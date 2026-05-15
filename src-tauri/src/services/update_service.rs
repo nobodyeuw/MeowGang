@@ -86,7 +86,7 @@ impl UpdateService {
             match Self::try_download_and_install(&download_url).await {
                 Ok(_) => return Ok(()),
                 Err(e) if retry_count < MAX_RETRIES => {
-                    eprintln!("Download failed, retrying ({}/{}): {}", 
+                    crate::log_warn!("Download failed, retrying ({}/{}): {}", 
                         retry_count + 1, MAX_RETRIES, e);
                     retry_count += 1;
                     // Exponential backoff: 1s, 2s, 4s
@@ -149,7 +149,7 @@ impl UpdateService {
                 .creation_flags(0x08000000) // CREATE_NEW_PROCESS_GROUP
                 .spawn() {
                 Ok(_) => {
-                    eprintln!("Installer launched successfully from: {}", file_path.display());
+                    crate::log_info!("Installer launched successfully from: {}", file_path.display());
                     std::process::exit(0);
                 }
                 Err(e) => {
@@ -164,7 +164,7 @@ impl UpdateService {
                 .arg("/S")
                 .spawn() {
                 Ok(_) => {
-                    eprintln!("Installer launched successfully");
+                    crate::log_info!("Installer launched successfully");
                     std::process::exit(0);
                 }
                 Err(e) => {

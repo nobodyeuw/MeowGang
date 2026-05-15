@@ -15,7 +15,7 @@ pub async fn update_character_settings(
     request: CharacterSettingsRequest,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<(), String> {
-    
+    crate::validation::validate_character_id(request.character_id)?;
     character_repo.update_character_settings(request.character_id, &request.settings)
         .map_err(|e| format!("Failed to update character settings: {}", e))
 }
@@ -26,7 +26,7 @@ pub async fn update_character_earns_gold(
     earns_gold: bool,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<(), String> {
-    
+    crate::validation::validate_character_id(character_id)?;
     character_repo.update_character_earns_gold(character_id, earns_gold)
         .map_err(|e| format!("Failed to update character earns gold: {}", e))
 }
@@ -36,6 +36,7 @@ pub async fn get_character_details(
     character_id: i64,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<Option<crate::roster::Character>, String> {
+    crate::validation::validate_character_id(character_id)?;
     character_repo.get_character_by_id(character_id)
         .map_err(|e| format!("Failed to get character details: {}", e))
 }
@@ -53,6 +54,7 @@ pub async fn get_character_rested_values(
     characterId: i64,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<Vec<crate::database::repositories::character_repository::RestedValue>, String> {
+    crate::validation::validate_character_id(characterId)?;
     character_repo.get_character_rested_values(characterId)
         .map_err(|e| format!("Failed to get character rested values: {}", e))
 }
@@ -62,6 +64,7 @@ pub async fn get_character_completion_status(
     characterId: i64,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<Vec<crate::database::repositories::character_repository::CompletionStatus>, String> {
+    crate::validation::validate_character_id(characterId)?;
     character_repo.get_character_completion_status(characterId)
         .map_err(|e| format!("Failed to get character completion status: {}", e))
 }
@@ -71,6 +74,7 @@ pub async fn get_character_raid_configs(
     characterId: i64,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<Vec<crate::database::repositories::character_repository::CharacterRaidConfig>, String> {
+    crate::validation::validate_character_id(characterId)?;
     character_repo.get_character_raid_configs(characterId)
         .map_err(|e| format!("Failed to get character raid configs: {}", e))
 }
@@ -80,6 +84,7 @@ pub async fn get_character_tracking_status(
     characterId: i64,
     character_repo: State<'_, CharacterRepository>
 ) -> Result<Vec<crate::database::repositories::character_repository::TrackingStatus>, String> {
+    crate::validation::validate_character_id(characterId)?;
     character_repo.get_character_tracking_status(characterId)
         .map_err(|e| format!("Failed to get character tracking status: {}", e))
 }
