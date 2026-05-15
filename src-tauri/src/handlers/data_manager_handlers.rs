@@ -90,34 +90,23 @@ pub async fn get_dashboard_snapshot(
         all_characters
     };
 
-    let mut rested_by_character = HashMap::new();
-    let mut completion_by_character = HashMap::new();
-    let mut tracking_by_character = HashMap::new();
-    let mut raid_configs_by_character = HashMap::new();
+    let char_ids: Vec<i64> = characters.iter().map(|c| c.char_id).collect();
 
-    for character in &characters {
-        let char_id = character.char_id;
+    let rested_by_character = character_repo
+        .get_batch_rested_values(&char_ids)
+        .map_err(|e| format!("Failed to load rested values: {}", e))?;
 
-        let rested = character_repo
-            .get_character_rested_values(char_id)
-            .map_err(|e| format!("Failed to load rested values for {}: {}", char_id, e))?;
-        rested_by_character.insert(char_id, rested);
+    let completion_by_character = character_repo
+        .get_batch_completion_status(&char_ids)
+        .map_err(|e| format!("Failed to load completion status: {}", e))?;
 
-        let completion = character_repo
-            .get_character_completion_status(char_id)
-            .map_err(|e| format!("Failed to load completion status for {}: {}", char_id, e))?;
-        completion_by_character.insert(char_id, completion);
+    let tracking_by_character = character_repo
+        .get_batch_tracking_status(&char_ids)
+        .map_err(|e| format!("Failed to load tracking status: {}", e))?;
 
-        let tracking = character_repo
-            .get_character_tracking_status(char_id)
-            .map_err(|e| format!("Failed to load tracking status for {}: {}", char_id, e))?;
-        tracking_by_character.insert(char_id, tracking);
-
-        let raid_configs = character_repo
-            .get_character_raid_configs(char_id)
-            .map_err(|e| format!("Failed to load raid configs for {}: {}", char_id, e))?;
-        raid_configs_by_character.insert(char_id, raid_configs);
-    }
+    let raid_configs_by_character = character_repo
+        .get_batch_raid_configs(&char_ids)
+        .map_err(|e| format!("Failed to load raid configs: {}", e))?;
 
     Ok(DashboardSnapshot {
         characters,

@@ -4,6 +4,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, params_from_iter};
 use crate::roster::Character;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestedValue {
@@ -366,5 +367,115 @@ impl CharacterRepository {
         
         tx.commit()?;
         Ok(())
+    }
+
+    /// Load rested values for all given characters in a single query.
+    pub fn get_batch_rested_values(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<RestedValue>>> {
+        if char_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let conn = self.pool.get()?;
+        let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT char_id, content_id, current_value FROM rested_values WHERE char_id IN ({})",
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_from_iter(char_ids.iter()), |row| {
+            Ok(RestedValue {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                current_value: row.get(2)?,
+            })
+        })?;
+        let mut map: HashMap<i64, Vec<RestedValue>> = HashMap::new();
+        for row in rows {
+            let val = row?;
+            map.entry(val.char_id).or_default().push(val);
+        }
+        Ok(map)
+    }
+
+    /// Load completion status for all given characters in a single query.
+    pub fn get_batch_completion_status(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<CompletionStatus>>> {
+        if char_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let conn = self.pool.get()?;
+        let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT char_id, content_id, is_completed FROM completion_status WHERE char_id IN ({})",
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_from_iter(char_ids.iter()), |row| {
+            Ok(CompletionStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_completed: row.get(2)?,
+            })
+        })?;
+        let mut map: HashMap<i64, Vec<CompletionStatus>> = HashMap::new();
+        for row in rows {
+            let val = row?;
+            map.entry(val.char_id).or_default().push(val);
+        }
+        Ok(map)
+    }
+
+    /// Load tracking status for all given characters in a single query.
+    pub fn get_batch_tracking_status(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<TrackingStatus>>> {
+        if char_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let conn = self.pool.get()?;
+        let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT char_id, content_id, is_tracked FROM conf_tracking WHERE char_id IN ({})",
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_from_iter(char_ids.iter()), |row| {
+            Ok(TrackingStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_tracked: row.get(2)?,
+            })
+        })?;
+        let mut map: HashMap<i64, Vec<TrackingStatus>> = HashMap::new();
+        for row in rows {
+            let val = row?;
+            map.entry(val.char_id).or_default().push(val);
+        }
+        Ok(map)
+    }
+
+    /// Load raid configs for all given characters in a single query.
+    pub fn get_batch_raid_configs(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<CharacterRaidConfig>>> {
+        if char_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let conn = self.pool.get()?;
+        let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT char_id, content_id, take_gold, difficulty, buy_box FROM conf_raid WHERE char_id IN ({})",
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_from_iter(char_ids.iter()), |row| {
+            Ok(CharacterRaidConfig {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                take_gold: row.get(2)?,
+                difficulty: row.get(3)?,
+                buy_box: row.get(4)?,
+            })
+        })?;
+        let mut map: HashMap<i64, Vec<CharacterRaidConfig>> = HashMap::new();
+        for row in rows {
+            let val = row?;
+            map.entry(val.char_id).or_default().push(val);
+        }
+        Ok(map)
     }
 }
