@@ -109,12 +109,16 @@ impl GoldRepository {
         let mut stmt = conn.prepare(
             "SELECT timestamp, source, gold_value_total, gold_bound, gold_tradable, notes
              FROM gold_logs 
-             WHERE char_id = ?1 AND source LIKE ?2
+             WHERE char_id = ?1 AND source LIKE ?2 ESCAPE '\\'
              ORDER BY timestamp DESC
              LIMIT ?3"
         )?;
 
-        let entries = stmt.query_map(params![char_id, format!("%{}%", source), limit], |row| {
+        let escaped_source = source
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let entries = stmt.query_map(params![char_id, format!("%{}%", escaped_source), limit], |row| {
             Ok(GoldLogEntry {
                 timestamp: row.get(0)?,
                 source: row.get(1)?,
@@ -126,6 +130,61 @@ impl GoldRepository {
         })?.collect::<Result<Vec<_>, _>>()?;
 
         Ok(entries)
+    }
+
+    /// Get aggregated weekly gold stats for all gold-earning characters.
+    ///
+    /// Uses a single query with parameterized IN clause instead of dynamic SQL
+    /// string formatting, avoiding potential injection vectors.
+    pub fn get_weekly_gold_stats_all(&self, week_start: i64) -> Result<WeeklyGoldSummary> {
+        let conn = self.get_connection()?;
+
+        let character_ids: Vec<i64> = conn
+            .prepare("SELECT char_id FROM conf_character WHERE earns_gold = 1")?
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<i64>, _>>()?;
+
+        if character_ids.is_empty() {
+            return Ok(WeeklyGoldSummary {
+                tradable_gold: 0,
+                bound_gold: 0,
+                total_gold: 0,
+                total_entries: 0,
+                extra_income_gold: 0,
+                box_purchase_cost: 0,
+            });
+        }
+
+        let placeholders: String = character_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT COALESCE(SUM(gold_tradable), 0),
+                    COALESCE(SUM(gold_bound), 0),
+                    COALESCE(SUM(gold_value_total), 0),
+                    COUNT(*)
+             FROM gold_logs
+             WHERE char_id IN ({}) AND timestamp >= ?",
+            placeholders
+        );
+
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = character_ids
+            .iter()
+            .map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>)
+            .collect();
+        params.push(Box::new(week_start));
+
+        let mut stmt = conn.prepare(&sql)?;
+        let summary = stmt.query_row(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            Ok(WeeklyGoldSummary {
+                tradable_gold: row.get(0)?,
+                bound_gold: row.get(1)?,
+                total_gold: row.get(2)?,
+                total_entries: row.get(3)?,
+                extra_income_gold: 0,
+                box_purchase_cost: 0,
+            })
+        })?;
+
+        Ok(summary)
     }
 
     /// Delete gold logs older than the weekly reset timestamp

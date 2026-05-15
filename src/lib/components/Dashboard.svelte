@@ -205,7 +205,7 @@
       totalWeekliesPossible = weekliesPossible;
       
       // Update progress percentage and maximum gold display
-      const maxGold = await calculateTotalEstimatedGold(characters, allRaidConfigsByCharacter);
+      const maxGold = calculateTotalEstimatedGold(characters, allRaidConfigsByCharacter);
       estimatedGoldDisplay = maxGold;
       
       // Calculate progress percentage using actual gold stats
@@ -296,21 +296,24 @@
     trackingStatus: Array<{ content_id: string; is_tracked: number }>;
   }> = {};
 
+  // Pre-build a lookup map for RAIDS by id+difficulty to avoid O(n) scans
+  const raidLookup: Record<string, typeof RAIDS[0]> = {};
+  for (const raid of RAIDS) {
+    raidLookup[`${raid.id}-${raid.difficulty}`] = raid;
+  }
+
   // Calculate maximum possible gold income based on conf_raid data
-  async function calculateTotalEstimatedGold(
+  function calculateTotalEstimatedGold(
     characters: Character[],
     raidConfigsByCharacter: Record<string, RaidConfigEntry[]>
-  ): Promise<number> {
+  ): number {
     let totalGold = 0;
     
     for (const character of characters) {
       if (!character.earns_gold) continue;
       
       try {
-        // Read preloaded raid configuration from dashboard snapshot.
         const raidConfigs = raidConfigsByCharacter[String(character.char_id)] || [];
-        
-        // Filter for gold raids and get unique raid+difficulty combinations
         const goldRaids = raidConfigs.filter(config => config.take_gold === 1);
         const uniqueRaids = new Set<string>();
         
@@ -319,12 +322,10 @@
           if (!uniqueRaids.has(raidKey)) {
             uniqueRaids.add(raidKey);
             
-            const raid = RAIDS.find((r: any) => r.id === config.content_id && r.difficulty === config.difficulty);
+            const raid = raidLookup[raidKey];
             if (raid) {
-              // Sum gold from all gates of this raid
-              const raidGold = raid.gates.reduce((sum: number, gate: any) => {
+              const raidGold = raid.gates.reduce((sum: number, gate) => {
                 const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
-                // Subtract box price if buy_box is enabled
                 const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
                 return sum + gateGold - boxPrice;
               }, 0);
@@ -356,7 +357,7 @@
     const dashboardSnapshot = await invoke<DashboardSnapshot>('get_dashboard_snapshot', {
       rosterId: $activeRosterId || null
     });
-    const estimatedGold = await calculateTotalEstimatedGold(
+    const estimatedGold = calculateTotalEstimatedGold(
       dashboardSnapshot.characters?.filter(char => !char.hide_from_dashboard) ?? visibleCharacters,
       dashboardSnapshot.raid_configs_by_character || {}
     );
