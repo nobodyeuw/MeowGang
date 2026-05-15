@@ -14,10 +14,13 @@
   interface RefreshResult {
     engravings_updated: number;
     honing_updated: number;
+    additional_honing_updated: number;
     timestamp: number;
   }
 
-  let activeCategory: 'engraving' | 'honing' = 'engraving';
+  type Category = 'engraving' | 'honing' | 'additional_honing' | 'gems';
+  let activeCategory: Category = 'engraving';
+  let gemFilter: 'all' | 't3-damage' | 't3-cooldown' | 't4-damage' | 't4-cooldown' = 'all';
   let marketItems: MarketItem[] = [];
   let loading = false;
   let refreshing = false;
@@ -31,6 +34,10 @@
 
   $: filteredItems = marketItems
     .filter(item => item.category === activeCategory)
+    .filter(item => {
+      if (activeCategory !== 'gems' || gemFilter === 'all') return true;
+      return item.item_slug.startsWith(`gem-${gemFilter}`);
+    })
     .filter(item => !searchQuery || item.item_name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       const mul = sortAsc ? 1 : -1;
@@ -57,7 +64,9 @@
   async function loadPrices() {
     loading = true;
     try {
-      marketItems = await invoke<MarketItem[]>('get_all_market_prices');
+      const apiItems = await invoke<MarketItem[]>('get_all_market_prices');
+      const gemItems = await invoke<MarketItem[]>('get_gem_prices');
+      marketItems = [...apiItems, ...gemItems];
       updateLastRefreshed();
     } catch (e) {
       console.error('Failed to load market prices:', e);
@@ -184,7 +193,31 @@
         >
           Honing Materials
         </button>
+        <button
+          class="tab-btn"
+          class:active={activeCategory === 'additional_honing'}
+          on:click={() => activeCategory = 'additional_honing'}
+        >
+          Additional Honing
+        </button>
+        <button
+          class="tab-btn"
+          class:active={activeCategory === 'gems'}
+          on:click={() => activeCategory = 'gems'}
+        >
+          Gems
+        </button>
       </div>
+
+      {#if activeCategory === 'gems'}
+        <div class="gem-filter-tabs">
+          <button class="gem-filter-btn" class:active={gemFilter === 'all'} on:click={() => gemFilter = 'all'}>All</button>
+          <button class="gem-filter-btn" class:active={gemFilter === 't3-damage'} on:click={() => gemFilter = 't3-damage'}>T3 Damage</button>
+          <button class="gem-filter-btn" class:active={gemFilter === 't3-cooldown'} on:click={() => gemFilter = 't3-cooldown'}>T3 Cooldown</button>
+          <button class="gem-filter-btn" class:active={gemFilter === 't4-damage'} on:click={() => gemFilter = 't4-damage'}>T4 Damage</button>
+          <button class="gem-filter-btn" class:active={gemFilter === 't4-cooldown'} on:click={() => gemFilter = 't4-cooldown'}>T4 Cooldown</button>
+        </div>
+      {/if}
 
       <div class="toolbar-right">
         <div class="search-box">
@@ -266,7 +299,7 @@
                   {:else}
                     <span class="gold-value">{formatGold(item.price)}</span>
                     <span class="gold-icon">G</span>
-                    {#if item.is_manual_override}
+                    {#if item.is_manual_override && activeCategory !== 'gems'}
                       <span class="override-badge" title="Manual override">M</span>
                     {/if}
                   {/if}
@@ -283,7 +316,7 @@
                     <button class="action-btn edit" on:click={() => startEdit(item)} title="Set manual price">
                       &#9998;
                     </button>
-                    {#if item.is_manual_override}
+                    {#if item.is_manual_override && activeCategory !== 'gems'}
                       <button class="action-btn remove" on:click={() => removeOverride(item.item_slug)} title="Remove override">
                         &#8634;
                       </button>
@@ -357,6 +390,7 @@
   .category-tabs {
     display: flex;
     gap: 0.25rem;
+    flex-wrap: wrap;
   }
 
   .tab-btn {
@@ -384,6 +418,35 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+
+  .gem-filter-tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0 1rem 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .gem-filter-btn {
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .gem-filter-btn:hover {
+    background: var(--md-sys-color-surface);
+  }
+
+  .gem-filter-btn.active {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+    border-color: var(--md-sys-color-tertiary-container);
   }
 
   .search-box {

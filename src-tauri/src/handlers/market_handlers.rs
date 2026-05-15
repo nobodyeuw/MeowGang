@@ -39,7 +39,7 @@ pub fn get_market_prices_by_category(
     category: String,
     market_db: State<'_, MarketDatabase>,
 ) -> Result<Vec<MarketItem>, String> {
-    let valid_categories = ["engraving", "honing"];
+    let valid_categories = ["engraving", "honing", "additional_honing", "gems"];
     if !valid_categories.contains(&category.as_str()) {
         return Err(format!(
             "Invalid category: {}. Must be one of: {:?}",
@@ -97,4 +97,12 @@ pub fn market_needs_refresh(market_db: State<'_, MarketDatabase>) -> Result<bool
     market_db
         .needs_refresh()
         .map_err(|e| format!("Failed to check refresh status: {}", e))
+}
+
+/// Get all gem prices (manual-only entries).
+#[tauri::command]
+pub fn get_gem_prices(market_db: State<'_, MarketDatabase>) -> Result<Vec<MarketItem>, String> {
+    market_db
+        .get_gem_prices()
+        .map_err(|e| format!("Failed to get gem prices: {}", e))
 }
