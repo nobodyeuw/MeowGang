@@ -415,6 +415,7 @@ pub fn run() {
     handlers::market_handlers::remove_manual_market_price,
     handlers::market_handlers::market_needs_refresh,
     handlers::market_handlers::get_gem_prices,
+    handlers::market_handlers::get_price_history,
 ])
 .run(tauri::generate_context!())
 .unwrap_or_else(|e| {

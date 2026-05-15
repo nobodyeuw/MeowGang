@@ -6,6 +6,7 @@ use std::time::Duration;
 use super::MarketDatabase;
 
 const API_URL: &str = "https://marketdata-api.yrzhao1068589.workers.dev/v1/prices/latest";
+const HISTORICAL_API_URL: &str = "https://marketdata-api.yrzhao1068589.workers.dev/v1/prices/historical";
 const REGION_SLUG: &str = "euc";
 
 /// Item slugs for engraving recipes.
@@ -133,6 +134,15 @@ pub struct PriceEntry {
     pub item_slug: String,
     pub price: i64,
     pub timestamp: i64,
+}
+
+/// Single historical price entry from the API.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HistoricalPriceEntry {
+    pub day: String,
+    pub min_price: f64,
+    pub max_price: f64,
+    pub avg_price: f64,
 }
 
 /// Result of a market refresh operation.
@@ -274,6 +284,37 @@ impl MarketScraper {
             })
             .collect();
         db.upsert_prices(&items, now)
+    }
+
+    /// Fetch historical price data for a single item.
+    pub async fn fetch_price_history(&self, item_slug: &str, days: u32) -> Result<Vec<HistoricalPriceEntry>> {
+        let end_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let start_date = (chrono::Utc::now() - chrono::Duration::days(days as i64))
+            .format("%Y-%m-%d")
+            .to_string();
+
+        let url = format!(
+            "{}/{}/{}?start_date={}&end_date={}",
+            HISTORICAL_API_URL, REGION_SLUG, item_slug, start_date, end_date
+        );
+
+        crate::log_debug!(
+            "Fetching {}-day price history for {} from LOA Buddy API",
+            days,
+            item_slug
+        );
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Historical API returned {}: {}", status, body);
+        }
+
+        let entries: Vec<HistoricalPriceEntry> = response.json().await?;
+        crate::log_info!("Received {} historical entries for {}", entries.len(), item_slug);
+        Ok(entries)
     }
 
     /// Fetch only honing material prices.
