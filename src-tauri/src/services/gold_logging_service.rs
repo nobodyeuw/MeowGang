@@ -138,7 +138,9 @@ impl GoldLoggingService {
         Ok(processed_count)
     }
 
-    /// Log gold earnings for a raid completion within a transaction
+    /// Log gold earnings for a raid completion within a transaction.
+    /// Deduplicates by (char_id, notes) within the current weekly reset window
+    /// so that timestamp changes in completion_status don't cause double entries.
     fn log_gold_for_raid_completion_in_transaction(
         &self,
         tx: &rusqlite::Transaction,
@@ -156,6 +158,12 @@ impl GoldLoggingService {
             .find(|g| g.gate == gate)
             .ok_or_else(|| anyhow::anyhow!("Gate {} not found for raid {}", gate, raid_id))?;
 
+        let weekly_reset: i64 = tx.query_row(
+            "SELECT last_weekly_reset FROM app_state LIMIT 1",
+            [],
+            |row| row.get(0)
+        ).unwrap_or(0);
+
         // Calculate gold values based on character settings
         let (gold_bound, gold_tradable) = if take_gold {
             (gate_data.bound_gold, gate_data.tradable_gold)
@@ -166,39 +174,58 @@ impl GoldLoggingService {
         // Log gold earnings
         if gold_bound > 0 || gold_tradable > 0 {
             let raid_name = &raid_data.name;
-            let gold_value_total = gold_bound + gold_tradable;
-            
-            tx.execute(
-                "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    timestamp,
-                    char_id,
-                    "raid",
-                    gold_value_total,
-                    gold_bound,
-                    gold_tradable,
-                    format!("{} {} {}", raid_name, difficulty, gate)
-                ]
-            )?;
+            let notes_value = format!("{} {} {}", raid_name, difficulty, gate);
+
+            let already_logged: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM gold_logs WHERE char_id = ?1 AND notes = ?2 AND timestamp >= ?3",
+                params![char_id, notes_value, weekly_reset],
+                |row| row.get(0)
+            ).unwrap_or(0);
+
+            if already_logged == 0 {
+                let gold_value_total = gold_bound + gold_tradable;
+                tx.execute(
+                    "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        timestamp,
+                        char_id,
+                        "raid",
+                        gold_value_total,
+                        gold_bound,
+                        gold_tradable,
+                        notes_value
+                    ]
+                )?;
+            }
         }
 
         // Handle box purchases if enabled
         if buy_box {
             let raid_name = &raid_data.name;
-            tx.execute(
-                "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    timestamp,
-                    char_id,
-                    "box_purchase",
-                    -gate_data.box_price,
-                    0,
-                    -gate_data.box_price,
-                    format!("Box Purchase {} {} {}", raid_name, difficulty, gate)
-                ]
-            )?;
+            let box_notes = format!("Box Purchase {} {} {}", raid_name, difficulty, gate);
+
+            let already_logged: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM gold_logs WHERE char_id = ?1 AND notes = ?2 AND timestamp >= ?3",
+                params![char_id, box_notes, weekly_reset],
+                |row| row.get(0)
+            ).unwrap_or(0);
+
+            if already_logged == 0 {
+                tx.execute(
+                    "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        timestamp,
+                        char_id,
+                        "box_purchase",
+                        -gate_data.box_price,
+                        0,
+                        -gate_data.box_price,
+                        box_notes
+                    ]
+                )?;
+            }
         }
 
         Ok(())

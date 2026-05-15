@@ -103,6 +103,13 @@ pub fn run() {
             // Initialize gold logging service
             let gold_service = services::gold_logging_service::GoldLoggingService::new(Arc::new(db_manager.pool.clone()));
             
+            // Clean up any existing duplicate gold log entries on startup
+            match gold_service.clean_all_duplicate_gold_logs() {
+                Ok(count) if count > 0 => crate::log_info!("Cleaned {} duplicate gold log entries on startup", count),
+                Ok(_) => {},
+                Err(e) => crate::log_warn!("Failed to clean duplicate gold logs: {}", e),
+            }
+            
             // Initialize settings manager
             let settings_manager = settings::SettingsManager::new(app_context.settings_path.clone())
                 .map_err(|e| {
