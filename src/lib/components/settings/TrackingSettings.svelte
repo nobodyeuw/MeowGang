@@ -225,6 +225,48 @@
     }
   }
 
+  async function toggleAllCharactersForTask(taskId: string, newState: boolean) {
+    try {
+      // For individual tasks, update all characters in the roster
+      const characters = matrixData?.characters || [];
+      
+      for (const char of characters) {
+        await invoke('update_tracking_config', {
+          characterId: char.char_id,
+          taskId: taskId,
+          tracked: newState,
+          currentValue: null
+        });
+      }
+      
+      // Update local data for all task sections
+      const updateTaskState = (tasks: any[]) => {
+        const task = tasks.find((t: any) => t.content_id === taskId);
+        if (task) {
+          for (const state of task.character_states) {
+            state.tracked = newState;
+          }
+        }
+      };
+      
+      updateTaskState(matrixData.daily_tasks);
+      updateTaskState(matrixData.weekly_tasks);
+      
+    } catch (err) {
+      console.error('Failed to toggle all characters for task:', err);
+    }
+  }
+
+  function areAllCharactersTrackedForTask(taskId: string): boolean {
+    const checkTaskState = (tasks: any[]) => {
+      const task = tasks.find((t: any) => t.content_id === taskId);
+      if (!task || task.character_states.length === 0) return false;
+      return task.character_states.every((state: any) => state.tracked === true);
+    };
+    
+    return checkTaskState(matrixData.daily_tasks) || checkTaskState(matrixData.weekly_tasks);
+  }
+
   // Load data when component mounts or roster changes
   $: if ($activeRosterId) {
     loadMatrixData();
@@ -286,6 +328,16 @@
               <td class="task-name-cell sticky-col first-col">
                 <div class="task-info">
                   <span class="task-name">{task.content_name}</span>
+                  <button 
+                    class="toggle-all-btn"
+                    on:click={() => {
+                      const currentState = areAllCharactersTrackedForTask(task.content_id);
+                      toggleAllCharactersForTask(task.content_id, !currentState);
+                    }}
+                    title="Toggle all characters"
+                  >
+                    {areAllCharactersTrackedForTask(task.content_id) ? '☑' : '☐'}
+                  </button>
                 </div>
               </td>
               {#each matrixData.characters as char}
@@ -332,6 +384,16 @@
               <td class="task-name-cell sticky-col first-col">
                 <div class="task-info">
                   <span class="task-name">{task.content_name}</span>
+                  <button 
+                    class="toggle-all-btn"
+                    on:click={() => {
+                      const currentState = areAllCharactersTrackedForTask(task.content_id);
+                      toggleAllCharactersForTask(task.content_id, !currentState);
+                    }}
+                    title="Toggle all characters"
+                  >
+                    {areAllCharactersTrackedForTask(task.content_id) ? '☑' : '☐'}
+                  </button>
                 </div>
               </td>
               {#each matrixData.characters as char}
@@ -589,6 +651,23 @@
     color: var(--md-sys-color-on-surface);
   }
 
+  .toggle-all-btn {
+    background: var(--md-sys-color-surface);
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--md-sys-color-on-surface);
+    transition: all 0.2s ease;
+    align-self: flex-start;
+  }
+
+  .toggle-all-btn:hover {
+    background: var(--md-sys-color-primary-container);
+    border-color: var(--md-sys-color-primary);
+  }
+
   .rested-input input {
     width: 60px;
     padding: 4px;
@@ -677,6 +756,7 @@
   .char-header.sticky-col {
     background: var(--md-sys-color-surface-variant);
     z-index: 15;
+    top: 0;
   }
 
   .task-name-cell.sticky-col {
