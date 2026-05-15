@@ -7,11 +7,6 @@
     },
 
     {
-      "severity": "Critical",
-      "description": "encounters.db sync may toggle all gates to 'completed' state even if only gate 1 was completed. This is a known issue with the encounters.db sync logic and is being actively investigated. The workaround is to not get jailed and fully complete the raid in one go."
-    },
-
-    {
       "severity": "Low Priority",
       "description": "App may show 'Update available' notification before the latest version is actually available for download. This is due to the update check running before the new release assets are fully propagated on GitHub. The workaround is to simply ignore the notification and check for updates again after a few minutes, at which point the latest version should be correctly detected and available for download."
     },
