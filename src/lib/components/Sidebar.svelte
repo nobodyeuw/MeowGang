@@ -2,7 +2,6 @@
   export let activeTab: string;
   export let switchTab: (tab: string) => void;
   export let isOpen: boolean = false;
-  import PlannedFeatures from './PlannedFeatures.svelte';
 </script>
 
 <nav class="sidebar" class:isOpen={isOpen}>
@@ -58,7 +57,6 @@
     </button>
   </div>
 
-  <PlannedFeatures />
 </nav>
 
 <style>
