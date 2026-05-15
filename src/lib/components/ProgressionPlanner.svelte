@@ -1,6 +1,29 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import { Line } from 'svelte-chartjs';
+  import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler
+  } from 'chart.js';
+
+  ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler
+  );
 
   interface MarketItem {
     item_slug: string;
@@ -18,6 +41,13 @@
     timestamp: number;
   }
 
+  interface HistoricalPriceEntry {
+    day: string;
+    min_price: number;
+    max_price: number;
+    avg_price: number;
+  }
+
   type Category = 'engraving' | 'honing' | 'additional_honing' | 'gems';
   let activeCategory: Category = 'engraving';
   let gemFilter: 'all' | 't3-damage' | 't3-cooldown' | 't4-damage' | 't4-cooldown' = 'all';
@@ -31,6 +61,16 @@
   let needsRefresh = true;
   let editingSlug: string | null = null;
   let editPrice: string = '';
+
+  // Price history modal state
+  let showHistoryModal = false;
+  let historyItemName = '';
+  let historyItemSlug = '';
+  let historyDays: 7 | 14 | 30 = 7;
+  let historyLoading = false;
+  let historyData: HistoricalPriceEntry[] = [];
+  let chartData: any = { labels: [], datasets: [] };
+  let chartOptions: any = {};
 
   $: filteredItems = marketItems
     .filter(item => item.category === activeCategory)
@@ -168,6 +208,106 @@
       editingSlug = null;
     }
   }
+
+  async function openPriceHistory(item: MarketItem) {
+    if (item.category === 'gems') return;
+    historyItemName = item.item_name;
+    historyItemSlug = item.item_slug;
+    historyDays = 7;
+    showHistoryModal = true;
+    await fetchHistory();
+  }
+
+  async function fetchHistory() {
+    historyLoading = true;
+    try {
+      historyData = await invoke<HistoricalPriceEntry[]>('get_price_history', {
+        itemSlug: historyItemSlug,
+        days: historyDays
+      });
+      buildChartData();
+    } catch (e) {
+      console.error('Failed to fetch price history:', e);
+      historyData = [];
+      buildChartData();
+    } finally {
+      historyLoading = false;
+    }
+  }
+
+  async function changeHistoryDays(days: 7 | 14 | 30) {
+    historyDays = days;
+    await fetchHistory();
+  }
+
+  function buildChartData() {
+    const labels = historyData.map(d => d.day);
+    chartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Min Price',
+          data: historyData.map(d => d.min_price),
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3
+        },
+        {
+          label: 'Max Price',
+          data: historyData.map(d => d.max_price),
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          fill: '-1',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3
+        },
+        {
+          label: 'Avg Price',
+          data: historyData.map(d => d.avg_price),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.15)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          tension: 0.3
+        }
+      ]
+    };
+    chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index' as const, intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#a0a0a0', font: { size: 12 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(30, 30, 30, 0.95)',
+          titleColor: '#fff',
+          bodyColor: '#ccc',
+          borderColor: '#555',
+          borderWidth: 1
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#888', font: { size: 11 } },
+          grid: { color: 'rgba(255,255,255,0.06)' }
+        },
+        y: {
+          ticks: { color: '#888', font: { size: 11 } },
+          grid: { color: 'rgba(255,255,255,0.06)' }
+        }
+      }
+    };
+  }
+
+  function closeHistoryModal() {
+    showHistoryModal = false;
+    historyData = [];
+  }
 </script>
 
 <div class="progression-planner">
@@ -283,8 +423,11 @@
           <tbody>
             {#each filteredItems as item (item.item_slug)}
               <tr class:manual-override={item.is_manual_override}>
-                <td class="item-name">
+                <td class="item-name" class:clickable={item.category !== 'gems'} on:click={() => openPriceHistory(item)}>
                   {item.item_name}
+                  {#if item.category !== 'gems'}
+                    <span class="chart-icon" title="View price history">&#128200;</span>
+                  {/if}
                 </td>
                 <td class="item-price">
                   {#if editingSlug === item.item_slug}
@@ -345,6 +488,40 @@
     </div>
   </div>
 </div>
+
+{#if showHistoryModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal-overlay" on:click={closeHistoryModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="modal-content" on:click|stopPropagation>
+      <div class="modal-header">
+        <h3>{historyItemName} Price Trend</h3>
+        <div class="modal-controls">
+          <div class="history-range-tabs">
+            <button class="range-btn" class:active={historyDays === 7} on:click={() => changeHistoryDays(7)}>7d</button>
+            <button class="range-btn" class:active={historyDays === 14} on:click={() => changeHistoryDays(14)}>14d</button>
+            <button class="range-btn" class:active={historyDays === 30} on:click={() => changeHistoryDays(30)}>30d</button>
+          </div>
+          <button class="modal-close" on:click={closeHistoryModal}>&#10005;</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        {#if historyLoading}
+          <div class="chart-loading">
+            <span class="spinner"></span>
+            <p>Loading price history...</p>
+          </div>
+        {:else if historyData.length === 0}
+          <div class="chart-empty">
+            <p>No historical data available for this item.</p>
+          </div>
+        {:else}
+          <Line data={chartData} options={chartOptions} />
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .progression-planner {
@@ -739,6 +916,132 @@
     margin: 0.25rem 0 0;
   }
 
+  /* Clickable item name */
+  .item-name.clickable {
+    cursor: pointer;
+  }
+
+  .item-name.clickable:hover {
+    color: var(--md-sys-color-primary);
+  }
+
+  .chart-icon {
+    font-size: 0.7rem;
+    opacity: 0;
+    margin-left: 0.35rem;
+    transition: opacity 0.15s ease;
+  }
+
+  .item-name.clickable:hover .chart-icon {
+    opacity: 0.7;
+  }
+
+  /* Modal overlay */
+  :global(.modal-overlay) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+
+  :global(.modal-content) {
+    background: var(--md-sys-color-surface-container, #1e1e1e);
+    border-radius: 16px;
+    border: 1px solid var(--md-sys-color-outline-variant, #444);
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 700px;
+    max-height: 80vh;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  :global(.modal-header) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  :global(.modal-header h3) {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface, #e0e0e0);
+    margin: 0;
+  }
+
+  :global(.modal-controls) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  :global(.history-range-tabs) {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--md-sys-color-surface, #121212);
+    border-radius: 8px;
+    padding: 0.15rem;
+  }
+
+  :global(.range-btn) {
+    padding: 0.3rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant, #aaa);
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  :global(.range-btn:hover) {
+    background: var(--md-sys-color-surface-variant, #333);
+  }
+
+  :global(.range-btn.active) {
+    background: var(--md-sys-color-primary, #6750a4);
+    color: var(--md-sys-color-on-primary, #fff);
+  }
+
+  :global(.modal-close) {
+    padding: 0.25rem 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant, #aaa);
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+  }
+
+  :global(.modal-close:hover) {
+    background: var(--md-sys-color-surface-variant, #333);
+  }
+
+  :global(.chart-container) {
+    height: 350px;
+    position: relative;
+  }
+
+  :global(.chart-loading),
+  :global(.chart-empty) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--md-sys-color-on-surface-variant, #aaa);
+    gap: 0.5rem;
+  }
+
   @media (max-width: 640px) {
     .market-toolbar {
       flex-direction: column;
@@ -751,6 +1054,15 @@
 
     .search-box input {
       width: 100px;
+    }
+
+    :global(.modal-content) {
+      width: 95%;
+      padding: 1rem;
+    }
+
+    :global(.chart-container) {
+      height: 250px;
     }
   }
 </style>

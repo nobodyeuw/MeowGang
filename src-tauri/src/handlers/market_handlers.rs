@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::market::market_database::MarketItem;
-use crate::market::market_scraper::RefreshResult;
+use crate::market::market_scraper::{HistoricalPriceEntry, RefreshResult};
 use crate::market::{MarketDatabase, MarketScraper};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,4 +105,21 @@ pub fn get_gem_prices(market_db: State<'_, MarketDatabase>) -> Result<Vec<Market
     market_db
         .get_gem_prices()
         .map_err(|e| format!("Failed to get gem prices: {}", e))
+}
+
+/// Get historical price data for an item (fetched live from API).
+#[tauri::command]
+pub async fn get_price_history(item_slug: String, days: u32) -> Result<Vec<HistoricalPriceEntry>, String> {
+    if item_slug.is_empty() {
+        return Err("Item slug cannot be empty".to_string());
+    }
+    if days == 0 || days > 30 {
+        return Err("Days must be between 1 and 30".to_string());
+    }
+
+    let scraper = MarketScraper::new();
+    scraper
+        .fetch_price_history(&item_slug, days)
+        .await
+        .map_err(|e| format!("Failed to get price history for {}: {}", item_slug, e))
 }
