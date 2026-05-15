@@ -64,6 +64,14 @@ pub fn run() {
                     format!("Failed to initialize market database: {}", e)
                 })?;
             crate::log_info!("Market database initialized successfully");
+
+            // Seed gem entries (manual-only, no API source)
+            market_db.seed_gem_entries()
+                .map_err(|e| {
+                    crate::log_error!("Failed to seed gem entries: {}", e);
+                    format!("Failed to seed gem entries: {}", e)
+                })?;
+
             let db_path_str = db_path.to_str()
                 .ok_or_else(|| format!("Database path contains invalid UTF-8: {:?}", db_path))?;
             let db_manager = DatabaseManager::new(db_path_str)
@@ -406,6 +414,7 @@ pub fn run() {
     handlers::market_handlers::set_manual_market_price,
     handlers::market_handlers::remove_manual_market_price,
     handlers::market_handlers::market_needs_refresh,
+    handlers::market_handlers::get_gem_prices,
 ])
 .run(tauri::generate_context!())
 .unwrap_or_else(|e| {

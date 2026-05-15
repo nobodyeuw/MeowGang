@@ -95,6 +95,31 @@ const HONING_SLUGS: &[&str] = &[
     "superior-abidos-fusion-material",
 ];
 
+/// Item slugs for additional honing materials.
+const ADDITIONAL_HONING_SLUGS: &[&str] = &[
+    "solar-grace",
+    "solar-blessing",
+    "solar-protection",
+    "glaciers-breath",
+    "lavas-breath",
+    "artisans-metallurgy-level-1",
+    "artisans-tailoring-level-1",
+    "artisans-metallurgy-level-2",
+    "artisans-tailoring-level-2",
+    "artisans-metallurgy-level-3",
+    "artisans-tailoring-level-3",
+    "artisans-metallurgy-level-4",
+    "artisans-tailoring-level-4",
+    "metallurgy-decay-16-19",
+    "tailoring-decay-16-19",
+    "metallurgy-hellfire-11-14",
+    "tailoring-hellfire-11-14",
+    "metallurgy-hellfire-15-18",
+    "tailoring-hellfire-15-18",
+    "metallurgy-hellfire-19-20",
+    "tailoring-hellfire-19-20",
+];
+
 /// API request body.
 #[derive(Serialize)]
 struct PriceRequest {
@@ -115,6 +140,7 @@ pub struct PriceEntry {
 pub struct RefreshResult {
     pub engravings_updated: usize,
     pub honing_updated: usize,
+    pub additional_honing_updated: usize,
     pub timestamp: i64,
 }
 
@@ -200,19 +226,37 @@ impl MarketScraper {
             .collect();
         let honing_updated = db.upsert_prices(&honing_items, now)?;
 
+        // Fetch additional honing materials
+        let additional_entries = self.fetch_prices(ADDITIONAL_HONING_SLUGS).await?;
+        let additional_items: Vec<(String, String, String, i64)> = additional_entries
+            .iter()
+            .map(|e| {
+                let display_name = Self::slug_to_display_name(&e.item_slug);
+                (
+                    e.item_slug.clone(),
+                    display_name,
+                    "additional_honing".to_string(),
+                    e.price,
+                )
+            })
+            .collect();
+        let additional_honing_updated = db.upsert_prices(&additional_items, now)?;
+
         // Update last refresh timestamp
         db.set_setting("last_full_refresh", &now.to_string())?;
 
         let result = RefreshResult {
             engravings_updated,
             honing_updated,
+            additional_honing_updated,
             timestamp: now,
         };
 
         crate::log_info!(
-            "Market refresh complete: {} engravings, {} honing materials",
+            "Market refresh complete: {} engravings, {} honing, {} additional honing",
             engravings_updated,
-            honing_updated
+            honing_updated,
+            additional_honing_updated
         );
 
         Ok(result)
