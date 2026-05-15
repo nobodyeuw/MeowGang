@@ -1,14 +1,14 @@
 {
   "version": "1.1.0",
-  "notes": "### v1.1.0\n\n- **Added:** Progression Planner\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.",
-  "pub_date": "2026-05-15T15:30:40.183Z",
+  "notes": "### v1.1.0\n\n- **Added:** Progression Planner\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.1.0_x64-setup.exe` below.",
+  "pub_date": "2026-05-15T15:40:46.115Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa21Rb1dFNnVpVW1RdTZhOVRnM1lLTU54TSsyaG1MRWxOQ3dWQy9TbnF4bURRa3dQQkVXdE9LNGRYbWhQNDUrVnRsWk5ObHZtSldRblcyQVEwZmQ4aWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5MDM3CWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpUSmhrOWhyTDVmSElvNTRqZURwQkNzalpNZzlNZkNHMEI5TTR3b3lnQjF1SFhNOWRQUVlvYnNhSithWlc3QkJTNlk5VXhVNGduMDlFWWw2STBXWUpDdz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3A5VVB4Rk0xZHM2cUtGanJTekNOblkwbG0raWU3Z2xhWlppM29kb3V1RjRXQUJqZmlEaDhTdGc3Rjl1ejN6WHI0bE9xY0Vsa2FmbFE3Q2l3ekt4WmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5NjQzCWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpyd2I0bG5EWTZSOGlyQXdmY3dWbnZmTzJXN2hsWUtrUEMvemFYd1dEZjU1blJkVm1jN2xTeHE0aWttNDlNY2M2MG9QOEJTano4SUZnUkMzRXUrVnhEUT09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.0/LOA.Tracker_1.1.0_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa21Rb1dFNnVpVW1RdTZhOVRnM1lLTU54TSsyaG1MRWxOQ3dWQy9TbnF4bURRa3dQQkVXdE9LNGRYbWhQNDUrVnRsWk5ObHZtSldRblcyQVEwZmQ4aWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5MDM3CWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpUSmhrOWhyTDVmSElvNTRqZURwQkNzalpNZzlNZkNHMEI5TTR3b3lnQjF1SFhNOWRQUVlvYnNhSithWlc3QkJTNlk5VXhVNGduMDlFWWw2STBXWUpDdz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3A5VVB4Rk0xZHM2cUtGanJTekNOblkwbG0raWU3Z2xhWlppM29kb3V1RjRXQUJqZmlEaDhTdGc3Rjl1ejN6WHI0bE9xY0Vsa2FmbFE3Q2l3ekt4WmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4ODU5NjQzCWZpbGU6TE9BIFRyYWNrZXJfMS4xLjBfeDY0LXNldHVwLmV4ZQpyd2I0bG5EWTZSOGlyQXdmY3dWbnZmTzJXN2hsWUtrUEMvemFYd1dEZjU1blJkVm1jN2xTeHE0aWttNDlNY2M2MG9QOEJTano4SUZnUkMzRXUrVnhEUT09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.0/LOA.Tracker_1.1.0_x64-setup.exe"
     }
   }
