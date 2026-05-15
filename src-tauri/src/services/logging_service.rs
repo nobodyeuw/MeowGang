@@ -185,21 +185,21 @@ pub fn debug(message: &str) {
 #[macro_export]
 macro_rules! log_info {
     ($($arg:tt)*) => {
-        $crate::services::logging_service::info(&format!($($arg)*));
+        $crate::services::logging_service::info(&format!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
-        $crate::services::logging_service::error(&format!($($arg)*));
+        $crate::services::logging_service::error(&format!($($arg)*))
     };
 }
 
 #[macro_export]
 macro_rules! log_warn {
     ($($arg:tt)*) => {
-        $crate::services::logging_service::warn(&format!($($arg)*));
+        $crate::services::logging_service::warn(&format!($($arg)*))
     };
 }
 
