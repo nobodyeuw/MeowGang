@@ -7,6 +7,7 @@
   import Settings from '$lib/components/Settings.svelte';
   import UpdateTab from '$lib/components/UpdateTab.svelte';
   import EncounterSyncStatus from '$lib/components/EncounterSyncStatus.svelte';
+  import ProgressionPlanner from '$lib/components/ProgressionPlanner.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
@@ -286,6 +287,8 @@
         <Todo highlightCharId={$activeFilterCharId} />
       {:else if activeTab === 'settings'}
         <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e) => activeSettingsTab = e.detail} />
+      {:else if activeTab === 'progression'}
+        <ProgressionPlanner />
       {:else if activeTab === 'updates'}
         <UpdateTab />
       {:else if activeTab === 'encounters'}

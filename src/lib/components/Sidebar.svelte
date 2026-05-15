@@ -27,6 +27,17 @@
     
     <button 
       class="nav-item"
+      class:active={activeTab === 'progression'}
+      on:click={() => switchTab('progression')}
+    >
+      <span class="nav-icon">📈</span>
+      <span class="nav-text">Progression Planner</span>
+    </button>
+
+    <div class="nav-spacer"></div>
+
+    <button 
+      class="nav-item"
       class:active={activeTab === 'settings'}
       on:click={() => switchTab('settings')}
     >
@@ -74,6 +85,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .nav-spacer {
+    height: 1rem;
   }
 
   .sidebar-footer {
