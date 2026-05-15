@@ -1,130 +1,693 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from 'svelte';
+
+  interface MarketItem {
+    item_slug: string;
+    item_name: string;
+    category: string;
+    price: number;
+    fetched_at: number;
+    is_manual_override: boolean;
+  }
+
+  interface RefreshResult {
+    engravings_updated: number;
+    honing_updated: number;
+    timestamp: number;
+  }
+
+  let activeCategory: 'engraving' | 'honing' = 'engraving';
+  let marketItems: MarketItem[] = [];
+  let loading = false;
+  let refreshing = false;
+  let lastRefreshed: string = 'Never';
+  let searchQuery = '';
+  let sortKey: 'name' | 'price' = 'name';
+  let sortAsc = true;
+  let needsRefresh = true;
+  let editingSlug: string | null = null;
+  let editPrice: string = '';
+
+  $: filteredItems = marketItems
+    .filter(item => item.category === activeCategory)
+    .filter(item => !searchQuery || item.item_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      const mul = sortAsc ? 1 : -1;
+      if (sortKey === 'name') return mul * a.item_name.localeCompare(b.item_name);
+      return mul * (a.price - b.price);
+    });
+
+  onMount(async () => {
+    await checkRefreshStatus();
+    await loadPrices();
+    if (needsRefresh) {
+      await refreshPrices();
+    }
+  });
+
+  async function checkRefreshStatus() {
+    try {
+      needsRefresh = await invoke<boolean>('market_needs_refresh');
+    } catch (e) {
+      console.error('Failed to check refresh status:', e);
+    }
+  }
+
+  async function loadPrices() {
+    loading = true;
+    try {
+      marketItems = await invoke<MarketItem[]>('get_all_market_prices');
+      updateLastRefreshed();
+    } catch (e) {
+      console.error('Failed to load market prices:', e);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function refreshPrices() {
+    refreshing = true;
+    try {
+      const result = await invoke<RefreshResult>('refresh_market_prices');
+      await loadPrices();
+      needsRefresh = false;
+    } catch (e) {
+      console.error('Failed to refresh market prices:', e);
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  function updateLastRefreshed() {
+    if (marketItems.length === 0) {
+      lastRefreshed = 'Never';
+      return;
+    }
+    const maxTs = Math.max(...marketItems.map(i => i.fetched_at));
+    if (maxTs === 0) {
+      lastRefreshed = 'Never';
+      return;
+    }
+    const date = new Date(maxTs * 1000);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) lastRefreshed = 'Just now';
+    else if (diffMins < 60) lastRefreshed = `${diffMins}m ago`;
+    else if (diffMins < 1440) lastRefreshed = `${Math.floor(diffMins / 60)}h ago`;
+    else lastRefreshed = date.toLocaleDateString();
+  }
+
+  function formatGold(price: number): string {
+    if (price >= 1000) {
+      return price.toLocaleString();
+    }
+    return price.toString();
+  }
+
+  function toggleSort(key: 'name' | 'price') {
+    if (sortKey === key) {
+      sortAsc = !sortAsc;
+    } else {
+      sortKey = key;
+      sortAsc = key === 'name';
+    }
+  }
+
+  function startEdit(item: MarketItem) {
+    editingSlug = item.item_slug;
+    editPrice = item.price.toString();
+  }
+
+  async function saveManualPrice(item: MarketItem) {
+    const price = parseInt(editPrice, 10);
+    if (isNaN(price) || price < 0) {
+      editingSlug = null;
+      return;
+    }
+
+    try {
+      await invoke('set_manual_market_price', {
+        input: {
+          item_slug: item.item_slug,
+          item_name: item.item_name,
+          category: item.category,
+          price: price
+        }
+      });
+      editingSlug = null;
+      await loadPrices();
+    } catch (e) {
+      console.error('Failed to set manual price:', e);
+    }
+  }
+
+  async function removeOverride(itemSlug: string) {
+    try {
+      await invoke('remove_manual_market_price', { itemSlug });
+      await loadPrices();
+    } catch (e) {
+      console.error('Failed to remove override:', e);
+    }
+  }
+
+  function handleEditKeydown(event: KeyboardEvent, item: MarketItem) {
+    if (event.key === 'Enter') {
+      saveManualPrice(item);
+    } else if (event.key === 'Escape') {
+      editingSlug = null;
+    }
+  }
 </script>
 
 <div class="progression-planner">
-  <div class="wip-container">
-    <div class="wip-icon">🚧</div>
-    <h2 class="wip-title">Progression Planner</h2>
-    <p class="wip-subtitle">This feature is currently in development</p>
-    
-    <div class="wip-details">
-      <div class="detail-item">
-        <span class="detail-icon">📈</span>
-        <span class="detail-text">Plan your character progression path</span>
+  <div class="planner-header">
+    <h2 class="planner-title">Progression Planner</h2>
+    <p class="planner-subtitle">Market prices from LOA Buddy (Europe Central)</p>
+  </div>
+
+  <div class="market-section">
+    <div class="market-toolbar">
+      <div class="category-tabs">
+        <button
+          class="tab-btn"
+          class:active={activeCategory === 'engraving'}
+          on:click={() => activeCategory = 'engraving'}
+        >
+          Engravings
+        </button>
+        <button
+          class="tab-btn"
+          class:active={activeCategory === 'honing'}
+          on:click={() => activeCategory = 'honing'}
+        >
+          Honing Materials
+        </button>
       </div>
-      <div class="detail-item">
-        <span class="detail-icon">🎯</span>
-        <span class="detail-text">Set item level and gear upgrade goals</span>
-      </div>
-      <div class="detail-item">
-        <span class="detail-icon">💰</span>
-        <span class="detail-text">Estimate gold and material costs</span>
+
+      <div class="toolbar-right">
+        <div class="search-box">
+          <span class="search-icon">&#128269;</span>
+          <input
+            type="text"
+            placeholder="Search items..."
+            bind:value={searchQuery}
+          />
+        </div>
+        <div class="refresh-info">
+          <span class="refresh-time">Updated: {lastRefreshed}</span>
+          <button
+            class="refresh-btn"
+            on:click={refreshPrices}
+            disabled={refreshing}
+          >
+            {#if refreshing}
+              <span class="spinner"></span>
+            {:else}
+              &#8635;
+            {/if}
+            Refresh
+          </button>
+        </div>
       </div>
     </div>
-    
-    <div class="wip-badge">
-      <span class="badge-dot"></span>
-      In Progress
+
+    {#if loading && marketItems.length === 0}
+      <div class="loading-state">
+        <span class="spinner large"></span>
+        <p>Loading market data...</p>
+      </div>
+    {:else if filteredItems.length === 0}
+      <div class="empty-state">
+        <p>No items found{searchQuery ? ` matching "${searchQuery}"` : ''}.</p>
+        {#if marketItems.length === 0}
+          <button class="refresh-btn primary" on:click={refreshPrices} disabled={refreshing}>
+            Fetch Market Data
+          </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="market-table-wrapper">
+        <table class="market-table">
+          <thead>
+            <tr>
+              <th class="sortable" on:click={() => toggleSort('name')}>
+                Item Name
+                {#if sortKey === 'name'}
+                  <span class="sort-arrow">{sortAsc ? '&#9650;' : '&#9660;'}</span>
+                {/if}
+              </th>
+              <th class="sortable price-col" on:click={() => toggleSort('price')}>
+                Price
+                {#if sortKey === 'price'}
+                  <span class="sort-arrow">{sortAsc ? '&#9650;' : '&#9660;'}</span>
+                {/if}
+              </th>
+              <th class="actions-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredItems as item (item.item_slug)}
+              <tr class:manual-override={item.is_manual_override}>
+                <td class="item-name">
+                  {item.item_name}
+                </td>
+                <td class="item-price">
+                  {#if editingSlug === item.item_slug}
+                    <input
+                      class="edit-price-input"
+                      type="number"
+                      min="0"
+                      bind:value={editPrice}
+                      on:keydown={(e) => handleEditKeydown(e, item)}
+                      on:blur={() => saveManualPrice(item)}
+                    />
+                  {:else}
+                    <span class="gold-value">{formatGold(item.price)}</span>
+                    <span class="gold-icon">G</span>
+                    {#if item.is_manual_override}
+                      <span class="override-badge" title="Manual override">M</span>
+                    {/if}
+                  {/if}
+                </td>
+                <td class="item-actions">
+                  {#if editingSlug === item.item_slug}
+                    <button class="action-btn save" on:click={() => saveManualPrice(item)} title="Save">
+                      &#10003;
+                    </button>
+                    <button class="action-btn cancel" on:click={() => editingSlug = null} title="Cancel">
+                      &#10005;
+                    </button>
+                  {:else}
+                    <button class="action-btn edit" on:click={() => startEdit(item)} title="Set manual price">
+                      &#9998;
+                    </button>
+                    {#if item.is_manual_override}
+                      <button class="action-btn remove" on:click={() => removeOverride(item.item_slug)} title="Remove override">
+                        &#8634;
+                      </button>
+                    {/if}
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-footer">
+        <span class="item-count">{filteredItems.length} items</span>
+      </div>
+    {/if}
+  </div>
+
+  <div class="coming-soon-section">
+    <div class="coming-soon-card">
+      <span class="coming-soon-icon">&#128736;</span>
+      <div class="coming-soon-text">
+        <strong>Character Details & Goal Calculator</strong>
+        <p>Coming soon: Set progression goals, compare to current state, and calculate gold costs.</p>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
   .progression-planner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 120px);
-    padding: 2rem;
+    padding: 1.5rem;
+    max-width: 1000px;
+    margin: 0 auto;
   }
 
-  .wip-container {
-    text-align: center;
-    max-width: 480px;
-    padding: 3rem 2rem;
-    background: var(--md-sys-color-surface-variant);
-    border-radius: 16px;
-    border: 1px solid var(--md-sys-color-outline-variant);
+  .planner-header {
+    margin-bottom: 1.5rem;
   }
 
-  .wip-icon {
-    font-size: 3.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .wip-title {
+  .planner-title {
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.25rem;
   }
 
-  .wip-subtitle {
-    font-size: 0.95rem;
+  .planner-subtitle {
+    font-size: 0.85rem;
     color: var(--md-sys-color-on-surface-variant);
-    margin: 0 0 2rem;
+    margin: 0;
   }
 
-  .wip-details {
+  .market-section {
+    background: var(--md-sys-color-surface-variant);
+    border-radius: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    overflow: hidden;
+  }
+
+  .market-toolbar {
     display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 2rem;
-    text-align: left;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    gap: 1rem;
+    flex-wrap: wrap;
   }
 
-  .detail-item {
+  .category-tabs {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .tab-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tab-btn:hover {
+    background: var(--md-sys-color-surface);
+  }
+
+  .tab-btn.active {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+  }
+
+  .toolbar-right {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
     background: var(--md-sys-color-surface);
     border-radius: 8px;
     border: 1px solid var(--md-sys-color-outline-variant);
   }
 
-  .detail-icon {
-    font-size: 1.25rem;
-    flex-shrink: 0;
+  .search-icon {
+    font-size: 0.8rem;
+    opacity: 0.6;
   }
 
-  .detail-text {
-    font-size: 0.875rem;
+  .search-box input {
+    border: none;
+    background: none;
+    outline: none;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.8rem;
+    width: 140px;
+  }
+
+  .refresh-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .refresh-time {
+    font-size: 0.75rem;
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
+  }
+
+  .refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .refresh-btn:hover:not(:disabled) {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border-color: var(--md-sys-color-primary);
+  }
+
+  .refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .refresh-btn.primary {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border-color: var(--md-sys-color-primary);
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  .spinner.large {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-state, .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    gap: 0.75rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .market-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .market-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .market-table thead th {
+    padding: 0.6rem 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--md-sys-color-on-surface-variant);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    user-select: none;
+  }
+
+  .market-table thead th.sortable {
+    cursor: pointer;
+  }
+
+  .market-table thead th.sortable:hover {
+    color: var(--md-sys-color-primary);
+  }
+
+  .sort-arrow {
+    font-size: 0.65rem;
+    margin-left: 0.25rem;
+  }
+
+  .price-col {
+    text-align: right !important;
+    width: 140px;
+  }
+
+  .actions-col {
+    width: 80px;
+    text-align: center !important;
+  }
+
+  .market-table tbody tr {
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    transition: background 0.1s ease;
+  }
+
+  .market-table tbody tr:hover {
+    background: var(--md-sys-color-surface);
+  }
+
+  .market-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .market-table tbody td {
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
     color: var(--md-sys-color-on-surface);
   }
 
-  .wip-badge {
-    display: inline-flex;
+  .item-name {
+    font-weight: 500;
+  }
+
+  .item-price {
+    text-align: right;
+    white-space: nowrap;
+    display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1.25rem;
-    background: var(--md-sys-color-tertiary-container);
-    color: var(--md-sys-color-on-tertiary-container);
-    border-radius: 20px;
-    font-size: 0.875rem;
+    justify-content: flex-end;
+    gap: 0.35rem;
+  }
+
+  .gold-value {
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
-  .badge-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--md-sys-color-tertiary);
-    animation: pulse 2s ease-in-out infinite;
+  .gold-icon {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #d4a017;
+    background: rgba(212, 160, 23, 0.15);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+  .override-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--md-sys-color-tertiary);
+    background: var(--md-sys-color-tertiary-container);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
   }
 
-  @media (max-width: 480px) {
-    .wip-container {
-      padding: 2rem 1.5rem;
+  .manual-override {
+    background: rgba(var(--md-sys-color-tertiary-rgb, 130, 100, 200), 0.05);
+  }
+
+  .edit-price-input {
+    width: 90px;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid var(--md-sys-color-primary);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    text-align: right;
+    outline: none;
+  }
+
+  .item-actions {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .action-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 4px;
+    transition: all 0.1s ease;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .action-btn:hover {
+    background: var(--md-sys-color-surface);
+  }
+
+  .action-btn.save {
+    color: #4caf50;
+  }
+
+  .action-btn.cancel {
+    color: #f44336;
+  }
+
+  .action-btn.edit:hover {
+    color: var(--md-sys-color-primary);
+  }
+
+  .action-btn.remove:hover {
+    color: var(--md-sys-color-error);
+  }
+
+  .table-footer {
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    text-align: right;
+  }
+
+  .item-count {
+    font-size: 0.75rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .coming-soon-section {
+    margin-top: 1.5rem;
+  }
+
+  .coming-soon-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--md-sys-color-surface-variant);
+    border-radius: 12px;
+    border: 1px dashed var(--md-sys-color-outline-variant);
+  }
+
+  .coming-soon-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .coming-soon-text strong {
+    font-size: 0.9rem;
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .coming-soon-text p {
+    font-size: 0.8rem;
+    color: var(--md-sys-color-on-surface-variant);
+    margin: 0.25rem 0 0;
+  }
+
+  @media (max-width: 640px) {
+    .market-toolbar {
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    .wip-title {
-      font-size: 1.25rem;
+    .toolbar-right {
+      flex-wrap: wrap;
+    }
+
+    .search-box input {
+      width: 100px;
     }
   }
 </style>

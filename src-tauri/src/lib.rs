@@ -12,6 +12,7 @@ pub mod version;
 pub mod context;
 pub mod settings;
 pub mod validation;
+pub mod market;
 
 // Re-export commonly used items
 pub use database::DatabaseManager;
@@ -52,6 +53,17 @@ pub fn run() {
             // Initialize database setup (synchronous, fast) - AFTER path update
             let db_path = init::ensure_database_setup(&app_context.app_data_dir)?;
             crate::log_info!("Database path established: {:?}", db_path);
+            
+            // Initialize separate market database for progression planner
+            let market_db_path = app_context.app_data_dir.join("market.db");
+            let market_db_path_str = market_db_path.to_str()
+                .ok_or_else(|| format!("Market DB path contains invalid UTF-8: {:?}", market_db_path))?;
+            let market_db = market::MarketDatabase::new(market_db_path_str)
+                .map_err(|e| {
+                    crate::log_error!("Failed to initialize market database: {}", e);
+                    format!("Failed to initialize market database: {}", e)
+                })?;
+            crate::log_info!("Market database initialized successfully");
             let db_path_str = db_path.to_str()
                 .ok_or_else(|| format!("Database path contains invalid UTF-8: {:?}", db_path))?;
             let db_manager = DatabaseManager::new(db_path_str)
@@ -125,6 +137,7 @@ pub fn run() {
             app.manage(scraper);
             app.manage(raid_data_state);
             app.manage(gold_service);
+            app.manage(market_db);
             
             // Create and manage TodoRepository
             let todo_repo = database::repositories::TodoRepository::new(Arc::new(db_manager.pool.clone()));
@@ -384,6 +397,15 @@ pub fn run() {
     // Encounters watcher handlers
     sync::encounters_watcher::force_encounters_sync,
     sync::encounters_watcher::start_encounters_file_watcher,
+    
+    // Market handlers
+    handlers::market_handlers::refresh_market_prices,
+    handlers::market_handlers::get_all_market_prices,
+    handlers::market_handlers::get_market_prices_by_category,
+    handlers::market_handlers::get_market_price,
+    handlers::market_handlers::set_manual_market_price,
+    handlers::market_handlers::remove_manual_market_price,
+    handlers::market_handlers::market_needs_refresh,
 ])
 .run(tauri::generate_context!())
 .unwrap_or_else(|e| {
