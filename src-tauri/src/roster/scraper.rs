@@ -1,12 +1,12 @@
+use rand::Rng;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-use regex::Regex;
-use tokio::time::sleep;
-use rand::Rng;
-use urlencoding;
 use thiserror::Error;
+use tokio::time::sleep;
+use urlencoding;
 
 #[derive(Debug, Error)]
 pub enum ScraperError {
@@ -18,6 +18,8 @@ pub enum ScraperError {
     NoCharactersFound,
     #[error("Could not find roster data in HTML")]
     RosterDataNotFound,
+    #[error("Cloudflare protection blocked the request. Please try again in a few minutes.")]
+    CloudflareBlocked,
     #[error("JSON parsing error: {0}")]
     JsonParsingError(#[from] serde_json::Error),
     #[error("Regex error: {0}")]
@@ -29,6 +31,8 @@ pub enum ScraperError {
     #[error("Generic error: {0}")]
     Generic(String),
 }
+
+const MAX_RETRIES: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Character {
@@ -101,8 +105,12 @@ pub struct HumanizedScraper {
 
 impl HumanizedScraper {
     pub fn new(main_character: String, roster_name: String) -> Self {
-        crate::log_info!("Starting new scraper-session for character '{}' in roster '{}'", main_character, roster_name);
-        
+        crate::log_info!(
+            "Starting new scraper-session for character '{}' in roster '{}'",
+            main_character,
+            roster_name
+        );
+
         let client = Client::builder()
             .timeout(Duration::from_secs(15))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -127,7 +135,10 @@ impl HumanizedScraper {
             "https://www.bing.com/search?q=lostark.bible",
             "https://www.reddit.com/r/lostarkgame/",
             "https://lost-ark.fandom.com/",
-        ].iter().map(|s| s.to_string()).collect();
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
         let scraper = Self {
             main_character,
@@ -137,8 +148,12 @@ impl HumanizedScraper {
             user_agents,
             referers,
         };
-        
-        crate::log_debug!("Scraper session successfully initialized with {} user agents and {} referers", scraper.user_agents.len(), scraper.referers.len());
+
+        crate::log_debug!(
+            "Scraper session successfully initialized with {} user agents and {} referers",
+            scraper.user_agents.len(),
+            scraper.referers.len()
+        );
         scraper
     }
 
@@ -161,9 +176,7 @@ impl HumanizedScraper {
 
     pub fn can_make_request(&self) -> bool {
         if let Some(last_time) = self.last_request_time {
-            let elapsed = SystemTime::now()
-                .duration_since(last_time)
-                .unwrap_or_default();
+            let elapsed = SystemTime::now().duration_since(last_time).unwrap_or_default();
             elapsed >= Duration::from_secs(24 * 60 * 60) // 24 hours
         } else {
             true
@@ -174,7 +187,7 @@ impl HumanizedScraper {
         if let Some(last_time) = self.last_request_time {
             let next_request = last_time + Duration::from_secs(24 * 60 * 60);
             let now = SystemTime::now();
-            
+
             if now < next_request {
                 let time_until = next_request.duration_since(now).unwrap_or_default();
                 RateLimitInfo {
@@ -197,7 +210,7 @@ impl HumanizedScraper {
 
     async fn setup_session(&self) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
         crate::log_debug!("Setting up HTTP session for roster scraping");
-        
+
         let (user_agent, referer) = {
             let mut rng = rand::thread_rng();
             let ua = self.user_agents[rng.gen_range(0..self.user_agents.len())].clone();
@@ -209,11 +222,15 @@ impl HumanizedScraper {
         let encoded_character = urlencoding::encode(&self.main_character);
         let url = format!("https://lostark.bible/character/CE/{}/roster", encoded_character);
         crate::log_debug!("Constructed roster URL: {}", url);
-        
-        let request = self.client
+
+        let request = self
+            .client
             .get(&url)
             .header("User-Agent", user_agent)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            )
             .header("Accept-Language", "en-US,en;q=0.5")
             .header("Accept-Encoding", "identity")
             .header("DNT", "1")
@@ -243,7 +260,7 @@ impl HumanizedScraper {
     fn parse_roster_data(&self, html: &str) -> Result<Vec<Character>, ScraperError> {
         crate::log_debug!("Parsing HTML content, length: {}", html.len());
         crate::log_debug!("HTML starts with: {}", &html[..200.min(html.len())]);
-        
+
         let patterns = vec![
             r"data[:=]\{roster:(\[[^\]]+\])",
             r"data\s*[:=]\s*\{roster:\s*(\[[^\]]+\])",
@@ -267,68 +284,70 @@ impl HumanizedScraper {
 
     fn parse_roster_json(&self, roster_js: &str) -> Result<Vec<Character>, ScraperError> {
         crate::log_debug!("Raw JavaScript JSON: {}", roster_js);
-        
+
         // Clean up JavaScript JSON to valid JSON using a Rust-compatible approach
         let mut cleaned = roster_js.to_string();
-        
+
         // First, replace property names with quoted versions
         let re1 = Regex::new(r#"(\w+):"#)?;
-        cleaned = re1.replace_all(&cleaned, |caps: &regex::Captures| {
-            format!("\"{}\":", &caps[1])
-        }).to_string();
-        
+        cleaned = re1
+            .replace_all(&cleaned, |caps: &regex::Captures| format!("\"{}\":", &caps[1]))
+            .to_string();
+
         crate::log_debug!("After property name quoting: {}", cleaned);
-        
+
         // Then, handle unquoted string values more carefully
         // Only quote actual string values, not booleans, numbers, or null
         let re2 = Regex::new(r#":\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])"#)?;
-        cleaned = re2.replace_all(&cleaned, |caps: &regex::Captures| {
-            let value = &caps[1];
-            let separator = &caps[2];
-            
-            // Don't quote boolean values, numbers, or null
-            if value == "true" || value == "false" || value == "null" || value.parse::<f64>().is_ok() {
-                format!(":{}{}", value, separator)
-            } else {
-                format!(":\"{}\"{}", value, separator)
-            }
-        }).to_string();
-        
+        cleaned = re2
+            .replace_all(&cleaned, |caps: &regex::Captures| {
+                let value = &caps[1];
+                let separator = &caps[2];
+
+                // Don't quote boolean values, numbers, or null
+                if value == "true" || value == "false" || value == "null" || value.parse::<f64>().is_ok() {
+                    format!(":{}{}", value, separator)
+                } else {
+                    format!(":\"{}\"{}", value, separator)
+                }
+            })
+            .to_string();
+
         crate::log_debug!("After string value quoting: {}", cleaned);
-        
+
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&cleaned)?;
         let roster_id = self.generate_roster_id();
 
         let mut characters = Vec::new();
         for (i, char) in parsed.iter().enumerate() {
             // Extract ID as number
-            let char_id = char.get("id")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            
+            let char_id = char.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+
             if let (Some(name), Some(class)) = (
                 char.get("name").and_then(|v| v.as_str()),
                 char.get("class").and_then(|v| v.as_str()),
             ) {
                 // Extract item level as number or string
-                let item_level = char.get("ilvl")
+                let item_level = char
+                    .get("ilvl")
                     .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
                     .unwrap_or(0.0);
-                
+
                 // Extract combat power from nested object
-                let combat_power = char.get("combatPower")
+                let combat_power = char
+                    .get("combatPower")
                     .and_then(|cp| cp.get("score"))
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0);
-                
+
                 characters.push(Character {
-                    char_id: char_id,
+                    char_id,
                     char_name: name.to_string(),
                     roster_id: roster_id.clone(),
                     roster_name: self.roster_name.clone(),
                     class_id: self.normalize_class_name(class),
-                    item_level: item_level,
-                    combat_power: combat_power,
+                    item_level,
+                    combat_power,
                     display_order: (i + 1) as i64,
                     earns_gold: false,
                     hide_from_dashboard: false,
@@ -344,7 +363,7 @@ impl HumanizedScraper {
     fn generate_roster_id(&self) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         self.roster_name.hash(&mut hasher);
         format!("roster_{}", hasher.finish())
@@ -374,6 +393,47 @@ impl HumanizedScraper {
         }
     }
 
+    fn is_cloudflare_challenge(status: u16, content: &str) -> bool {
+        if status == 403 || status == 503 {
+            return true;
+        }
+        content.contains("Just a moment...")
+            || content.contains("challenges.cloudflare.com")
+            || content.contains("cf-browser-verification")
+            || content.contains("cf_clearance")
+    }
+
+    async fn attempt_scrape(&self) -> Result<String, ScraperError> {
+        let request = self
+            .setup_session()
+            .await
+            .map_err(|e| ScraperError::Generic(e.to_string()))?;
+
+        let response = request.send().await?;
+        let status = response.status().as_u16();
+
+        if status == 404 {
+            return Err(ScraperError::PrivateProfile);
+        }
+
+        let content = response.text().await?;
+
+        if Self::is_cloudflare_challenge(status, &content) {
+            crate::log_warn!(
+                "Cloudflare challenge detected (HTTP {}) for '{}'",
+                status,
+                self.main_character
+            );
+            return Err(ScraperError::CloudflareBlocked);
+        }
+
+        if status != 200 {
+            return Err(ScraperError::HttpError(status));
+        }
+
+        Ok(content)
+    }
+
     pub async fn scrape_roster(&mut self) -> Result<ScraperResult, ScraperError> {
         // Check rate limiting
         if !self.can_make_request() {
@@ -381,65 +441,71 @@ impl HumanizedScraper {
             return Err(ScraperError::RateLimited(rate_info.time_until_next.unwrap_or_default()));
         }
 
-        // Setup session with humanized delay
-        self.humanized_delay(1.0, 3.0).await;
-        
-        let request = self.setup_session().await.map_err(|e| ScraperError::Generic(e.to_string()))?;
-        
-        // Humanized delay before request
-        self.humanized_delay(2.0, 4.0).await;
-        
-        let response = request.send().await?;
-        
-        // Check for 404 or private profile
-        if response.status().as_u16() == 404 {
-            return Err(ScraperError::PrivateProfile);
-        }
-        
-        if response.status().as_u16() != 200 {
-            return Err(ScraperError::HttpError(response.status().as_u16()));
-        }
-        
-        let content = response.text().await?;
-        crate::log_debug!("Received HTML response, length: {}", content.len());
-        
-        // Check for private profile indicators - more specific check
-        let is_private = content.contains("This profile is private") || 
-                       content.contains("Profile not found") ||
-                       (content.contains("Private") && content.contains("profile"));
-                       
-        if is_private {
-            crate::log_warn!("Private profile detected for character '{}'", self.main_character);
-            return Err(ScraperError::PrivateProfile);
-        }
-        
-        // Humanized processing delays
-        crate::log_debug!("Applying humanized processing delays");
-        self.humanized_delay(2.0, 4.0).await;
-        self.humanized_delay(1.5, 3.0).await;
-        self.humanized_delay(1.0, 2.5).await;
-        self.humanized_delay(0.5, 1.5).await;
+        // Retry loop with exponential backoff for Cloudflare blocks
+        let mut last_error = ScraperError::Generic("No attempts made".to_string());
+        for attempt in 1..=MAX_RETRIES {
+            crate::log_info!(
+                "Scrape attempt {}/{} for '{}'",
+                attempt,
+                MAX_RETRIES,
+                self.main_character
+            );
 
-        let characters = if content.starts_with("<!DOCTYPE html>") {
-            crate::log_debug!("Parsing HTML content for roster data");
-            self.parse_roster_data(&content)?
-        } else {
-            crate::log_debug!("Parsing non-HTML content for roster data");
-            self.parse_roster_data(&content)?
-        };
+            // Humanized delay before request (longer on retries)
+            let base_delay = if attempt == 1 { 1.0 } else { 3.0 * attempt as f64 };
+            self.humanized_delay(base_delay, base_delay + 3.0).await;
 
-        if characters.is_empty() {
-            crate::log_warn!("No characters found in roster for '{}'", self.main_character);
-            return Err(ScraperError::NoCharactersFound);
+            match self.attempt_scrape().await {
+                Ok(content) => {
+                    crate::log_debug!("Received HTML response, length: {}", content.len());
+
+                    // Check for private profile indicators
+                    let is_private = content.contains("This profile is private")
+                        || content.contains("Profile not found")
+                        || (content.contains("Private") && content.contains("profile"));
+
+                    if is_private {
+                        crate::log_warn!("Private profile detected for character '{}'", self.main_character);
+                        return Err(ScraperError::PrivateProfile);
+                    }
+
+                    // Brief processing delay
+                    self.humanized_delay(0.5, 1.5).await;
+
+                    let characters = self.parse_roster_data(&content)?;
+
+                    if characters.is_empty() {
+                        crate::log_warn!("No characters found in roster for '{}'", self.main_character);
+                        return Err(ScraperError::NoCharactersFound);
+                    }
+
+                    crate::log_info!(
+                        "Successfully parsed {} characters from roster '{}'",
+                        characters.len(),
+                        self.roster_name
+                    );
+
+                    // Update last request time
+                    self.last_request_time = Some(SystemTime::now());
+
+                    return Ok(self.map_to_service_layer_format(characters));
+                }
+                Err(ScraperError::CloudflareBlocked) if attempt < MAX_RETRIES => {
+                    crate::log_warn!(
+                        "Cloudflare blocked attempt {}/{}, retrying after delay...",
+                        attempt,
+                        MAX_RETRIES
+                    );
+                    last_error = ScraperError::CloudflareBlocked;
+                    continue;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
         }
 
-        crate::log_info!("Successfully parsed {} characters from roster '{}'", characters.len(), self.roster_name);
-        
-        // Update last request time
-        self.last_request_time = Some(SystemTime::now());
-
-        // Map to service layer format
-        Ok(self.map_to_service_layer_format(characters))
+        Err(last_error)
     }
 }
 
@@ -456,7 +522,11 @@ impl ScraperManager {
     }
 
     pub fn create_scraper(&mut self, main_character: String, roster_name: String) -> &mut HumanizedScraper {
-        crate::log_info!("Creating scraper for character '{}' in roster '{}'", main_character, roster_name);
+        crate::log_info!(
+            "Creating scraper for character '{}' in roster '{}'",
+            main_character,
+            roster_name
+        );
         let scraper = HumanizedScraper::new(main_character, roster_name.clone());
         self.scrapers.insert(roster_name.clone(), scraper);
         self.scrapers.get_mut(&roster_name).unwrap()
@@ -472,15 +542,18 @@ impl ScraperManager {
         let mut scraper = if let Some(scraper) = self.scrapers.remove(&scraper_name) {
             scraper
         } else {
-            return Err(ScraperError::Generic(format!("Scraper not found for roster: {}", roster_name)));
+            return Err(ScraperError::Generic(format!(
+                "Scraper not found for roster: {}",
+                roster_name
+            )));
         };
-        
+
         // Now scrape without holding the lock
         let result = scraper.scrape_roster().await;
-        
+
         // Put the scraper back
         self.scrapers.insert(scraper_name, scraper);
-        
+
         result
     }
 
@@ -515,12 +588,9 @@ mod tests {
     #[tokio::test]
     async fn test_vaanyar_scraper() {
         println!("Testing scraper with character: Vaanyar");
-        
-        let mut scraper = HumanizedScraper::new(
-            "Vaanyar".to_string(),
-            "test_roster".to_string()
-        );
-        
+
+        let mut scraper = HumanizedScraper::new("Vaanyar".to_string(), "test_roster".to_string());
+
         match scraper.scrape_roster().await {
             Ok(result) => {
                 println!("✅ SUCCESS: Scraping completed successfully!");
@@ -530,7 +600,7 @@ mod tests {
                 println!("🌐 Source: {}", result.scraper_data.source);
                 println!("📈 Total Characters Found: {}", result.scraper_data.characters.len());
                 println!();
-                
+
                 for (i, character) in result.scraper_data.characters.iter().enumerate() {
                     println!("🎮 Character {}: {}", i + 1, character.char_name);
                     println!("   🏷️  Class ID: {}", character.class_id);
@@ -541,10 +611,14 @@ mod tests {
                     println!("   🏠 Roster ID: {}", character.roster_id);
                     println!();
                 }
-                
-                assert_eq!(result.scraper_data.characters.len(), 9, 
-                    "Expected 9 characters, but found {}", result.scraper_data.characters.len());
-                
+
+                assert_eq!(
+                    result.scraper_data.characters.len(),
+                    9,
+                    "Expected 9 characters, but found {}",
+                    result.scraper_data.characters.len()
+                );
+
                 println!("🎉 PERFECT: Found exactly 9 characters as expected!");
             }
             Err(e) => {
