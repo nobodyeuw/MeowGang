@@ -45,7 +45,7 @@ pub async fn get_characters(
         }
     };
     
-    println!("DEBUG: Returning {} characters", characters.len());
+    crate::log_debug!("Returning {} characters", characters.len());
     Ok(characters)
 }
 
@@ -56,9 +56,7 @@ pub async fn scrape_roster(
     scraper: State<'_, HumanizedScraper>
 ) -> Result<Vec<crate::roster::Character>, String> {
     
-    // Check if roster update is allowed (rate limiting)
-    // Note: Tauri State doesn't have inner_mut(), so we need to use a different approach
-    // For now, we'll skip rate limiting in the handler and let the scraper handle it internally
+    crate::validation::validate_roster_name(&rosterName)?;
     
     // Scrape roster from LostArk Bible
     let mut scraper_instance = HumanizedScraper::new(rosterName.clone(), rosterName.clone());
@@ -94,7 +92,7 @@ pub async fn check_and_sync_roster_if_needed(
     roster_repo: State<'_, RosterRepository>,
     scraper: State<'_, HumanizedScraper>
 ) -> Result<bool, String> {
-    println!("DEBUG: check_and_sync_roster_if_needed called for: {}", rosterName);
+    crate::log_debug!("check_and_sync_roster_if_needed called for: {}", rosterName);
     
     // Check if update is needed
     let scraper_ref = scraper.inner();
@@ -174,7 +172,7 @@ pub async fn sync_roster_if_needed(
     raids: Vec<crate::database::data_manager::Raid>,
     db_manager: tauri::State<'_, crate::database::DatabaseManager>
 ) -> Result<bool, String> {
-    println!("DEBUG: sync_roster_if_needed called for roster: {}", rosterId);
+    crate::log_debug!("sync_roster_if_needed called for roster: {}", rosterId);
     
     // Check if roster exists and needs update
     let rosters = db_manager.pool.get().unwrap()
@@ -207,7 +205,7 @@ pub async fn delete_roster(
     rosterId: String,
     roster_repo: State<'_, RosterRepository>
 ) -> Result<(), String> {
-    
+    crate::validation::validate_non_empty(&rosterId, "roster_id")?;
     match roster_repo.delete_roster(&rosterId) {
         Ok(_) => {
             Ok(())

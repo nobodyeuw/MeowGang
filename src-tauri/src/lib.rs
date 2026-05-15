@@ -11,6 +11,7 @@ pub mod state;
 pub mod version;
 pub mod context;
 pub mod settings;
+pub mod validation;
 
 // Re-export commonly used items
 pub use database::DatabaseManager;
@@ -24,7 +25,7 @@ use database::repositories::{RosterRepository, TrackingRepository, RaidRepositor
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    println!("Starting LOA Tracker application");
+    crate::log_info!("Starting LOA Tracker application");
     
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -84,8 +85,9 @@ pub fn run() {
             let gold_repo = GoldRepository::new(db_manager.pool.clone());
             crate::log_info!("All repositories initialized successfully");
             
-            // Initialize scraper
-            let scraper = roster::HumanizedScraper::new("Vaanyar".to_string(), "test_roster".to_string());
+            // Initialize scraper with placeholder values; actual roster name/character
+            // are set per-request in the handler layer.
+            let scraper = roster::HumanizedScraper::new(String::new(), String::new());
             crate::log_debug!("Roster scraper initialized");
             
             // Initialize raid data state for frontend-driven gold logging
@@ -110,21 +112,6 @@ pub fn run() {
                 Err(e) => crate::log_warn!("Failed to clean duplicate gold logs: {}", e),
             }
             
-            // Initialize settings manager
-            let settings_manager = settings::SettingsManager::new(app_context.settings_path.clone())
-                .map_err(|e| {
-                    crate::log_error!("Failed to create settings manager: {}", e);
-                    format!("Failed to create settings manager: {}", e)
-                })?;
-            
-            // Ensure settings file exists with defaults
-            let _settings = settings_manager.ensure_exists()
-                .map_err(|e| {
-                    crate::log_error!("Failed to ensure settings exist: {}", e);
-                    format!("Failed to ensure settings exist: {}", e)
-                })?;
-            crate::log_info!("Settings manager initialized successfully");
-
             // Manage the application state
             app.manage(app_context.clone());
             app.manage(settings_manager);

@@ -69,7 +69,7 @@ pub fn detect_encounters_db_path() -> Option<String> {
         let loa_logs_path = local_data_dir.join("LOA Logs").join("encounters.db");
         if loa_logs_path.exists() {
             if let Some(path_str) = loa_logs_path.to_str() {
-                println!("Auto-detected encounters.db in LOA Logs: {}", path_str);
+                crate::log_info!("Auto-detected encounters.db in LOA Logs: {}", path_str);
                 return Some(path_str.to_string());
             }
         }
@@ -82,7 +82,7 @@ pub fn detect_encounters_db_path() -> Option<String> {
             
             if encounters_path.exists() {
                 if let Some(path_str) = encounters_path.to_str() {
-                    println!("Auto-detected encounters.db at: {}", path_str);
+                    crate::log_info!("Auto-detected encounters.db at: {}", path_str);
                     return Some(path_str.to_string());
                 }
             }
@@ -94,7 +94,7 @@ pub fn detect_encounters_db_path() -> Option<String> {
         let fallback_path = current_dir.join("encounters.db");
         if fallback_path.exists() {
             if let Some(path_str) = fallback_path.to_str() {
-                println!("Auto-detected encounters.db at: {}", path_str);
+                crate::log_info!("Auto-detected encounters.db at: {}", path_str);
                 return Some(path_str.to_string());
             }
         }
@@ -136,7 +136,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
         if let Some(path) = path_option {
             if path.exists() {
                 if let Some(path_str) = path.to_str() {
-                    println!("Auto-detected LostArk.exe at: {}", path_str);
+                    crate::log_info!("Auto-detected LostArk.exe at: {}", path_str);
                     return Some(path_str.to_string());
                 }
             }
@@ -155,7 +155,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
             
         if lostark_path.exists() {
             if let Some(path_str) = lostark_path.to_str() {
-                println!("Auto-detected LostArk.exe from STEAM_PATH: {}", path_str);
+                crate::log_info!("Auto-detected LostArk.exe from STEAM_PATH: {}", path_str);
                 return Some(path_str.to_string());
             }
         }
@@ -225,10 +225,10 @@ pub async fn set_start_with_windows(
     // Windows Registry Integration
     match set_autostart_registry(enabled) {
         Ok(_) => {
-            println!("Successfully set start with Windows to: {}", enabled);
+            crate::log_info!("Successfully set start with Windows to: {}", enabled);
         }
         Err(e) => {
-            eprintln!("Failed to set registry autostart: {}", e);
+            crate::log_error!("Failed to set registry autostart: {}", e);
             return Err(format!("Failed to set Windows autostart: {}", e));
         }
     }
@@ -249,12 +249,12 @@ fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error
     
     if enabled {
         path.set_value("LOA Tracker", &exe_path_str)?;
-        println!("Added LOA Tracker to Windows startup registry");
+        crate::log_info!("Added LOA Tracker to Windows startup registry");
     } else {
         match path.delete_value("LOA Tracker") {
-            Ok(_) => println!("Removed LOA Tracker from Windows startup registry"),
+            Ok(_) => crate::log_info!("Removed LOA Tracker from Windows startup registry"),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                println!("LOA Tracker was not in Windows startup registry");
+                crate::log_debug!("LOA Tracker was not in Windows startup registry");
             }
             Err(e) => return Err(Box::new(e)),
         }
@@ -278,10 +278,10 @@ pub async fn set_start_with_lost_ark(
     // Lost Ark Process Monitoring
     match set_lost_ark_monitoring(enabled) {
         Ok(_) => {
-            println!("Successfully set start with Lost Ark to: {}", enabled);
+            crate::log_info!("Successfully set start with Lost Ark to: {}", enabled);
         }
         Err(e) => {
-            eprintln!("Failed to set Lost Ark monitoring: {}", e);
+            crate::log_error!("Failed to set Lost Ark monitoring: {}", e);
             return Err(format!("Failed to set Lost Ark monitoring: {}", e));
         }
     }
@@ -319,7 +319,7 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
         {
             let mut is_monitoring = state.lock().unwrap();
             if *is_monitoring {
-                println!("Lost Ark monitoring is already running");
+                crate::log_debug!("Lost Ark monitoring is already running");
                 return Ok(());
             }
             *is_monitoring = true;
@@ -327,7 +327,7 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
         
         let state_clone = Arc::clone(state);
         thread::spawn(move || {
-            println!("Started Lost Ark process monitoring thread");
+            crate::log_info!("Started Lost Ark process monitoring thread");
             
             let mut system = System::new_all();
             let mut was_running = false;
@@ -337,7 +337,7 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
                 {
                     let is_monitoring = state_clone.lock().unwrap();
                     if !*is_monitoring {
-                        println!("Lost Ark monitoring thread stopping");
+                        crate::log_debug!("Lost Ark monitoring thread stopping");
                         break;
                     }
                 }
@@ -350,14 +350,14 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
                 
                 // Launch LOA Tracker when Lost Ark starts (if it wasn't running before)
                 if is_running && !was_running {
-                    println!("Lost Ark detected starting up - launching LOA Tracker");
+                    crate::log_info!("Lost Ark detected starting up - launching LOA Tracker");
                     
                     // Get current executable path
                     if let Ok(exe_path) = std::env::current_exe() {
                         // Launch new instance if not already running
                         match std::process::Command::new(&exe_path).spawn() {
-                            Ok(_) => println!("Successfully launched LOA Tracker"),
-                            Err(e) => eprintln!("Failed to launch LOA Tracker: {}", e),
+                            Ok(_) => crate::log_info!("Successfully launched LOA Tracker"),
+                            Err(e) => crate::log_error!("Failed to launch LOA Tracker: {}", e),
                         }
                     }
                 }
@@ -369,14 +369,14 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
             }
         });
         
-        println!("Lost Ark process monitoring enabled");
+        crate::log_info!("Lost Ark process monitoring enabled");
     } else {
         // Stop monitoring
         {
             let mut is_monitoring = state.lock().unwrap();
             *is_monitoring = false;
         }
-        println!("Lost Ark process monitoring disabled");
+        crate::log_info!("Lost Ark process monitoring disabled");
     }
     
     Ok(())
@@ -624,21 +624,21 @@ pub async fn send_log_report() -> Result<String, String> {
 #[tauri::command]
 pub async fn test_database_simple() -> Result<String, String> {
     // Simple database connectivity test
-    println!("DEBUG: test_database_simple called");
+    crate::log_debug!("test_database_simple called");
     Ok("Database connection test successful".to_string())
 }
 
 #[tauri::command]
 pub async fn test_sync_data_structure() -> Result<String, String> {
     // Test sync data structure
-    println!("DEBUG: test_sync_data_structure called");
+    crate::log_debug!("test_sync_data_structure called");
     Ok("Sync data structure test successful".to_string())
 }
 
 #[tauri::command]
 pub async fn initialize_missing_data() -> Result<String, String> {
     // Initialize any missing data in database
-    println!("DEBUG: initialize_missing_data called");
+    crate::log_debug!("initialize_missing_data called");
     Ok("Missing data initialized successfully".to_string())
 }
 
@@ -650,7 +650,7 @@ pub async fn add_gold_log(
     raid_name: Option<String>,
 ) -> Result<(), String> {
     // Add gold log entry - placeholder
-    println!("Adding gold log: {} gold for character {} from {}", gold_amount, character_id, source);
+    crate::log_debug!("Adding gold log: {} gold for character {} from {}", gold_amount, character_id, source);
     Ok(())
 }
 

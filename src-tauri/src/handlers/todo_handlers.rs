@@ -24,6 +24,7 @@ pub async fn get_todo_matrix(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
 ) -> Result<crate::database::repositories::todo_repository::TodoMatrixResponse, String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
     match todo_repo.get_todo_matrix(&roster_id) {
         Ok(matrix) => Ok(matrix),
         Err(e) => Err(e.to_string()),
@@ -37,6 +38,8 @@ pub async fn update_task_status(
     task_id: String,
     completed: bool,
 ) -> Result<(), String> {
+    crate::validation::validate_character_id(character_id)?;
+    crate::validation::validate_non_empty(&task_id, "task_id")?;
     match todo_repo.set_task_completed(character_id, &task_id, completed) {
         Ok(_) => Ok(()),
         Err(e) => Err(e.to_string()),
@@ -50,6 +53,8 @@ pub async fn update_roster_task_status(
     task_id: String,
     completed: bool,
 ) -> Result<(), String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
+    crate::validation::validate_non_empty(&task_id, "task_id")?;
     match todo_repo.set_roster_task_completed(&roster_id, &task_id, completed) {
         Ok(_) => Ok(()),
         Err(e) => Err(e.to_string()),
@@ -65,6 +70,8 @@ pub async fn update_raid_gate_status(
     content_id: String,
     completed: bool,
 ) -> Result<(), String> {
+    crate::validation::validate_character_id(character_id)?;
+    crate::validation::validate_content_id(&content_id)?;
     // Get difficulty from conf_raid table
     let difficulty = match todo_repo.get_raid_gate_difficulty(character_id, &raid_id, &gate_id) {
         Ok(Some(diff)) => diff,

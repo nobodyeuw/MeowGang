@@ -113,8 +113,7 @@ pub async fn get_weekly_gold_stats(
         })
     }).map_err(|e| e.to_string())?;
     
-    // Debug logging
-    println!("DEBUG get_weekly_gold_stats: week_start={}, character_ids.len()={}, summary={:?}", week_start, character_ids.len(), summary);
+    crate::log_debug!("get_weekly_gold_stats: week_start={}, character_ids.len()={}, summary={:?}", week_start, character_ids.len(), summary);
     
     Ok(summary)
 }

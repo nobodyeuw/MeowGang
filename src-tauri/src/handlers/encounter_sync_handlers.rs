@@ -192,7 +192,7 @@ fn get_cleared_encounters(encounters_db_path: &str, pool: &r2d2::Pool<r2d2_sqlit
     
     // Get weekly reset timestamp from app_state table
     let weekly_reset_ts = get_weekly_reset_from_app_state(pool)?;
-    println!("DEBUG: Filtering encounters since weekly_reset_ts: {} (milliseconds)", weekly_reset_ts);
+    crate::log_debug!("Filtering encounters since weekly_reset_ts: {} (milliseconds)", weekly_reset_ts);
     
     let mut stmt = conn.prepare(
         "SELECT id, current_boss, local_player, difficulty, fight_start, cleared 
@@ -217,7 +217,7 @@ fn get_cleared_encounters(encounters_db_path: &str, pool: &r2d2::Pool<r2d2_sqlit
         encounters.push(encounter.map_err(|e| format!("Failed to process encounter: {}", e))?);
     }
     
-    println!("DEBUG: Found {} cleared encounters since last weekly reset", encounters.len());
+    crate::log_debug!("Found {} cleared encounters since last weekly reset", encounters.len());
     
     Ok(encounters)
 }
@@ -236,7 +236,7 @@ fn process_encounter(
                         mapping
         },
         None => {
-                        eprintln!("Skipping encounter: Boss '{}' not found in boss_mapping", encounter.current_boss);
+                        crate::log_debug!("Skipping encounter: Boss '{}' not found in boss_mapping", encounter.current_boss);
                         return Ok(false);
         }
     };
@@ -250,7 +250,7 @@ fn process_encounter(
                         char_id
         },
         None => {
-                        eprintln!("Skipping encounter: Character '{}' not found in database. Please add this character to the app.", encounter.local_player);
+                        crate::log_debug!("Skipping encounter: Character '{}' not found in database", encounter.local_player);
                         return Ok(false); // Skip this encounter
         }
     };
@@ -272,7 +272,7 @@ fn process_encounter(
     match existing_entry {
         Some((is_completed, existing_timestamp)) => {
             if is_completed == 1 {
-                eprintln!("Skipping encounter: {} - {} already completed for char_id {}", encounter.local_player, encounter.current_boss, char_id);
+                crate::log_debug!("Skipping encounter: {} - {} already completed for char_id {}", encounter.local_player, encounter.current_boss, char_id);
                 return Ok(false);
             }
 
@@ -282,9 +282,9 @@ fn process_encounter(
                 params![encounter.fight_start, "LOAlogs", normalized_difficulty, char_id, &mapping.content_id, &session_id],
             )?;
 
-            println!(
-                "Updated existing completion_status for {} (char_id={}, content_id={}, session_id={}) from timestamp {:?} to {}",
-                encounter.current_boss, char_id, mapping.content_id, session_id, existing_timestamp, encounter.fight_start
+            crate::log_debug!(
+                "Updated completion_status for {} (char_id={}, content_id={}, session_id={})",
+                encounter.current_boss, char_id, mapping.content_id, session_id
             );
         }
         None => {
@@ -303,10 +303,10 @@ fn process_encounter(
     // Sync entity data for this encounter
     if let Err(e) = sync_entity_data_for_encounter(todo_repo, &*settings_manager, encounter.id) {
         // Log error but don't fail the encounter processing
-        eprintln!("Failed to sync entity data for encounter {}: {}", encounter.id, e);
+        crate::log_warn!("Failed to sync entity data for encounter {}: {}", encounter.id, e);
     }
 
-    println!(
+    crate::log_debug!(
         "Synced encounter: {} (Player: {}) -> {} (Gate {})",
         encounter.current_boss, encounter.local_player, mapping.content_id, mapping.gate
     );
@@ -328,7 +328,7 @@ fn sync_entity_data_for_encounter(todo_repo: &TodoRepository, settings_manager: 
     // Process each entity
     for entity in entities {
         if let Err(e) = update_character_from_entity(todo_repo, &entity) {
-            eprintln!("Failed to update character {}: {}", entity.name, e);
+            crate::log_warn!("Failed to update character {}: {}", entity.name, e);
         }
     }
     
@@ -361,7 +361,7 @@ fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -
         .optional()?;
     
     if result.is_none() {
-        eprintln!("Character '{}' not found in conf_character table (checked both exact and case-insensitive)", character_name);
+        crate::log_debug!("Character '{}' not found in conf_character table", character_name);
     }
     
     Ok(result)

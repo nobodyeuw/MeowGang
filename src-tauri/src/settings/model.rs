@@ -28,14 +28,6 @@ pub struct SystemSettings {
     pub extra: Map<String, Value>,
 }
 
-fn default_true() -> bool {
-    true
-}
-
-fn default_false() -> bool {
-    false
-}
-
 impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
@@ -49,8 +41,8 @@ impl Default for SystemSettings {
         Self {
             encounters_db_path: None,
             lost_ark_exe_path: None,
-            start_with_windows: default_false(),
-            start_with_lost_ark: default_false(),
+            start_with_windows: false,
+            start_with_lost_ark: false,
             extra: Map::new(),
         }
     }

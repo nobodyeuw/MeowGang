@@ -5,11 +5,17 @@ use rusqlite::{params, OptionalExtension};
 use std::sync::Arc;
 use crate::database::data_manager::{Raid, RaidGate};
 
+/// Service responsible for tracking gold income and expenditure from raid completions.
+///
+/// Gold logs are generated when encounters are synced from the external encounters.db
+/// file. The service deduplicates entries within a weekly reset window and supports
+/// both gold earnings and box purchase tracking.
 pub struct GoldLoggingService {
     pool: Arc<Pool<SqliteConnectionManager>>,
 }
 
 impl GoldLoggingService {
+    /// Creates a new `GoldLoggingService` backed by the given connection pool.
     pub fn new(pool: Arc<Pool<SqliteConnectionManager>>) -> Self {
         Self { pool }
     }
@@ -55,7 +61,7 @@ impl GoldLoggingService {
             let gate = if let Some(gate_part) = session_id.split('_').last() {
                 gate_part.to_string()
             } else {
-                eprintln!("Invalid session_id format: {}", session_id);
+                crate::log_warn!("Invalid session_id format: {}", session_id);
                 continue;
             };
 
@@ -95,7 +101,7 @@ impl GoldLoggingService {
             let raid_data = match self.get_raid_data_from_state(&content_id, &normalized_difficulty, &session_id, raid_state) {
                 Ok(data) => data,
                 Err(e) => {
-                    eprintln!("Failed to get raid data for {} {} from state: {}", content_id, difficulty, e);
+                    crate::log_warn!("Failed to get raid data for {} {} from state: {}", content_id, difficulty, e);
                     continue;
                 }
             };
@@ -108,12 +114,12 @@ impl GoldLoggingService {
         // Process all entries in a single transaction for better performance
         let mut processed_count = 0;
         if !pending_entries.is_empty() {
-            println!("DEBUG: Found {} pending gold entries to process", pending_entries.len());
+            crate::log_debug!("Found {} pending gold entries to process", pending_entries.len());
             let mut conn = self.pool.get()?;
             let tx = conn.transaction()?;
             
             for (char_id, content_id, difficulty, gate, timestamp, raid_data, take_gold, buy_box) in pending_entries {
-                println!("DEBUG: Processing gold for char {} raid {} gate {} take_gold {} buy_box {}", char_id, content_id, gate, take_gold, buy_box);
+                crate::log_debug!("Processing gold for char {} raid {} gate {} take_gold {} buy_box {}", char_id, content_id, gate, take_gold, buy_box);
                 if let Err(e) = self.log_gold_for_raid_completion_in_transaction(
                     &tx,
                     char_id,
@@ -125,10 +131,10 @@ impl GoldLoggingService {
                     take_gold,
                     buy_box,
                 ) {
-                    eprintln!("Failed to log gold for character {} raid {}: {}", char_id, content_id, e);
+                    crate::log_error!("Failed to log gold for character {} raid {}: {}", char_id, content_id, e);
                 } else {
                     processed_count += 1;
-                    println!("DEBUG: Successfully logged gold for {} {}", char_id, content_id);
+                    crate::log_debug!("Successfully logged gold for {} {}", char_id, content_id);
                 }
             }
             
@@ -277,7 +283,10 @@ impl GoldLoggingService {
         })
     }
 
-    /// Delete gold logs for a specific raid completion when user unchecks it
+    /// Removes gold log entries for a specific raid completion.
+    ///
+    /// Called when a user un-marks a raid gate as completed so that the
+    /// corresponding gold income / box purchase entries are reversed.
     pub fn delete_gold_logs_for_raid_completion(
         &self,
         char_id: i64,
@@ -370,5 +379,177 @@ impl GoldLoggingService {
         crate::log_info!("Cleaned up {} duplicate gold log entries total", result);
         
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_pool() -> Arc<Pool<SqliteConnectionManager>> {
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::builder().max_size(1).build(manager).unwrap();
+        let conn = pool.get().unwrap();
+
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS gold_logs (
+                rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER NOT NULL,
+                char_id INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                gold_value_total INTEGER NOT NULL,
+                gold_bound INTEGER NOT NULL DEFAULT 0,
+                gold_tradable INTEGER NOT NULL DEFAULT 0,
+                notes TEXT
+            );
+            CREATE TABLE IF NOT EXISTS app_state (
+                last_daily_reset INTEGER DEFAULT 0,
+                last_weekly_reset INTEGER DEFAULT 0
+            );
+            INSERT INTO app_state (last_daily_reset, last_weekly_reset) VALUES (0, 0);
+            CREATE TABLE IF NOT EXISTS conf_character (
+                char_id INTEGER PRIMARY KEY,
+                char_name TEXT,
+                roster_id TEXT,
+                earns_gold INTEGER DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS conf_raid (
+                char_id INTEGER,
+                content_id TEXT,
+                gate TEXT,
+                take_gold INTEGER DEFAULT 1,
+                buy_box INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS completion_status (
+                roster_id TEXT,
+                char_id INTEGER,
+                content_id TEXT,
+                is_completed INTEGER,
+                timestamp INTEGER,
+                session_id TEXT,
+                completion_source TEXT,
+                details TEXT
+            );"
+        ).unwrap();
+
+        Arc::new(pool)
+    }
+
+    #[test]
+    fn test_clean_all_duplicate_gold_logs_no_duplicates() {
+        let pool = create_test_pool();
+        let service = GoldLoggingService::new(pool.clone());
+
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+             VALUES (1000, 1, 'raid', 5000, 2000, 3000, 'Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+
+        let cleaned = service.clean_all_duplicate_gold_logs().unwrap();
+        assert_eq!(cleaned, 0);
+    }
+
+    #[test]
+    fn test_clean_all_duplicate_gold_logs_removes_duplicates() {
+        let pool = create_test_pool();
+        let service = GoldLoggingService::new(pool.clone());
+
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+             VALUES (1000, 1, 'raid', 5000, 2000, 3000, 'Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+             VALUES (2000, 1, 'raid', 5000, 2000, 3000, 'Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, gold_bound, gold_tradable, notes)
+             VALUES (3000, 1, 'raid', 5000, 2000, 3000, 'Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+
+        let cleaned = service.clean_all_duplicate_gold_logs().unwrap();
+        assert_eq!(cleaned, 2);
+
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM gold_logs", [], |r| r.get(0)).unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_clean_duplicate_gold_logs_per_character() {
+        let pool = create_test_pool();
+        let service = GoldLoggingService::new(pool.clone());
+
+        let conn = pool.get().unwrap();
+        // Insert duplicates for char 1
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (100, 1, 'raid', 500, 'A')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (200, 1, 'raid', 500, 'A')",
+            [],
+        ).unwrap();
+        // Insert unique entry for char 2
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (100, 2, 'raid', 300, 'B')",
+            [],
+        ).unwrap();
+
+        let cleaned = service.clean_duplicate_gold_logs(1).unwrap();
+        assert_eq!(cleaned, 1);
+
+        // Char 2's entry should be untouched
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gold_logs WHERE char_id = 2", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_delete_gold_logs_for_raid_completion() {
+        let pool = create_test_pool();
+        let service = GoldLoggingService::new(pool.clone());
+
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (100, 1, 'raid', 5000, 'Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (200, 1, 'box_purchase', -500, 'Box Purchase Mordum Hard Gate 1')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO gold_logs (timestamp, char_id, source, gold_value_total, notes) VALUES (300, 1, 'raid', 3000, 'Armoche Normal Gate 1')",
+            [],
+        ).unwrap();
+
+        let deleted = service.delete_gold_logs_for_raid_completion(
+            1, "act_3_mordum", "Hard", "act_3_mordum_Gate 1"
+        ).unwrap();
+
+        // Should delete the Mordum entries but not Armoche
+        assert!(deleted >= 2);
+
+        let remaining: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gold_logs WHERE notes LIKE '%Armoche%'", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(remaining, 1);
+    }
+
+    #[test]
+    fn test_process_pending_gold_logs_empty() {
+        let pool = create_test_pool();
+        let service = GoldLoggingService::new(pool);
+        let raid_state = crate::state::RaidDataState::new();
+
+        let processed = service.process_pending_gold_logs(&raid_state).unwrap();
+        assert_eq!(processed, 0);
     }
 }
