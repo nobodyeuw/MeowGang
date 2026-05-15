@@ -296,4 +296,98 @@ impl MarketDatabase {
         let now = chrono::Utc::now().timestamp();
         Ok(now - last_refresh > 3600)
     }
+
+    /// Seed gem entries into manual_price_overrides if they don't exist yet.
+    /// Gems are manual-only (no API source), so we pre-populate them with price 0.
+    pub fn seed_gem_entries(&self) -> Result<usize> {
+        let conn = self.pool.get()?;
+        let mut count = 0;
+
+        let gem_entries: Vec<(&str, &str)> = vec![
+            ("gem-t3-damage-lv1", "T3 Damage Gem Lv. 1"),
+            ("gem-t3-damage-lv2", "T3 Damage Gem Lv. 2"),
+            ("gem-t3-damage-lv3", "T3 Damage Gem Lv. 3"),
+            ("gem-t3-damage-lv4", "T3 Damage Gem Lv. 4"),
+            ("gem-t3-damage-lv5", "T3 Damage Gem Lv. 5"),
+            ("gem-t3-damage-lv6", "T3 Damage Gem Lv. 6"),
+            ("gem-t3-damage-lv7", "T3 Damage Gem Lv. 7"),
+            ("gem-t3-damage-lv8", "T3 Damage Gem Lv. 8"),
+            ("gem-t3-damage-lv9", "T3 Damage Gem Lv. 9"),
+            ("gem-t3-damage-lv10", "T3 Damage Gem Lv. 10"),
+            ("gem-t3-cooldown-lv1", "T3 Cooldown Gem Lv. 1"),
+            ("gem-t3-cooldown-lv2", "T3 Cooldown Gem Lv. 2"),
+            ("gem-t3-cooldown-lv3", "T3 Cooldown Gem Lv. 3"),
+            ("gem-t3-cooldown-lv4", "T3 Cooldown Gem Lv. 4"),
+            ("gem-t3-cooldown-lv5", "T3 Cooldown Gem Lv. 5"),
+            ("gem-t3-cooldown-lv6", "T3 Cooldown Gem Lv. 6"),
+            ("gem-t3-cooldown-lv7", "T3 Cooldown Gem Lv. 7"),
+            ("gem-t3-cooldown-lv8", "T3 Cooldown Gem Lv. 8"),
+            ("gem-t3-cooldown-lv9", "T3 Cooldown Gem Lv. 9"),
+            ("gem-t3-cooldown-lv10", "T3 Cooldown Gem Lv. 10"),
+            ("gem-t4-damage-lv1", "T4 Damage Gem Lv. 1"),
+            ("gem-t4-damage-lv2", "T4 Damage Gem Lv. 2"),
+            ("gem-t4-damage-lv3", "T4 Damage Gem Lv. 3"),
+            ("gem-t4-damage-lv4", "T4 Damage Gem Lv. 4"),
+            ("gem-t4-damage-lv5", "T4 Damage Gem Lv. 5"),
+            ("gem-t4-damage-lv6", "T4 Damage Gem Lv. 6"),
+            ("gem-t4-damage-lv7", "T4 Damage Gem Lv. 7"),
+            ("gem-t4-damage-lv8", "T4 Damage Gem Lv. 8"),
+            ("gem-t4-damage-lv9", "T4 Damage Gem Lv. 9"),
+            ("gem-t4-damage-lv10", "T4 Damage Gem Lv. 10"),
+            ("gem-t4-cooldown-lv1", "T4 Cooldown Gem Lv. 1"),
+            ("gem-t4-cooldown-lv2", "T4 Cooldown Gem Lv. 2"),
+            ("gem-t4-cooldown-lv3", "T4 Cooldown Gem Lv. 3"),
+            ("gem-t4-cooldown-lv4", "T4 Cooldown Gem Lv. 4"),
+            ("gem-t4-cooldown-lv5", "T4 Cooldown Gem Lv. 5"),
+            ("gem-t4-cooldown-lv6", "T4 Cooldown Gem Lv. 6"),
+            ("gem-t4-cooldown-lv7", "T4 Cooldown Gem Lv. 7"),
+            ("gem-t4-cooldown-lv8", "T4 Cooldown Gem Lv. 8"),
+            ("gem-t4-cooldown-lv9", "T4 Cooldown Gem Lv. 9"),
+            ("gem-t4-cooldown-lv10", "T4 Cooldown Gem Lv. 10"),
+        ];
+
+        let mut stmt = conn.prepare_cached(
+            "INSERT OR IGNORE INTO manual_price_overrides (item_slug, item_name, category, price, updated_at)
+             VALUES (?1, ?2, ?3, 0, ?4)",
+        )?;
+
+        let now = chrono::Utc::now().timestamp();
+        for (slug, name) in &gem_entries {
+            let rows = stmt.execute(params![slug, name, "gems", now])?;
+            count += rows;
+        }
+
+        if count > 0 {
+            crate::log_info!("Seeded {} new gem entries", count);
+        }
+        Ok(count)
+    }
+
+    /// Get all gem prices (manual-only items from manual_price_overrides).
+    pub fn get_gem_prices(&self) -> Result<Vec<MarketItem>> {
+        let conn = self.pool.get()?;
+
+        let mut stmt = conn.prepare(
+            "SELECT item_slug, item_name, category, price, updated_at
+             FROM manual_price_overrides
+             WHERE category = 'gems'
+             ORDER BY item_slug ASC",
+        )?;
+
+        let items = stmt
+            .query_map([], |row| {
+                Ok(MarketItem {
+                    item_slug: row.get(0)?,
+                    item_name: row.get(1)?,
+                    category: row.get(2)?,
+                    price: row.get(3)?,
+                    fetched_at: row.get(4)?,
+                    is_manual_override: true,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(items)
+    }
 }
