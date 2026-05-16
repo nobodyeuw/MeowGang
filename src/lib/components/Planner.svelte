@@ -29,9 +29,12 @@
   interface GemRow {
     id: number;
     characterId: number;
+    slotIndex: number;
+    gemName: string;
     skillName: string;
-    gemType: string;   // "attack", "cooldown", "attack|bound", "cooldown|bound"
+    gemType: string;     // "attack" | "cooldown"
     gemLevel: number;
+    isBound: boolean;
     isManualEntry: boolean;
     updatedAt: number;
   }
@@ -56,15 +59,28 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const SLOT_LABELS: Record<string, string> = {
-    head: 'Head',
-    shoulder: 'Shoulder',
-    chest: 'Chest',
-    pants: 'Pants',
-    gloves: 'Gloves',
-    weapon: 'Weapon',
+    weapon:        'Weapon',
+    head:          'Head',
+    chest:         'Chest',
+    pants:         'Pants',
+    gloves:        'Gloves',
+    shoulder:      'Shoulder',
+    neck:          'Necklace',
+    earring1:      'Earring 1',
+    earring2:      'Earring 2',
+    ring1:         'Ring 1',
+    ring2:         'Ring 2',
+    bracelet:      'Bracelet',
+    ability_stone: 'Ability Stone',
   };
 
-  const SLOT_ORDER = ['head', 'shoulder', 'chest', 'pants', 'gloves', 'weapon'];
+  const SLOT_ORDER = [
+    'weapon','head','chest','pants','gloves','shoulder',
+    'neck','earring1','earring2','ring1','ring2','bracelet','ability_stone'
+  ];
+
+  const ARMOR_SLOTS  = new Set(['weapon','head','chest','pants','gloves','shoulder']);
+  const ACCESSORY_SLOTS = new Set(['neck','earring1','earring2','ring1','ring2','bracelet','ability_stone']);
 
   function qualityColor(q: number | null): string {
     if (q === null) return 'var(--md-sys-color-outline-variant)';
@@ -74,12 +90,10 @@
     return 'var(--md-sys-color-on-surface-variant)';
   }
 
-  function gemTypeLabel(gemType: string): { icon: string; label: string; bound: boolean } {
-    const bound = gemType.includes('|bound');
-    const base = gemType.replace('|bound', '');
-    if (base === 'attack') return { icon: '⚔', label: 'Atk', bound };
-    if (base === 'cooldown') return { icon: '⏱', label: 'CD', bound };
-    return { icon: '💎', label: base, bound };
+  function gemTypeLabel(gemType: string, isBound: boolean): { icon: string; label: string; bound: boolean } {
+    if (gemType === 'attack')   return { icon: '⚔', label: 'Atk', bound: isBound };
+    if (gemType === 'cooldown') return { icon: '⏱', label: 'CD',  bound: isBound };
+    return { icon: '💎', label: gemType, bound: isBound };
   }
 
   function gemLevelColor(level: number): string {
@@ -113,7 +127,7 @@
   }
 
   function sortedGems(gems: GemRow[]): GemRow[] {
-    return [...gems].sort((a, b) => b.gemLevel - a.gemLevel);
+    return [...gems].sort((a, b) => a.slotIndex - b.slotIndex);
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -267,38 +281,52 @@
       <!-- Equipment panel -->
       <section class="panel">
         <h3 class="panel-title">⚔ Equipment</h3>
-        <div class="equipment-list">
-          {#each sortedEquipment(snapshot?.equipment ?? []) as item}
-            <div class="equip-row">
-              <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
-              <div class="equip-details">
-                <div class="equip-top">
-                  {#if item.enhancementLevel !== null}
-                    <span class="honing-badge">+{item.enhancementLevel}</span>
-                  {/if}
-                  {#if item.tier}
-                    <span class="tier-badge">{item.tier}</span>
-                  {/if}
-                  {#if item.itemLevel !== null}
-                    <span class="ilvl-text">{item.itemLevel.toFixed(0)} ilvl</span>
+        {#if (snapshot?.equipment ?? []).filter(e => ARMOR_SLOTS.has(e.slot)).length > 0}
+          <div class="equip-group-label">Armor &amp; Weapon</div>
+          <div class="equipment-list">
+            {#each sortedEquipment(snapshot?.equipment ?? []).filter(e => ARMOR_SLOTS.has(e.slot)) as item}
+              <div class="equip-row">
+                <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
+                <div class="equip-details">
+                  <div class="equip-top">
+                    {#if item.enhancementLevel !== null}
+                      <span class="honing-badge">+{item.enhancementLevel}</span>
+                    {/if}
+                    {#if item.tier}<span class="tier-badge">{item.tier}</span>{/if}
+                    {#if item.itemLevel !== null}<span class="ilvl-text">{item.itemLevel.toFixed(0)} ilvl</span>{/if}
+                  </div>
+                  {#if item.quality !== null}
+                    <div class="quality-bar-wrap">
+                      <div class="quality-bar-fill" style="width:{item.quality}%; background:{qualityColor(item.quality)}"></div>
+                      <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality}</span>
+                    </div>
                   {/if}
                 </div>
-                {#if item.quality !== null}
-                  <div class="quality-bar-wrap">
-                    <div
-                      class="quality-bar-fill"
-                      style="width:{item.quality}%; background:{qualityColor(item.quality)}"
-                    ></div>
-                    <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality}</span>
-                  </div>
-                {/if}
               </div>
-            </div>
-          {/each}
-          {#if (snapshot?.equipment ?? []).length === 0}
-            <p class="empty-msg">No equipment data scraped yet.</p>
-          {/if}
-        </div>
+            {/each}
+          </div>
+        {/if}
+        {#if (snapshot?.equipment ?? []).filter(e => ACCESSORY_SLOTS.has(e.slot)).length > 0}
+          <div class="equip-group-label" style="margin-top:0.75rem">Accessories</div>
+          <div class="equipment-list">
+            {#each sortedEquipment(snapshot?.equipment ?? []).filter(e => ACCESSORY_SLOTS.has(e.slot)) as item}
+              <div class="equip-row">
+                <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
+                <div class="equip-details">
+                  <div class="equip-top">
+                    {#if item.tier}<span class="tier-badge">{item.tier}</span>{/if}
+                    {#if item.quality !== null}
+                      <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality} quality</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if (snapshot?.equipment ?? []).length === 0}
+          <p class="empty-msg">No equipment data scraped yet.</p>
+        {/if}
       </section>
 
       <!-- Engravings panel -->
@@ -337,16 +365,12 @@
         <h3 class="panel-title">💎 Gems</h3>
         <div class="gems-grid">
           {#each sortedGems(snapshot?.gems ?? []) as gem}
-            {@const info = gemTypeLabel(gem.gemType)}
-            <div class="gem-card">
-              <div class="gem-level-badge" style="color:{gemLevelColor(gem.gemLevel)}">
-                Lv.{gem.gemLevel}
-              </div>
+            {@const info = gemTypeLabel(gem.gemType, gem.isBound)}
+            <div class="gem-card" title={gem.gemName}>
+              <div class="gem-level-badge" style="color:{gemLevelColor(gem.gemLevel)}">Lv.{gem.gemLevel}</div>
               <div class="gem-type-icon" title={info.label}>{info.icon}</div>
               <div class="gem-skill">{gem.skillName}</div>
-              {#if info.bound}
-                <div class="gem-bound">Bound</div>
-              {/if}
+              {#if info.bound}<div class="gem-bound">Bound</div>{/if}
             </div>
           {/each}
           {#if (snapshot?.gems ?? []).length === 0}
@@ -588,11 +612,21 @@
     gap: 0.75rem;
   }
 
+  .equip-group-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 0.35rem;
+    opacity: 0.7;
+  }
+
   .equip-slot-label {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--md-sys-color-on-surface-variant);
-    width: 62px;
+    width: 80px;
     flex-shrink: 0;
     padding-top: 0.15rem;
   }

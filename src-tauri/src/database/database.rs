@@ -171,12 +171,15 @@ impl DatabaseManager {
                 "CREATE TABLE IF NOT EXISTS character_gems (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     character_id INTEGER NOT NULL,
+                    slot_index INTEGER NOT NULL DEFAULT 0,
+                    gem_name TEXT NOT NULL DEFAULT '',
                     skill_name TEXT NOT NULL,
                     gem_type TEXT NOT NULL,
                     gem_level INTEGER NOT NULL,
+                    is_bound INTEGER NOT NULL DEFAULT 0,
                     is_manual_entry INTEGER NOT NULL DEFAULT 0,
                     updated_at INTEGER NOT NULL,
-                    UNIQUE(character_id, skill_name, gem_type),
+                    UNIQUE(character_id, slot_index),
                     FOREIGN KEY(character_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
                 )"),
             ("progression_goals",
@@ -237,6 +240,7 @@ impl DatabaseManager {
             "CREATE INDEX IF NOT EXISTS idx_character_engravings_char ON character_engravings(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_equipment_char ON character_equipment(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_gems_char ON character_gems(character_id)",
+            "CREATE INDEX IF NOT EXISTS idx_character_gems_slot ON character_gems(character_id, slot_index)",
             "CREATE INDEX IF NOT EXISTS idx_progression_goals_char ON progression_goals(character_id)",
         ];
 

@@ -155,9 +155,12 @@ pub async fn scrape_character_details(
     let gems: Vec<crate::database::repositories::progression_repository::CharacterGemInput> = detail_data.gems
         .into_iter()
         .map(|g| crate::database::repositories::progression_repository::CharacterGemInput {
+            slot_index: g.slot_index,
+            gem_name: g.gem_name,
             skill_name: g.skill_name,
             gem_type: g.gem_type,
-            gem_level: g.gem_level as i64,
+            gem_level: g.gem_level,
+            is_bound: g.is_bound,
             is_manual_entry: false,
         })
         .collect();

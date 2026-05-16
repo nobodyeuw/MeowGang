@@ -104,9 +104,12 @@ pub struct CharacterEquipment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterGem {
+    pub slot_index: i64,
+    pub gem_name: String,
     pub skill_name: String,
     pub gem_type: String,
-    pub gem_level: f64,
+    pub gem_level: i64,
+    pub is_bound: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -823,51 +826,49 @@ impl HumanizedScraper {
     fn extract_engravings_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterEngraving> {
         let mut engravings = Vec::new();
 
-        // Build a map of engraving_id -> stone_bonus from abilityStone.bonuses
-        // abilityStone: { bonuses: [ { id: 299, value: 3 }, ... ] }
+        // Stone bonus from the ability_stone item:
+        // items[slot=="ability_stone"].data.engravings[].{ id, nodes }
         let mut stone_bonus_map: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
-        if let Some(stone) = loadout.get("abilityStone") {
-            if let Some(bonuses) = stone.get("bonuses").and_then(|b| b.as_array()) {
-                for bonus in bonuses {
-                    if let (Some(id), Some(val)) = (
-                        bonus.get("id").and_then(|i| i.as_i64()),
-                        bonus.get("value").and_then(|v| v.as_i64()),
-                    ) {
-                        stone_bonus_map.insert(id, val);
+        if let Some(items) = loadout.get("items").and_then(|i| i.as_array()) {
+            for item in items {
+                if item.get("slot").and_then(|s| s.as_str()) == Some("ability_stone") {
+                    if let Some(stone_engravings) = item
+                        .get("data")
+                        .and_then(|d| d.get("engravings"))
+                        .and_then(|e| e.as_array())
+                    {
+                        for se in stone_engravings {
+                            if let (Some(id), Some(nodes)) = (
+                                se.get("id").and_then(|i| i.as_i64()),
+                                se.get("nodes").and_then(|n| n.as_i64()),
+                            ) {
+                                stone_bonus_map.insert(id, nodes);
+                            }
+                        }
                     }
+                    break;
                 }
             }
         }
-        crate::log_debug!("Stone bonus map: {:?}", stone_bonus_map);
+        crate::log_debug!("Stone bonus map from ability_stone: {:?}", stone_bonus_map);
 
+        // engravings[]: { grade: "engrave_grade04"|"engrave_grade05", id, progress }
+        // progress = books read (0-20)
         if let Some(engraving_data) = loadout.get("engravings").and_then(|e| e.as_array()) {
             for engraving in engraving_data {
                 let id = match engraving.get("id").and_then(|i| i.as_i64()) {
                     Some(v) => v,
                     None => continue,
                 };
-                // grade = total points accumulated (0-20)
-                let grade = engraving
-                    .get("grade")
-                    .and_then(|g| g.as_i64().or_else(|| g.as_f64().map(|f| f as i64)))
-                    .unwrap_or(0);
-
-                let stone_bonus = *stone_bonus_map.get(&id).unwrap_or(&0);
-                // books_read = total grade minus the stone contribution
-                let books_read = (grade - stone_bonus).max(0);
-
-                let engraving_name = get_engraving_name(id)
-                    .unwrap_or_else(|| {
-                        crate::log_debug!("Unknown engraving id: {}", id);
-                        "Unknown Engraving"
-                    })
-                    .to_string();
-
-                // Skip negative/penalty engravings (ids 800-803)
-                if id >= 800 && id <= 803 {
+                // Skip penalty engravings
+                if (id >= 800 && id <= 803) || (id >= 1800 && id <= 1803) {
                     continue;
                 }
-
+                let books_read = engraving.get("progress").and_then(|p| p.as_i64()).unwrap_or(0);
+                let stone_bonus = *stone_bonus_map.get(&id).unwrap_or(&0);
+                let engraving_name = get_engraving_name(id)
+                    .unwrap_or_else(|| { crate::log_debug!("Unknown engraving id: {}", id); "Unknown Engraving" })
+                    .to_string();
                 engravings.push(CharacterEngraving {
                     engraving_name,
                     books_read: books_read as f64,
@@ -878,58 +879,66 @@ impl HumanizedScraper {
         }
 
         if engravings.is_empty() {
-            crate::log_debug!("No engravings found in loadout, available keys: {:?}",
-                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+            crate::log_debug!("No engravings found in loadout");
         } else {
             crate::log_debug!("Extracted {} engravings", engravings.len());
         }
-
         engravings
     }
 
     fn extract_equipment_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterEquipment> {
         let mut equipment = Vec::new();
 
-        // lostark.bible loadout items: { slot: "head"|"shoulder"|"chest"|"pants"|"gloves"|"weapon",
-        //   data: { honing: 11, quality: 90, itemLevel: 1730.0 } }
-        let armor_slots = ["head", "shoulder", "chest", "pants", "gloves", "weapon"];
+        let slot_map: std::collections::HashMap<&str, &str> = [
+            ("weapon",        "weapon"),
+            ("head",          "head"),
+            ("upper_body",    "chest"),
+            ("lower_body",    "pants"),
+            ("hand",          "gloves"),
+            ("shoulder",      "shoulder"),
+            ("neck",          "neck"),
+            ("ear1",          "earring1"),
+            ("ear2",          "earring2"),
+            ("finger1",       "ring1"),
+            ("finger2",       "ring2"),
+            ("bracelet",      "bracelet"),
+            ("ability_stone", "ability_stone"),
+        ].iter().cloned().collect();
+
+        let armor_slots = ["weapon", "head", "upper_body", "lower_body", "hand", "shoulder"];
 
         if let Some(items_data) = loadout.get("items").and_then(|e| e.as_array()) {
             for item in items_data {
-                let slot = match item.get("slot").and_then(|s| s.as_str()) {
+                let raw_slot = match item.get("slot").and_then(|s| s.as_str()) {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let slot = match slot_map.get(raw_slot) {
                     Some(s) => s.to_string(),
                     None => continue,
                 };
-
-                // Only process the 6 armor/weapon slots
-                if !armor_slots.contains(&slot.as_str()) {
-                    continue;
-                }
-
                 let data = item.get("data");
-
                 let enhancement_level = data
                     .and_then(|d| d.get("honing"))
-                    .and_then(|h| h.as_i64().or_else(|| h.as_f64().map(|f| f as i64)))
-                    .or_else(|| item.get("honing").and_then(|h| h.as_i64()));
-
+                    .and_then(|h| h.as_i64().or_else(|| h.as_f64().map(|f| f as i64)));
+                // Quality: stats array entry with type=57, index=1
                 let quality = data
-                    .and_then(|d| d.get("quality"))
-                    .and_then(|q| q.as_i64().or_else(|| q.as_f64().map(|f| f as i64)))
-                    .or_else(|| item.get("quality").and_then(|q| q.as_i64()));
-
-                let item_level = data
-                    .and_then(|d| d.get("itemLevel"))
-                    .and_then(|i| i.as_f64())
-                    .or_else(|| item.get("itemLevel").and_then(|i| i.as_f64()));
-
-                // Derive tier from item level
+                    .and_then(|d| d.get("stats")).and_then(|s| s.as_array())
+                    .and_then(|stats| stats.iter().find(|s| {
+                        s.get("type").and_then(|t| t.as_i64()) == Some(57)
+                        && s.get("index").and_then(|i| i.as_i64()) == Some(1)
+                    }))
+                    .and_then(|s| s.get("value").and_then(|v| v.as_i64()));
+                let item_level = if armor_slots.contains(&raw_slot) {
+                    loadout.get("itemLevel").and_then(|v| v.as_f64())
+                } else { None };
                 let tier = item_level.map(|ilvl| {
-                    if ilvl >= 1600.0 { "T4".to_string() }
-                    else if ilvl >= 1100.0 { "T3".to_string() }
-                    else { "T2".to_string() }
+                    if ilvl >= 1600.0 { "T4".to_string() } else { "T3".to_string() }
+                }).or_else(|| {
+                    data.and_then(|d| d.get("type")).and_then(|t| t.as_str()).map(|t| {
+                        if t.contains("tier4") { "T4".to_string() } else { "T3".to_string() }
+                    })
                 });
-
                 equipment.push(CharacterEquipment {
                     slot,
                     enhancement_level: enhancement_level.map(|v| v as f64),
@@ -941,90 +950,54 @@ impl HumanizedScraper {
         }
 
         if equipment.is_empty() {
-            crate::log_debug!("No equipment found in loadout, available keys: {:?}",
-                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+            crate::log_debug!("No equipment found in loadout");
         } else {
             crate::log_debug!("Extracted {} equipment pieces", equipment.len());
         }
-
         equipment
     }
 
     fn extract_gems_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterGem> {
         let mut gems = Vec::new();
 
-        // lostark.bible gem structure:
-        // { id: <encodes level>, slot: <0-based index>, bound: bool,
-        //   effects: [ { id, type: "damage"|"cooldown", value } ] }
-        //
-        // Gem level is encoded in the id:
-        //   T3 gems: level = (id % 10) + 1  (rough heuristic, ids like 1001-1010)
-        //   T4 gems: lostark.bible uses a different id range
-        // The most reliable source is the `level` field if present, else parse from id.
+        // gem: { id: <item_id>, slot: <0-based>, effects: [ { type, id: <skill_id>, value } ] }
+        // Level encoded in item_id last 3 digits / 10: 65031080 -> 080/10 = 8
+        // Type: 5 or 34 = attack, 27 = cooldown
         if let Some(gems_data) = loadout.get("gems").and_then(|g| g.as_array()) {
             for gem in gems_data {
-                let id = match gem.get("id").and_then(|i| i.as_i64()) {
+                let gem_item_id = match gem.get("id").and_then(|i| i.as_i64()) {
                     Some(v) => v,
                     None => continue,
                 };
-
-                // Prefer explicit `level` field, fall back to id-based derivation
-                let gem_level = gem
-                    .get("level")
-                    .and_then(|l| l.as_i64())
-                    .unwrap_or_else(|| {
-                        // lostark.bible encodes level in the last digit of the id group
-                        // e.g. T3 damage lv1=1, lv10=10 → id range 1..10
-                        // T4 gems have higher id ranges; level still in last digit
-                        let last = id % 10;
-                        if last == 0 { 10 } else { last }
-                    });
-
-                // Determine gem type from effects[].type
-                let gem_type = gem
-                    .get("effects")
-                    .and_then(|e| e.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|eff| eff.get("type"))
-                    .and_then(|t| t.as_str())
-                    .map(|t| match t {
-                        "damage" => "attack".to_string(),
-                        "cooldown" => "cooldown".to_string(),
-                        other => other.to_string(),
-                    })
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                // Skill name from id mapping
-                let skill_name = get_gem_name(id)
-                    .unwrap_or_else(|| {
-                        crate::log_debug!("Unknown gem id: {}", id);
-                        "Unknown Skill"
-                    })
-                    .to_string();
-
-                // Bound flag — store in gem_type suffix if bound
+                let slot_index = gem.get("slot").and_then(|s| s.as_i64()).unwrap_or(0);
+                let last3 = gem_item_id % 1000;
+                let gem_level = { let lv = last3 / 10; if lv == 0 { 10 } else { lv } };
+                let gem_name = get_gem_name(gem_item_id)
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("Gem (id {})", gem_item_id));
                 let is_bound = gem.get("bound").and_then(|b| b.as_bool()).unwrap_or(false);
-                let final_gem_type = if is_bound {
-                    format!("{}|bound", gem_type)
-                } else {
-                    gem_type
-                };
-
-                gems.push(CharacterGem {
-                    skill_name,
-                    gem_type: final_gem_type,
-                    gem_level: gem_level as f64,
-                });
+                let effects = gem.get("effects").and_then(|e| e.as_array());
+                let primary = effects.and_then(|effs| effs.iter().find(|e| {
+                    e.get("type").and_then(|t| t.as_i64()).map(|t| t != 2).unwrap_or(false)
+                }));
+                let gem_type = primary
+                    .and_then(|e| e.get("type").and_then(|t| t.as_i64()))
+                    .map(|t| match t { 5 | 34 => "attack".to_string(), 27 => "cooldown".to_string(), o => format!("type_{}", o) })
+                    .unwrap_or_else(|| "unknown".to_string());
+                let skill_name = primary
+                    .and_then(|e| e.get("id").and_then(|i| i.as_i64()))
+                    .and_then(|sid| get_gem_name(sid))
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| gem_name.clone());
+                gems.push(CharacterGem { slot_index, gem_name, skill_name, gem_type, gem_level, is_bound });
             }
         }
 
         if gems.is_empty() {
-            crate::log_debug!("No gems found in loadout, available keys: {:?}",
-                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+            crate::log_debug!("No gems found in loadout");
         } else {
             crate::log_debug!("Extracted {} gems", gems.len());
         }
-
         gems
     }
 
