@@ -14,3 +14,4 @@ pub mod encounter_sync_handlers;
 pub mod entity_sync_handlers;
 pub mod sync_metadata_handlers;
 pub mod market_handlers;
+pub mod progression_handlers;

@@ -10,9 +10,12 @@
   let matrixData: TrackingConfigMatrix | null = null;
   let isLoading = true;
   let error = '';
+  let lastLoadedRosterId: string = '';
 
   async function loadMatrixData() {
     try {
+      error = '';
+      matrixData = null;
       isLoading = true;
       
       // Get basic matrix data with characters and tracking status
@@ -53,11 +56,15 @@
       const raidsMap = new Map<string, any>();
       [...RAIDS].forEach(raid => {
         const baseName = raid.name; // Use name directly without difficulty
-        if (!raidsMap.has(baseName) || raid.min_ilvl < raidsMap.get(baseName)?.gates[0]?.minIlvl) {
+        const raidMinIlvl = raid.gates[0]?.minIlvl || 0;
+        const existingMinIlvl = raidsMap.get(baseName)?.gates[0]?.minIlvl || 0;
+        if (!raidsMap.has(baseName) || raidMinIlvl < existingMinIlvl) {
           raidsMap.set(baseName, raid);
         }
       });
       
+      const raidUpdatePromises: Promise<unknown>[] = [];
+
       const raidsArray = Array.from(raidsMap.values()).sort((a, b) => {
         const aMinIlvl = a.gates[0]?.minIlvl || 0;
         const bMinIlvl = b.gates[0]?.minIlvl || 0;
@@ -69,14 +76,29 @@
           const backendState = baseMatrix.character_states?.find((s: any) => 
             s.char_id === char.char_id && s.content_id === raid.id
           );
-          
+
+          const eligible = raid.gates[0]?.minIlvl === undefined || raid.gates[0].minIlvl <= char.item_level;
+          const tracked = eligible ? (backendState?.tracked || false) : false;
+
+          if (!eligible && backendState?.tracked) {
+            raidUpdatePromises.push(
+              invoke('update_tracking_config', {
+                characterId: char.char_id,
+                taskId: raid.id,
+                tracked: false
+              }).catch((err) => {
+                console.warn('Failed to clear low ilvl tracking for character', char.char_id, 'raid', raid.id, err);
+              })
+            );
+          }
+
           return {
             char_id: char.char_id,
-            tracked: backendState?.tracked || false, // Use backend data
+            tracked,
             current_value: null // Raids don't have rested values
           };
         });
-        
+
         return {
           raid_id: raid.id,
           raid_name: raid.name, // Only name, no difficulty
@@ -84,6 +106,10 @@
           character_states: characterStates
         };
       });
+
+      if (raidUpdatePromises.length > 0) {
+        await Promise.all(raidUpdatePromises);
+      }
       
       // Combine everything with proper categorization
       matrixData = {
@@ -157,19 +183,20 @@
         currentValue: null
       });
       
-      // Update local data with the confirmed new state
+      // Update local data for the specific task row only
       const updateTaskState = (tasks: any[]) => {
-        for (const task of tasks) {
-          const state = task.character_states.find((s: any) => s.char_id === charId);
-          if (state) {
-            state.tracked = newState;
-          }
+        const task = tasks.find((t: any) => t.content_id === taskId);
+        if (task) {
+          task.character_states = task.character_states.map((s: any) =>
+            s.char_id === charId ? { ...s, tracked: newState } : { ...s }
+          );
         }
       };
       
       updateTaskState(matrixData.daily_tasks);
       updateTaskState(matrixData.weekly_tasks);
       updateTaskState(matrixData.roster_tasks);
+      matrixData = { ...matrixData };
       
     } catch (err) {
       console.error('Failed to toggle task:', err);
@@ -185,14 +212,18 @@
         currentValue: null
       });
       
-      // Update local data with the confirmed new state
-      for (const raid of matrixData.raids) {
-        const state = raid.character_states.find((s: any) => s.char_id === charId);
-        if (state) {
-          state.tracked = newState;
-        }
-      }
-      
+      // Update only the targeted raid row for this character
+      matrixData.raids = matrixData.raids.map((raid: any) => {
+        if (raid.raid_id !== raidId) return raid;
+        return {
+          ...raid,
+          character_states: raid.character_states.map((s: any) =>
+            s.char_id === charId ? { ...s, tracked: newState } : { ...s }
+          )
+        };
+      });
+      matrixData = { ...matrixData };
+       
     } catch (err) {
       console.error('Failed to toggle raid:', err);
     }
@@ -200,7 +231,6 @@
 
   async function toggleRosterTask(taskId: string, newState: boolean) {
     try {
-      // For roster tasks, we need to update all characters
       const characters = matrixData?.characters || [];
       
       for (const char of characters) {
@@ -212,13 +242,14 @@
         });
       }
       
-      // Update local data instead of reloading entire matrix
-      const task = matrixData.roster_tasks.find((t: any) => t.content_id === taskId);
-      if (task) {
-        for (const state of task.character_states) {
-          state.tracked = newState;
+      // Update local data and force reactivity
+      matrixData.roster_tasks = matrixData.roster_tasks.map((t: any) => {
+        if (t.content_id === taskId) {
+          return { ...t, character_states: t.character_states.map((s: any) => ({ ...s, tracked: newState })) };
         }
-      }
+        return { ...t };
+      });
+      matrixData = { ...matrixData };
       
     } catch (err) {
       console.error('Failed to toggle roster task:', err);
@@ -227,7 +258,6 @@
 
   async function toggleAllCharactersForTask(taskId: string, newState: boolean) {
     try {
-      // For individual tasks, update all characters in the roster
       const characters = matrixData?.characters || [];
       
       for (const char of characters) {
@@ -239,21 +269,58 @@
         });
       }
       
-      // Update local data for all task sections
+      // Update local data for all task sections and force reactivity
       const updateTaskState = (tasks: any[]) => {
         const task = tasks.find((t: any) => t.content_id === taskId);
         if (task) {
-          for (const state of task.character_states) {
-            state.tracked = newState;
-          }
+          task.character_states = task.character_states.map((s: any) => ({ ...s, tracked: newState }));
         }
       };
       
       updateTaskState(matrixData.daily_tasks);
       updateTaskState(matrixData.weekly_tasks);
+      matrixData = { ...matrixData };
       
     } catch (err) {
       console.error('Failed to toggle all characters for task:', err);
+    }
+  }
+
+  async function toggleAllCharactersForRaid(raidId: string, newState: boolean) {
+    try {
+      const characters = matrixData?.characters || [];
+      
+      for (const char of characters) {
+        const raid = matrixData.raids.find((r: any) => r.raid_id === raidId);
+        if (raid) {
+          const charState = raid.character_states.find((s: any) => s.char_id === char.char_id);
+          // Only toggle eligible characters (ilvl high enough)
+          if (raid.min_ilvl <= char.item_level) {
+            await invoke('update_tracking_config', {
+              characterId: char.char_id,
+              taskId: raidId,
+              tracked: newState,
+              currentValue: null
+            });
+          }
+        }
+      }
+      
+      // Update local data and force reactivity
+      const raid = matrixData.raids.find((r: any) => r.raid_id === raidId);
+      if (raid) {
+        raid.character_states = raid.character_states.map((s: any, i: number) => {
+          const char = matrixData.characters[i];
+          if (raid.min_ilvl <= char.item_level) {
+            return { ...s, tracked: newState };
+          }
+          return { ...s };
+        });
+      }
+      matrixData = { ...matrixData };
+      
+    } catch (err) {
+      console.error('Failed to toggle all characters for raid:', err);
     }
   }
 
@@ -267,8 +334,20 @@
     return checkTaskState(matrixData.daily_tasks) || checkTaskState(matrixData.weekly_tasks);
   }
 
+  function areAllEligibleCharactersTrackedForRaid(raidId: string): boolean {
+    const raid = matrixData?.raids?.find((r: any) => r.raid_id === raidId);
+    if (!raid || raid.character_states.length === 0) return false;
+    const eligibleStates = raid.character_states.filter((_: any, i: number) => {
+      const char = matrixData.characters[i];
+      return raid.min_ilvl <= char.item_level;
+    });
+    if (eligibleStates.length === 0) return false;
+    return eligibleStates.every((state: any) => state.tracked === true);
+  }
+
   // Load data when component mounts or roster changes
-  $: if ($activeRosterId) {
+  $: if ($activeRosterId && $activeRosterId !== lastLoadedRosterId) {
+    lastLoadedRosterId = $activeRosterId;
     loadMatrixData();
   }
 </script>
@@ -452,6 +531,16 @@
                 <div class="raid-info">
                   <span class="raid-name">{raid.raid_name}</span>
                   <span class="raid-ilvl">iLvl: {raid.min_ilvl}</span>
+                  <button 
+                    class="toggle-all-btn"
+                    on:click={() => {
+                      const currentState = areAllEligibleCharactersTrackedForRaid(raid.raid_id);
+                      toggleAllCharactersForRaid(raid.raid_id, !currentState);
+                    }}
+                    title="Toggle all characters"
+                  >
+                    {areAllEligibleCharactersTrackedForRaid(raid.raid_id) ? '☑' : '☐'}
+                  </button>
                 </div>
               </td>
               {#each matrixData.characters as char}
@@ -479,6 +568,10 @@
         </table>
       </div>
     </div>
+  {:else}
+    <div class="no-data">
+      <p>No tracking data loaded. Please select an active roster above.</p>
+    </div>
   {/if}
 </div>
 
@@ -487,8 +580,9 @@
     display: flex;
     flex-direction: column;
     padding: 0;
-    height: 100%;
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     overflow: hidden;
   }
 
@@ -543,31 +637,42 @@
     cursor: pointer;
   }
 
+  .no-data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--md-sys-color-on-surface-variant);
+    padding: 1rem;
+    text-align: center;
+  }
+
   .matrix-container {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     background: var(--md-sys-color-surface);
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--md-sys-color-outline);
-    height: 100%;
-    max-height: none;
   }
 
   .tracking-matrix-wrapper {
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     overflow-x: auto;
     overflow-y: auto;
-    height: 100%;
     position: relative;
   }
 
   .tracking-matrix {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
-    min-width: 800px; /* Ensure minimum width for horizontal scrolling */
+    min-width: 800px;
   }
 
   .header-row th {
@@ -577,6 +682,13 @@
     border-bottom: 2px solid var(--md-sys-color-outline);
     font-weight: 600;
     color: var(--md-sys-color-on-surface-variant);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .header-row th.first-col {
+    z-index: 30;
   }
 
   .char-header {
@@ -625,11 +737,37 @@
     font-weight: 600;
     color: var(--md-sys-color-on-primary-container);
     border: none;
+    text-align: center;
   }
 
   .section-title {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 0 16px;
     font-size: 16px;
     font-weight: 700;
+  }
+
+  .section-title::before,
+  .section-title::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 36px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .section-title::before {
+    left: 0;
+    transform: translateX(-100%);
+  }
+
+  .section-title::after {
+    right: 0;
+    transform: translateX(100%);
   }
 
   .task-name-cell {

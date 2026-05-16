@@ -27,6 +27,7 @@
   interface CompletionStatusEntry {
     content_id: string;
     is_completed: number;
+    details?: string | null;
   }
 
   interface RestedValueEntry {
@@ -374,48 +375,55 @@
     </div>
   {:else}
     <!-- Progress Banner -->
-    <div class="progress-banner">
-      <div class="progress-content">
-        <div class="progress-info">
-          <h3>Weekly Gold Progress</h3>
-          <div class="progress-stats">
-            <span class="current-gold">{goldStats && goldStats.weekly ? goldStats.weekly.totalGold : 0}</span>
-            <span class="separator">/</span>
-            <span class="estimated-gold">{estimatedGoldDisplay}</span>
-            <span class="gold-label">Gold</span>
+    <div class="gold-card-modern">
+      <div class="card-glass-overlay"></div>
+      
+      <div class="card-content">
+        <div class="gold-info-main">
+          <div class="title-group">
+            <img src="/images/gold.png" alt="Gold" class="gold-icon-large" />
+            <h3>Weekly Gold Progress</h3>
           </div>
-          <div class="gold-breakdown">
-            <div class="gold-type">
-              <span class="bound-gold">{goldStats && goldStats.weekly ? goldStats.weekly.boundGold : 0}</span>
-              <span class="gold-type-label">Bound</span>
-            </div>
-            <div class="gold-type">
-              <span class="tradable-gold">{goldStats && goldStats.weekly ? goldStats.weekly.tradableGold : 0}</span>
-              <span class="gold-type-label">Tradable</span>
-            </div>
-            {#if goldStats && goldStats.weekly && goldStats.weekly.extraIncomeGold > 0}
-              <div class="gold-type extra-income">
-                <span class="extra-income-gold">+{goldStats.weekly.extraIncomeGold}</span>
-                <span class="gold-type-label">Extra</span>
-              </div>
-            {/if}
-            {#if goldStats && goldStats.weekly && goldStats.weekly.boxPurchaseCost > 0}
-              <div class="gold-type box-cost">
-                <span class="box-purchase-cost">-{goldStats.weekly.boxPurchaseCost}</span>
-                <span class="gold-type-label">Boxes</span>
-              </div>
-            {/if}
+          
+          <div class="gold-values">
+            <span class="current">{goldStats?.weekly?.totalGold?.toLocaleString() ?? 0}</span>
+            <span class="divider">/</span>
+            <span class="target">{estimatedGoldDisplay.toLocaleString()}</span>
+            <span class="unit">Gold</span>
           </div>
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" style="width: {progressPercentage}%"></div>
-          <div class="progress-percentage">{Math.round(progressPercentage)}%</div>
+
+        <div class="progress-container-modern">
+          <div class="progress-track">
+            <div class="progress-fill-glow" style="width: {progressPercentage}%">
+              <div class="shimmer"></div>
+            </div>
+          </div>
+          <div class="progress-labels">
+            <span class="pct-text">{Math.round(progressPercentage)}% complete</span>
+            <span class="remaining-text">{(estimatedGoldDisplay - (goldStats?.weekly?.totalGold ?? 0)).toLocaleString()} gold remaining</span>
+          </div>
+        </div>
+
+        <div class="gold-details-minimal">
+          <div class="detail-item">
+            <span class="dot bound"></span>
+            <span class="label">Bound:</span>
+            <span class="val">{goldStats?.weekly?.boundGold?.toLocaleString() ?? 0}</span>
+          </div>
+          <div class="detail-item">
+            <span class="dot tradable"></span>
+            <span class="label">Tradable:</span>
+            <span class="val">{goldStats?.weekly?.tradableGold?.toLocaleString() ?? 0}</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Header Stats -->
+    {#if totalRaidsPossible > 0 || totalDailiesPossible > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold)}
     <div class="header-stats">
+      {#if totalRaidsPossible > 0}
       <div class="stat-card">
         <div class="stat-icon">
           <img src="/images/kazeros-raid.webp" alt="Raids" />
@@ -425,6 +433,8 @@
           <div class="stat-label">Raids</div>
         </div>
       </div>
+      {/if}
+      {#if totalDailiesPossible > 0}
       <div class="stat-card">
         <div class="stat-icon">
           <img src="/images/icons8-last-24-hours-80.png" alt="Dailies" />
@@ -434,6 +444,8 @@
           <div class="stat-label">Dailies</div>
         </div>
       </div>
+      {/if}
+      {#if totalWeekliesPossible > 0}
       <div class="stat-card">
         <div class="stat-icon">
           <img src="images/calendar_7743808.png" alt="Weeklies" />
@@ -443,6 +455,8 @@
           <div class="stat-label">Weeklies</div>
         </div>
       </div>
+      {/if}
+      {#if visibleCharacters.some(c => c.earns_gold)}
       <div class="stat-card">
         <div class="stat-icon">
           <img src="/images/gold.png" alt="Gold Earners" />
@@ -452,7 +466,9 @@
           <div class="stat-label">Gold Earners</div>
         </div>
       </div>
+      {/if}
     </div>
+    {/if}
 
     <!-- Character Cards Grid -->
     <div class="characters-grid">
@@ -531,25 +547,94 @@
   }
 
   /* Progress Banner */
-  .progress-banner {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 16px;
+  .gold-card-modern {
+    position: relative;
+    background: #1a1a1d;
+    border: 1px solid rgba(255, 215, 0, 0.15);
+    border-radius: 20px;
     padding: 1.5rem;
     margin-bottom: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    position: relative;
     overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   }
 
-  .progress-banner::before {
-    content: '';
+  .card-glass-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    animation: shimmer 3s linear infinite;
+    top: -50%;
+    left: -20%;
+    width: 140%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(255, 215, 0, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .card-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .gold-info-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .gold-icon-large {
+    width: 32px;
+    height: 32px;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+  }
+
+  .gold-values {
+    font-size: 1.75rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gold-values .current { color: hsl(39, 96%, 50%); text-shadow: 0 0 15px #f7f6f44d; }
+  .gold-values .divider { color: #444; margin: 0 0.25rem; }
+  .gold-values .target { color: #888; }
+  .gold-values .unit { font-size: 0.875rem; color: #555; margin-left: 0.5rem; text-transform: uppercase; }
+
+  .progress-container-modern {
+    margin-bottom: 1rem;
+  }
+
+  .progress-track {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .progress-fill-glow {
+    height: 100%;
+    background: linear-gradient(90deg, #b8860b, #ffd700, #ffec8b);
+    border-radius: 5px;
+    position: relative;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .shimmer {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    animation: shimmer 2s infinite;
   }
 
   @keyframes shimmer {
@@ -557,14 +642,38 @@
     100% { transform: translateX(100%); }
   }
 
-  .progress-content {
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .pct-text { color: #ffd700; }
+  .remaining-text { color: #666; }
+
+  .gold-details-minimal {
+    display: flex;
+    gap: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 1rem;
+  }
+
+  .detail-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 2rem;
-    position: relative;
-    z-index: 1;
+    gap: 0.5rem;
+    font-size: 0.85rem;
   }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.bound { background: #ff6b6b; box-shadow: 0 0 6px #ff6b6b; }
+  .dot.tradable { background: #ffd700; box-shadow: 0 0 6px #ffd700; }
+  .detail-item .label { color: #777; }
+  .detail-item .val { color: #eee; font-weight: 600; }
 
   .progress-info h3 {
     margin: 0 0 0.5rem 0;
@@ -647,34 +756,11 @@
     font-weight: 600;
   }
 
-  .progress-bar-container {
-    flex: 1;
-    max-width: 300px;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #ffd700, #ffed4e);
-    border-radius: 6px;
-    transition: width 0.5s ease;
-    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-  }
-
   .progress-percentage {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 10px;
-    font-weight: 600;
-    color: #f86008;
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
-    z-index: 1;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
   }
 
   /* Header Stats */

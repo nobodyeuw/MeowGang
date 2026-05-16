@@ -1,4 +1,5 @@
 pub mod character_repository;
+pub mod progression_repository;
 pub mod roster_repository;
 pub mod tracking_repository;
 pub mod raid_repository;
@@ -7,6 +8,7 @@ pub mod reset_repository;
 pub mod gold_repository;
 
 pub use character_repository::*;
+pub use progression_repository::*;
 pub use roster_repository::*;
 pub use tracking_repository::*;
 pub use raid_repository::*;

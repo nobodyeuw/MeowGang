@@ -22,7 +22,7 @@ pub use roster::HumanizedScraper;
 // Tauri application setup
 use dirs;
 use tauri::Manager;
-use database::repositories::{RosterRepository, TrackingRepository, RaidRepository, CharacterRepository, GoldRepository};
+use database::repositories::{RosterRepository, TrackingRepository, RaidRepository, CharacterRepository, GoldRepository, ProgressionRepository};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -103,6 +103,7 @@ pub fn run() {
             let raid_repo = RaidRepository::new(db_manager.pool.clone());
             let character_repo = CharacterRepository::new(db_manager.pool.clone());
             let gold_repo = GoldRepository::new(db_manager.pool.clone());
+            let progression_repo = ProgressionRepository::new(db_manager.pool.clone());
             crate::log_info!("All repositories initialized successfully");
             
             // Initialize scraper with placeholder values; actual roster name/character
@@ -141,6 +142,7 @@ pub fn run() {
             app.manage(tracking_repo);
             app.manage(raid_repo);
             app.manage(character_repo);
+            app.manage(progression_repo);
             app.manage(gold_repo);
             app.manage(scraper);
             app.manage(raid_data_state);
@@ -168,7 +170,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version = database::data_manager::DataManager::get_schema_version(&db_manager.pool)
                 .unwrap_or(1);
-            const TARGET_VERSION: i32 = 3;
+            const TARGET_VERSION: i32 = 4;
             crate::log_info!("Current schema version: {}, target version: {}", current_version, TARGET_VERSION);
             
             if current_version < TARGET_VERSION {
@@ -344,6 +346,7 @@ pub fn run() {
             handlers::character_handlers::get_character_details,
             handlers::character_handlers::get_dashboard_characters,
             handlers::character_handlers::test_character_query,
+            handlers::character_handlers::scrape_character_details,
             
             // Tracking handlers
             handlers::tracking_handlers::get_tracking_config_matrix,
@@ -413,9 +416,16 @@ pub fn run() {
     handlers::market_handlers::get_market_price,
     handlers::market_handlers::set_manual_market_price,
     handlers::market_handlers::remove_manual_market_price,
+    handlers::market_handlers::set_market_favorite,
     handlers::market_handlers::market_needs_refresh,
     handlers::market_handlers::get_gem_prices,
     handlers::market_handlers::get_price_history,
+
+    // Progression planner (character detail storage; scraper fills via save_scraped_character_progression)
+    handlers::progression_handlers::get_character_progression_snapshot,
+    handlers::progression_handlers::save_scraped_character_progression,
+    handlers::progression_handlers::upsert_progression_goal,
+    handlers::progression_handlers::delete_progression_goal,
 ])
 .run(tauri::generate_context!())
 .unwrap_or_else(|e| {

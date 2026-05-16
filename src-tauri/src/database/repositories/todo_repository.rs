@@ -87,7 +87,7 @@ impl TodoRepository {
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, class_id, item_level, combat_power, earns_gold, display_order 
              FROM conf_character WHERE roster_id = ?1 
-             ORDER BY display_order, char_name"
+             ORDER BY CAST(display_order AS INTEGER), char_name"
         )?;
         
         let character_iter = stmt.query_map([roster_id], |row| {

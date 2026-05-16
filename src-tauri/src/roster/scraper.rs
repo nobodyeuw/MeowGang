@@ -7,6 +7,8 @@ use std::time::{Duration, SystemTime};
 use thiserror::Error;
 use tokio::time::sleep;
 use urlencoding;
+use json5;
+use super::item_mapping::{get_engraving_name, get_gem_name};
 
 #[derive(Debug, Error)]
 pub enum ScraperError {
@@ -81,6 +83,38 @@ pub struct RosterData {
 pub struct RateLimitInfo {
     pub next_request_time: Option<SystemTime>,
     pub time_until_next: Option<Duration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterEngraving {
+    pub engraving_name: String,
+    pub books_read: f64,
+    pub max_books: f64,
+    pub stone_bonus: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterEquipment {
+    pub slot: String,
+    pub enhancement_level: Option<f64>,
+    pub tier: Option<String>,
+    pub quality: Option<f64>,
+    pub item_level: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterGem {
+    pub skill_name: String,
+    pub gem_type: String,
+    pub gem_level: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterDetailData {
+    pub character_name: String,
+    pub engravings: Vec<CharacterEngraving>,
+    pub equipment: Vec<CharacterEquipment>,
+    pub gems: Vec<CharacterGem>,
 }
 
 #[derive(Debug, Clone)]
@@ -515,6 +549,439 @@ impl HumanizedScraper {
 
         Err(last_error)
     }
+
+    async fn setup_character_session(&self, character_name: &str) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
+        crate::log_debug!("Setting up HTTP session for character detail scraping");
+
+        let (user_agent, referer) = {
+            let mut rng = rand::thread_rng();
+            let ua = self.user_agents[rng.gen_range(0..self.user_agents.len())].clone();
+            let referrer = self.referers[rng.gen_range(0..self.referers.len())].clone();
+            crate::log_debug!("Selected user agent and referer for character request");
+            (ua, referrer)
+        };
+
+        let encoded_character = urlencoding::encode(character_name);
+        let url = format!("https://lostark.bible/character/CE/{}", encoded_character);
+        crate::log_debug!("Constructed character detail URL: {}", url);
+
+        let request = self
+            .client
+            .get(&url)
+            .header("User-Agent", user_agent)
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            )
+            .header("Accept-Language", "en-US,en;q=0.5")
+            .header("Accept-Encoding", "identity")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Sec-Fetch-Dest", "document")
+            .header("Sec-Fetch-Mode", "navigate")
+            .header("Sec-Fetch-Site", "cross-site")
+            .header("Pragma", "no-cache")
+            .header("Cache-Control", "no-cache")
+            .header("Referer", referer);
+
+        crate::log_debug!("HTTP request configured with headers");
+        Ok(request)
+    }
+
+    fn parse_character_loadouts(&self, html: &str) -> Result<Vec<serde_json::Value>, ScraperError> {
+        crate::log_debug!("Parsing character loadouts from HTML, length: {}", html.len());
+
+        // Find the loadouts data by looking for the array that contains loadout objects
+        // Loadout objects have a "classification" field
+        let loadouts_start = html.find("loadouts:[")
+            .ok_or_else(|| ScraperError::RosterDataNotFound)?;
+
+        // Extract from the loadouts:[ position onwards
+        let html_slice = &html[loadouts_start..];
+        
+        // Find the opening bracket after loadouts:[
+        let bracket_pos = html_slice.find('[')
+            .ok_or_else(|| ScraperError::RosterDataNotFound)?;
+        
+        let array_start = loadouts_start + bracket_pos;
+        
+        // Use bracket counting to extract the entire array
+        let loadouts_js = self.extract_array_by_bracket_counting_from_position(html, array_start)
+            .ok_or_else(|| ScraperError::RosterDataNotFound)?;
+
+        crate::log_info!("Found loadouts data using bracket counting");
+        crate::log_debug!("Extracted loadouts length: {}", loadouts_js.len());
+        crate::log_debug!("Extracted loadouts (first 1000 chars): {}", &loadouts_js.chars().take(1000).collect::<String>());
+        crate::log_debug!("Extracted loadouts (last 1000 chars): {}", &loadouts_js.chars().rev().take(1000).collect::<String>());
+
+        self.parse_loadouts_json(&loadouts_js)
+    }
+
+    fn extract_array_by_bracket_counting_from_position(&self, html: &str, start_pos: usize) -> Option<String> {
+        crate::log_debug!("Extracting array from position: {}", start_pos);
+        
+        // Count brackets to find the matching closing bracket
+        let mut bracket_count = 0;
+        let mut in_string = false;
+        let mut escape_next = false;
+        
+        for (i, c) in html[start_pos..].char_indices() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+            
+            match c {
+                '\\' => escape_next = true,
+                '"' => in_string = !in_string,
+                '[' if !in_string => bracket_count += 1,
+                ']' if !in_string => {
+                    bracket_count -= 1;
+                    if bracket_count == 0 {
+                        // Found the matching closing bracket
+                        let array_end = start_pos + i + 1;
+                        crate::log_debug!("Found closing bracket at position: {}", array_end);
+                        crate::log_debug!("Extracted array length: {}", array_end - start_pos);
+                        return Some(html[start_pos..array_end].to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        crate::log_debug!("Failed to find matching closing bracket, final bracket_count: {}", bracket_count);
+        None
+    }
+
+    fn extract_array_by_bracket_counting(&self, html: &str, key: &str) -> Option<String> {
+        // Find the key (with or without colon)
+        let key_with_colon = format!("{}:", key);
+        let key_without_colon = key;
+        
+        crate::log_debug!("Looking for key pattern: {}", key_with_colon);
+        
+        // Try with colon first
+        let (start_pos, key_len) = if let Some(pos) = html.find(&key_with_colon) {
+            crate::log_debug!("Found key pattern with colon at position: {}", pos);
+            (pos, key_with_colon.len())
+        } else if let Some(pos) = html.find(key_without_colon) {
+            crate::log_debug!("Found key pattern without colon at position: {}", pos);
+            (pos, key_without_colon.len())
+        } else {
+            crate::log_debug!("Could not find key pattern in HTML");
+            return None;
+        };
+        
+        // Find the opening bracket after the key
+        let after_key = &html[start_pos + key_len..];
+        if let Some(bracket_pos) = after_key.find('[') {
+            let array_start = start_pos + key_len + bracket_pos;
+            crate::log_debug!("Found opening bracket at position: {}", array_start);
+            
+            // Count brackets to find the matching closing bracket
+            let mut bracket_count = 0;
+            let mut in_string = false;
+            let mut escape_next = false;
+            
+            for (i, c) in html[array_start..].char_indices() {
+                if escape_next {
+                    escape_next = false;
+                    continue;
+                }
+                
+                match c {
+                    '\\' => escape_next = true,
+                    '"' => in_string = !in_string,
+                    '[' if !in_string => bracket_count += 1,
+                    ']' if !in_string => {
+                        bracket_count -= 1;
+                        if bracket_count == 0 {
+                            // Found the matching closing bracket
+                            let array_end = array_start + i + 1;
+                            crate::log_debug!("Found closing bracket at position: {}", array_end);
+                            crate::log_debug!("Extracted array length: {}", array_end - array_start);
+                            return Some(html[array_start..array_end].to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            
+            crate::log_debug!("Failed to find matching closing bracket, final bracket_count: {}", bracket_count);
+        } else {
+            crate::log_debug!("Could not find opening bracket after key");
+        }
+        None
+    }
+
+    fn parse_loadouts_json(&self, loadouts_js: &str) -> Result<Vec<serde_json::Value>, ScraperError> {
+        crate::log_debug!("Raw loadouts JSON (first 500 chars): {}", &loadouts_js.chars().take(500).collect::<String>());
+        crate::log_debug!("Raw loadouts JSON (last 500 chars): {}", &loadouts_js.chars().rev().take(500).collect::<String>());
+        crate::log_debug!("Raw loadouts JSON length: {}", loadouts_js.len());
+
+        // Use json5 to parse JavaScript-style JSON directly
+        // json5 handles unquoted property names, trailing commas, and other JS JSON features
+        let parsed: Vec<serde_json::Value> = json5::from_str(loadouts_js)
+            .map_err(|e| {
+                crate::log_error!("JSON5 parsing error: {}", e);
+                crate::log_error!("Failed JSON (first 1000 chars): {}", &loadouts_js.chars().take(1000).collect::<String>());
+                crate::log_error!("Failed JSON (last 1000 chars): {}", &loadouts_js.chars().rev().take(1000).collect::<String>());
+                crate::log_error!("Failed JSON length: {}", loadouts_js.len());
+                ScraperError::Generic(format!("JSON5 parsing error: {}", e))
+            })?;
+        
+        crate::log_debug!("Successfully parsed {} loadouts using json5", parsed.len());
+        Ok(parsed)
+    }
+
+    fn extract_engravings_from_html(&self, html: &str) -> Vec<CharacterEngraving> {
+        let mut engravings = Vec::new();
+        
+        // Try to find engraving data in the HTML
+        // Look for patterns like engraving names and levels
+        // This is a simplified approach - in production, you'd want more robust parsing
+        
+        // For now, return empty since we don't have the exact HTML structure
+        // The actual implementation would need to inspect the HTML structure
+        crate::log_debug!("Attempting to extract engravings from HTML");
+        engravings
+    }
+
+    fn extract_equipment_from_html(&self, html: &str) -> Vec<CharacterEquipment> {
+        let mut equipment = Vec::new();
+        
+        // Try to find equipment data in the HTML
+        // Look for patterns like equipment slots, item levels, etc.
+        
+        crate::log_debug!("Attempting to extract equipment from HTML");
+        equipment
+    }
+
+    fn extract_gems_from_html(&self, html: &str) -> Vec<CharacterGem> {
+        let mut gems = Vec::new();
+        
+        // Try to find gem data in the HTML
+        // Look for patterns like gem names, levels, types
+        
+        crate::log_debug!("Attempting to extract gems from HTML");
+        gems
+    }
+
+    fn extract_engravings_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterEngraving> {
+        let mut engravings = Vec::new();
+
+        // Try to extract engravings from the loadout
+        // The actual data structure has: grade (level 0-20), id, progress
+        if let Some(engraving_data) = loadout.get("engravings").and_then(|e| e.as_array()) {
+            for engraving in engraving_data {
+                if let (Some(grade), Some(id)) = (
+                    engraving.get("grade").and_then(|g| g.as_i64().or_else(|| g.as_str().and_then(|s| s.parse().ok()))),
+                    engraving.get("id").and_then(|i| i.as_i64()),
+                ) {
+                    // Use the ID to look up the human-readable engraving name
+                    // Fall back to the ID if not in mapping
+                    let engraving_name = get_engraving_name(id)
+                        .unwrap_or(&format!("Engraving {}", id))
+                        .to_string();
+
+                    // grade represents the total engraving level (0-20)
+                    // This is the sum of books read + stone bonus
+                    // For now, we'll use grade as the total level and estimate books/stone
+                    engravings.push(CharacterEngraving {
+                        engraving_name,
+                        books_read: grade as f64, // Using grade as total level for now
+                        max_books: 20.0, // Max engraving level
+                        stone_bonus: 0.0, // Not separately available in this structure
+                    });
+                }
+            }
+        }
+
+        // Log if no engravings found
+        if engravings.is_empty() {
+            crate::log_debug!("No engravings found in loadout, available keys: {:?}", 
+                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        }
+
+        engravings
+    }
+
+    fn extract_equipment_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterEquipment> {
+        let mut equipment = Vec::new();
+
+        // Try to extract equipment from the loadout
+        // The field is likely named "items" based on the debug output
+        if let Some(items_data) = loadout.get("items").and_then(|e| e.as_array()) {
+            for item in items_data {
+                if let Some(slot) = item.get("slot").and_then(|s| s.as_str()) {
+                    // Extract from nested data object if present
+                    let enhancement_level = item.get("data")
+                        .and_then(|d| d.get("honing"))
+                        .and_then(|h| h.as_f64())
+                        .or_else(|| item.get("honing").and_then(|h| h.as_f64()));
+                    
+                    let item_level = loadout.get("itemLevel")
+                        .and_then(|i| i.as_f64())
+                        .or_else(|| item.get("data").and_then(|d| d.get("itemLevel")).and_then(|i| i.as_f64()));
+
+                    let quality = item.get("data")
+                        .and_then(|d| d.get("quality"))
+                        .and_then(|q| q.as_f64())
+                        .or_else(|| item.get("quality").and_then(|q| q.as_f64()));
+
+                    equipment.push(CharacterEquipment {
+                        slot: slot.to_string(),
+                        enhancement_level,
+                        tier: Some("Tier 4".to_string()), // Default for now
+                        quality,
+                        item_level,
+                    });
+                }
+            }
+        }
+
+        // Log if no equipment found
+        if equipment.is_empty() {
+            crate::log_debug!("No equipment found in loadout, available keys: {:?}", 
+                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        }
+
+        equipment
+    }
+
+    fn extract_gems_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterGem> {
+        let mut gems = Vec::new();
+
+        // Try to extract gems from the loadout
+        // The actual data structure has: effects array, id, slot
+        if let Some(gems_data) = loadout.get("gems").and_then(|g| g.as_array()) {
+            for gem in gems_data {
+                if let (Some(id), Some(slot)) = (
+                    gem.get("id").and_then(|i| i.as_i64()),
+                    gem.get("slot").and_then(|s| s.as_i64()),
+                ) {
+                    // Use the ID to look up the human-readable gem name
+                    // Fall back to a formatted string if the ID is not in the mapping
+                    let skill_name = get_gem_name(id)
+                        .unwrap_or(&format!("Gem {}", id))
+                        .to_string();
+
+                    // Extract the first effect to determine gem type/level
+                    // The effects array contains objects with id, type, value
+                    let gem_type = if let Some(effects) = gem.get("effects").and_then(|e| e.as_array()) {
+                        if let Some(first_effect) = effects.first() {
+                            // Try to determine gem level from the value
+                            if let Some(value) = first_effect.get("value").and_then(|v| v.as_i64()) {
+                                // Map value to gem level (e.g., 3600 might be level 8, 4000 might be level 9)
+                                let level = if value >= 4000 { 9 } else { 8 };
+                                format!("Level {}", level)
+                            } else {
+                                "Unknown".to_string()
+                            }
+                        } else {
+                            "Unknown".to_string()
+                        }
+                    } else {
+                        "Unknown".to_string()
+                    };
+
+                    gems.push(CharacterGem {
+                        skill_name,
+                        gem_type,
+                        gem_level: slot as f64, // Use slot as placeholder for level
+                    });
+                }
+            }
+        }
+
+        // Log if no gems found
+        if gems.is_empty() {
+            crate::log_debug!("No gems found in loadout, available keys: {:?}", 
+                loadout.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        }
+
+        gems
+    }
+
+    pub async fn scrape_character_details(&mut self, character_name: String) -> Result<CharacterDetailData, ScraperError> {
+        crate::log_info!("Starting character detail scrape for '{}'", character_name);
+
+        // Humanized delay before request
+        self.humanized_delay(1.0, 3.0).await;
+
+        let request = self
+            .setup_character_session(&character_name)
+            .await
+            .map_err(|e| ScraperError::Generic(e.to_string()))?;
+
+        let response = request.send().await
+            .map_err(|e| ScraperError::Generic(format!("Request error: {}", e)))?;
+        let status = response.status().as_u16();
+
+        if status == 404 {
+            return Err(ScraperError::PrivateProfile);
+        }
+
+        let content = response.text().await
+            .map_err(|e| ScraperError::Generic(format!("Failed to read response body: {}", e)))?;
+
+        if Self::is_cloudflare_challenge(status, &content) {
+            crate::log_warn!(
+                "Cloudflare challenge detected (HTTP {}) for character '{}'",
+                status,
+                character_name
+            );
+            return Err(ScraperError::CloudflareBlocked);
+        }
+
+        if status != 200 {
+            return Err(ScraperError::HttpError(status));
+        }
+
+        // Parse loadouts from HTML
+        let loadouts = self.parse_character_loadouts(&content)?;
+
+        if loadouts.is_empty() {
+            crate::log_warn!("No loadouts found for character '{}'", character_name);
+            return Err(ScraperError::NoCharactersFound);
+        }
+
+        // Use pick_preferred_raid_loadout to select the best loadout
+        let preferred_loadout = crate::roster::pick_preferred_raid_loadout(&loadouts)
+            .ok_or_else(|| ScraperError::Generic("No suitable raid loadout found".to_string()))?;
+
+        crate::log_info!("Selected loadout with classification: {:?}", 
+            preferred_loadout.get("classification").and_then(|c| c.as_str()));
+
+        // Debug: log the structure of engravings and gems fields
+        if let Some(engravings_val) = preferred_loadout.get("engravings") {
+            crate::log_debug!("Engravings field value: {:?}", engravings_val);
+        }
+        if let Some(gems_val) = preferred_loadout.get("gems") {
+            crate::log_debug!("Gems field value: {:?}", gems_val);
+        }
+
+        // Extract data from the selected loadout
+        let engravings = self.extract_engravings_from_loadout(preferred_loadout);
+        let equipment = self.extract_equipment_from_loadout(preferred_loadout);
+        let gems = self.extract_gems_from_loadout(preferred_loadout);
+
+        crate::log_info!(
+            "Extracted {} engravings, {} equipment pieces, {} gems for character '{}'",
+            engravings.len(),
+            equipment.len(),
+            gems.len(),
+            character_name
+        );
+
+        Ok(CharacterDetailData {
+            character_name,
+            engravings,
+            equipment,
+            gems,
+        })
+    }
 }
 
 pub struct ScraperManager {
@@ -635,6 +1102,9 @@ mod tests {
                     ScraperError::PrivateProfile => {
                         println!("🔒 Private profile detected");
                     }
+                    ScraperError::CloudflareBlocked => {
+                        println!("☁️ Cloudflare blocked");
+                    }
                     ScraperError::NoCharactersFound => {
                         println!("📭 No characters found");
                     }
@@ -660,6 +1130,100 @@ mod tests {
                         println!("🌐 Request error: {}", err);
                     }
                 }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_vaanyar_character_details() {
+        println!("Testing character detail scraper with character: Vaanyar");
+
+        let mut scraper = HumanizedScraper::new("Vaanyar".to_string(), "test_roster".to_string());
+
+        match scraper.scrape_character_details("Vaanyar".to_string()).await {
+            Ok(detail_data) => {
+                println!("✅ SUCCESS: Character detail scraping completed successfully!");
+                println!("👤 Character Name: {}", detail_data.character_name);
+                println!("📚 Engravings Found: {}", detail_data.engravings.len());
+                println!();
+
+                for (i, engraving) in detail_data.engravings.iter().enumerate() {
+                    println!("🎯 Engraving {}: {}", i + 1, engraving.engraving_name);
+                    println!("   📖 Books Read: {}/{}", engraving.books_read, engraving.max_books);
+                    println!("   💎 Stone Bonus: +{}", engraving.stone_bonus);
+                    println!();
+                }
+
+                println!("⚔️ Equipment Found: {}", detail_data.equipment.len());
+                println!();
+
+                for (i, equip) in detail_data.equipment.iter().enumerate() {
+                    println!("🛡️  Equipment {}: {}", i + 1, equip.slot);
+                    if let Some(enh) = equip.enhancement_level {
+                        println!("   ➕ Enhancement: +{}", enh);
+                    }
+                    if let Some(tier) = &equip.tier {
+                        println!("   🏷️  Tier: {}", tier);
+                    }
+                    if let Some(quality) = equip.quality {
+                        println!("   ⭐ Quality: {}", quality);
+                    }
+                    if let Some(ilvl) = equip.item_level {
+                        println!("   📊 Item Level: {:.1}", ilvl);
+                    }
+                    println!();
+                }
+
+                println!("💎 Gems Found: {}", detail_data.gems.len());
+                println!();
+
+                for (i, gem) in detail_data.gems.iter().enumerate() {
+                    println!("💎 Gem {}: {}", i + 1, gem.skill_name);
+                    println!("   🔮 Type: {}", gem.gem_type);
+                    println!("   ⭐ Level: {}", gem.gem_level);
+                    println!();
+                }
+
+                // Basic validation
+                assert!(!detail_data.equipment.is_empty(), "Expected at least one equipment piece");
+                
+                println!("🎉 Character detail scraping test passed!");
+            }
+            Err(e) => {
+                println!("❌ ERROR: Character detail scraping failed!");
+                match e {
+                    ScraperError::PrivateProfile => {
+                        println!("🔒 Private profile detected");
+                    }
+                    ScraperError::CloudflareBlocked => {
+                        println!("☁️ Cloudflare blocked");
+                    }
+                    ScraperError::NoCharactersFound => {
+                        println!("📭 No characters/loadouts found");
+                    }
+                    ScraperError::HttpError(code) => {
+                        println!("🌐 HTTP error: {}", code);
+                    }
+                    ScraperError::JsonParsingError(err) => {
+                        println!("📄 JSON parsing error: {}", err);
+                    }
+                    ScraperError::RosterDataNotFound => {
+                        println!("🔍 Loadout data not found in HTML");
+                    }
+                    ScraperError::RateLimited(duration) => {
+                        println!("⏰ Rate limited. Wait: {:?}", duration);
+                    }
+                    ScraperError::Generic(msg) => {
+                        println!("❓ Generic error: {}", msg);
+                    }
+                    ScraperError::RegexError(err) => {
+                        println!("🔧 Regex error: {}", err);
+                    }
+                    ScraperError::RequestError(err) => {
+                        println!("🌐 Request error: {}", err);
+                    }
+                }
+                panic!("Character detail scraping should succeed");
             }
         }
     }

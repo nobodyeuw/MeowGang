@@ -30,35 +30,19 @@
   <!-- Tab Content (no sub-tabs needed anymore - they're in the header) -->
   <div class="tab-content-area">
     {#if activeTab === 'roster'}
-      <div class="content-panel">
-        <div class="panel-content">
-          <RosterSettings />
-        </div>
-      </div>
+      <RosterSettings />
     {/if}
 
     {#if activeTab === 'todo'}
-      <div class="content-panel">
-        <div class="panel-content">
-          <TrackingSettings />
-        </div>
-      </div>
+      <TrackingSettings />
     {/if}
 
     {#if activeTab === 'raid'}
-      <div class="content-panel">
-        <div class="panel-content">
-          <RaidSettings />
-        </div>
-      </div>
+      <RaidSettings />
     {/if}
 
     {#if activeTab === 'system'}
-      <div class="content-panel">
-        <div class="panel-content">
-          <SystemSettings />
-        </div>
-      </div>
+      <SystemSettings />
     {/if}
   </div>
 </div>
@@ -72,20 +56,9 @@
 
   .tab-content-area {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
     background: var(--md-sys-color-surface);
-  }
-
-  .content-panel {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .panel-content {
-    flex: 1;
-    min-height: 0;
     padding: 1rem;
   }
 

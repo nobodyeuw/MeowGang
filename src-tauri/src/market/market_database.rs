@@ -1,7 +1,7 @@
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 /// Market item with latest price from the LOA Buddy API.
@@ -13,6 +13,7 @@ pub struct MarketItem {
     pub price: i64,
     pub fetched_at: i64,
     pub is_manual_override: bool,
+    pub favorite: bool,
 }
 
 /// Manages the separate `market.db` database for progression planner data.
@@ -62,6 +63,7 @@ impl MarketDatabase {
                 category TEXT NOT NULL,
                 price INTEGER NOT NULL,
                 fetched_at INTEGER NOT NULL,
+                favorite INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(item_slug)
             );
 
@@ -71,6 +73,7 @@ impl MarketDatabase {
                 item_name TEXT NOT NULL,
                 category TEXT NOT NULL,
                 price INTEGER NOT NULL,
+                favorite INTEGER NOT NULL DEFAULT 0,
                 updated_at INTEGER NOT NULL,
                 UNIQUE(item_slug)
             );
@@ -88,6 +91,35 @@ impl MarketDatabase {
             params!["last_full_refresh", "0"],
         )?;
 
+        self.ensure_market_columns(&conn)?;
+
+        Ok(())
+    }
+
+    fn ensure_market_columns(&self, conn: &Connection) -> Result<()> {
+        self.ensure_column_exists(conn, "market_prices", "favorite INTEGER NOT NULL DEFAULT 0")?;
+        self.ensure_column_exists(conn, "manual_price_overrides", "favorite INTEGER NOT NULL DEFAULT 0")?;
+        Ok(())
+    }
+
+    fn ensure_column_exists(&self, conn: &Connection, table: &str, column_def: &str) -> Result<()> {
+        let column_name = column_def.split_whitespace().next().unwrap_or("");
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
+        let mut rows = stmt.query([])?;
+        let mut found = false;
+
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(1)?;
+            if name == column_name {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN {}", table, column_def), [])?;
+        }
+
         Ok(())
     }
 
@@ -97,8 +129,8 @@ impl MarketDatabase {
         let mut count = 0;
 
         let mut stmt = conn.prepare_cached(
-            "INSERT INTO market_prices (item_slug, item_name, category, price, fetched_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO market_prices (item_slug, item_name, category, price, fetched_at, favorite)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(item_slug) DO UPDATE SET
                 item_name = excluded.item_name,
                 category = excluded.category,
@@ -107,7 +139,7 @@ impl MarketDatabase {
         )?;
 
         for (slug, name, category, price) in items {
-            stmt.execute(params![slug, name, category, price, fetched_at])?;
+            stmt.execute(params![slug, name, category, price, fetched_at, 0])?;
             count += 1;
         }
 
@@ -122,7 +154,7 @@ impl MarketDatabase {
         // Check manual override first
         let manual: Option<MarketItem> = conn
             .query_row(
-                "SELECT item_slug, item_name, category, price, updated_at
+                "SELECT item_slug, item_name, category, price, favorite, updated_at
              FROM manual_price_overrides WHERE item_slug = ?1",
                 params![item_slug],
                 |row| {
@@ -131,7 +163,8 @@ impl MarketDatabase {
                         item_name: row.get(1)?,
                         category: row.get(2)?,
                         price: row.get(3)?,
-                        fetched_at: row.get(4)?,
+                        favorite: row.get::<_, i32>(4)? == 1,
+                        fetched_at: row.get(5)?,
                         is_manual_override: true,
                     })
                 },
@@ -145,7 +178,7 @@ impl MarketDatabase {
         // Fall back to API price
         let market: Option<MarketItem> = conn
             .query_row(
-                "SELECT item_slug, item_name, category, price, fetched_at
+                "SELECT item_slug, item_name, category, price, favorite, fetched_at
              FROM market_prices WHERE item_slug = ?1",
                 params![item_slug],
                 |row| {
@@ -154,7 +187,8 @@ impl MarketDatabase {
                         item_name: row.get(1)?,
                         category: row.get(2)?,
                         price: row.get(3)?,
-                        fetched_at: row.get(4)?,
+                        favorite: row.get::<_, i32>(4)? == 1,
+                        fetched_at: row.get(5)?,
                         is_manual_override: false,
                     })
                 },
@@ -174,6 +208,7 @@ impl MarketDatabase {
                 COALESCE(o.item_name, m.item_name) AS item_name,
                 COALESCE(o.category, m.category) AS category,
                 COALESCE(o.price, m.price) AS price,
+                COALESCE(o.favorite, m.favorite, 0) AS favorite,
                 COALESCE(o.updated_at, m.fetched_at) AS fetched_at,
                 CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual
              FROM market_prices m
@@ -189,8 +224,9 @@ impl MarketDatabase {
                     item_name: row.get(1)?,
                     category: row.get(2)?,
                     price: row.get(3)?,
-                    fetched_at: row.get(4)?,
-                    is_manual_override: row.get::<_, i32>(5)? == 1,
+                    favorite: row.get::<_, i32>(4)? == 1,
+                    fetched_at: row.get(5)?,
+                    is_manual_override: row.get::<_, i32>(6)? == 1,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -209,6 +245,7 @@ impl MarketDatabase {
                 COALESCE(o.item_name, m.item_name) AS item_name,
                 COALESCE(o.category, m.category) AS category,
                 COALESCE(o.price, m.price) AS price,
+                COALESCE(o.favorite, m.favorite, 0) AS favorite,
                 COALESCE(o.updated_at, m.fetched_at) AS fetched_at,
                 CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual
              FROM market_prices m
@@ -223,8 +260,9 @@ impl MarketDatabase {
                     item_name: row.get(1)?,
                     category: row.get(2)?,
                     price: row.get(3)?,
-                    fetched_at: row.get(4)?,
-                    is_manual_override: row.get::<_, i32>(5)? == 1,
+                    favorite: row.get::<_, i32>(4)? == 1,
+                    fetched_at: row.get(5)?,
+                    is_manual_override: row.get::<_, i32>(6)? == 1,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -250,6 +288,26 @@ impl MarketDatabase {
         )?;
 
         crate::log_info!("Set manual price override: {} = {} gold", item_slug, price);
+        Ok(())
+    }
+
+    /// Set or clear an item as a favorite.
+    pub fn set_favorite(&self, item_slug: &str, favorite: bool) -> Result<()> {
+        let conn = self.pool.get()?;
+        let flag = if favorite { 1 } else { 0 };
+
+        let rows = conn.execute(
+            "UPDATE market_prices SET favorite = ?1 WHERE item_slug = ?2",
+            params![flag, item_slug],
+        )?;
+
+        if rows == 0 {
+            conn.execute(
+                "UPDATE manual_price_overrides SET favorite = ?1 WHERE item_slug = ?2",
+                params![flag, item_slug],
+            )?;
+        }
+
         Ok(())
     }
 
@@ -304,41 +362,21 @@ impl MarketDatabase {
         let mut count = 0;
 
         let gem_entries: Vec<(&str, &str)> = vec![
-            ("gem-t3-damage-lv1", "T3 Damage Gem Lv. 1"),
-            ("gem-t3-damage-lv2", "T3 Damage Gem Lv. 2"),
-            ("gem-t3-damage-lv3", "T3 Damage Gem Lv. 3"),
-            ("gem-t3-damage-lv4", "T3 Damage Gem Lv. 4"),
-            ("gem-t3-damage-lv5", "T3 Damage Gem Lv. 5"),
             ("gem-t3-damage-lv6", "T3 Damage Gem Lv. 6"),
             ("gem-t3-damage-lv7", "T3 Damage Gem Lv. 7"),
             ("gem-t3-damage-lv8", "T3 Damage Gem Lv. 8"),
             ("gem-t3-damage-lv9", "T3 Damage Gem Lv. 9"),
             ("gem-t3-damage-lv10", "T3 Damage Gem Lv. 10"),
-            ("gem-t3-cooldown-lv1", "T3 Cooldown Gem Lv. 1"),
-            ("gem-t3-cooldown-lv2", "T3 Cooldown Gem Lv. 2"),
-            ("gem-t3-cooldown-lv3", "T3 Cooldown Gem Lv. 3"),
-            ("gem-t3-cooldown-lv4", "T3 Cooldown Gem Lv. 4"),
-            ("gem-t3-cooldown-lv5", "T3 Cooldown Gem Lv. 5"),
             ("gem-t3-cooldown-lv6", "T3 Cooldown Gem Lv. 6"),
             ("gem-t3-cooldown-lv7", "T3 Cooldown Gem Lv. 7"),
             ("gem-t3-cooldown-lv8", "T3 Cooldown Gem Lv. 8"),
             ("gem-t3-cooldown-lv9", "T3 Cooldown Gem Lv. 9"),
             ("gem-t3-cooldown-lv10", "T3 Cooldown Gem Lv. 10"),
-            ("gem-t4-damage-lv1", "T4 Damage Gem Lv. 1"),
-            ("gem-t4-damage-lv2", "T4 Damage Gem Lv. 2"),
-            ("gem-t4-damage-lv3", "T4 Damage Gem Lv. 3"),
-            ("gem-t4-damage-lv4", "T4 Damage Gem Lv. 4"),
-            ("gem-t4-damage-lv5", "T4 Damage Gem Lv. 5"),
             ("gem-t4-damage-lv6", "T4 Damage Gem Lv. 6"),
             ("gem-t4-damage-lv7", "T4 Damage Gem Lv. 7"),
             ("gem-t4-damage-lv8", "T4 Damage Gem Lv. 8"),
             ("gem-t4-damage-lv9", "T4 Damage Gem Lv. 9"),
             ("gem-t4-damage-lv10", "T4 Damage Gem Lv. 10"),
-            ("gem-t4-cooldown-lv1", "T4 Cooldown Gem Lv. 1"),
-            ("gem-t4-cooldown-lv2", "T4 Cooldown Gem Lv. 2"),
-            ("gem-t4-cooldown-lv3", "T4 Cooldown Gem Lv. 3"),
-            ("gem-t4-cooldown-lv4", "T4 Cooldown Gem Lv. 4"),
-            ("gem-t4-cooldown-lv5", "T4 Cooldown Gem Lv. 5"),
             ("gem-t4-cooldown-lv6", "T4 Cooldown Gem Lv. 6"),
             ("gem-t4-cooldown-lv7", "T4 Cooldown Gem Lv. 7"),
             ("gem-t4-cooldown-lv8", "T4 Cooldown Gem Lv. 8"),
@@ -347,13 +385,13 @@ impl MarketDatabase {
         ];
 
         let mut stmt = conn.prepare_cached(
-            "INSERT OR IGNORE INTO manual_price_overrides (item_slug, item_name, category, price, updated_at)
-             VALUES (?1, ?2, ?3, 0, ?4)",
+            "INSERT OR IGNORE INTO manual_price_overrides (item_slug, item_name, category, price, favorite, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         )?;
 
         let now = chrono::Utc::now().timestamp();
         for (slug, name) in &gem_entries {
-            let rows = stmt.execute(params![slug, name, "gems", now])?;
+            let rows = stmt.execute(params![slug, name, "gems", 0, 0, now])?;
             count += rows;
         }
 
@@ -368,7 +406,7 @@ impl MarketDatabase {
         let conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT item_slug, item_name, category, price, updated_at
+            "SELECT item_slug, item_name, category, price, favorite, updated_at
              FROM manual_price_overrides
              WHERE category = 'gems'
              ORDER BY item_slug ASC",
@@ -381,7 +419,8 @@ impl MarketDatabase {
                     item_name: row.get(1)?,
                     category: row.get(2)?,
                     price: row.get(3)?,
-                    fetched_at: row.get(4)?,
+                    favorite: row.get::<_, i32>(4)? == 1,
+                    fetched_at: row.get(5)?,
                     is_manual_override: true,
                 })
             })?

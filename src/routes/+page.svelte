@@ -23,6 +23,7 @@
   let sidebarOpen = false;
   let headerContent = '';
   let activeSettingsTab = 'roster';
+  let activeProgressionTab = 'market_prices';
   let nextResetTime = '';
   let resetCountdown = '';
 
@@ -277,18 +278,38 @@
           </button>
         </div>
       {/if}
+
+      <!-- Progression Sub-Tabs (only shown when progression tab is active) -->
+      {#if activeTab === 'progression'}
+        <div class="settings-sub-tabs">
+          <button 
+            class="settings-tab-button"
+            class:active={activeProgressionTab === 'market_prices'}
+            on:click={() => activeProgressionTab = 'market_prices'}
+          >
+            Market Prices
+          </button>
+          <button 
+            class="settings-tab-button"
+            class:active={activeProgressionTab === 'planner'}
+            on:click={() => activeProgressionTab = 'planner'}
+          >
+            Planner
+          </button>
+        </div>
+      {/if}
     </header>
 
     <!-- Tab Content -->
-    <main class="content">
+    <main class="content" class:outer-scroll={activeTab !== 'todo' && activeTab !== 'settings'}>
       {#if activeTab === 'dashboard'}
         <Dashboard {setHeaderContent} />
       {:else if activeTab === 'todo'}
         <Todo highlightCharId={$activeFilterCharId} />
       {:else if activeTab === 'settings'}
-        <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e) => activeSettingsTab = e.detail} />
+        <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e: CustomEvent<string>) => activeSettingsTab = e.detail} />
       {:else if activeTab === 'progression'}
-        <ProgressionPlanner />
+        <ProgressionPlanner activeProgressionTab={activeProgressionTab} on:tabChange={(e: CustomEvent<string>) => activeProgressionTab = e.detail} />
       {:else if activeTab === 'updates'}
         <UpdateTab />
       {:else if activeTab === 'encounters'}
@@ -519,8 +540,15 @@
 
   .content {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--md-sys-color-background);
+  }
+
+  .content.outer-scroll {
+    overflow-y: auto;
   }
 
   /* Modern Dark Grey Theme with Orange Accents */

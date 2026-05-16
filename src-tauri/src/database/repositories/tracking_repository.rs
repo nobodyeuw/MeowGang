@@ -22,7 +22,7 @@ impl TrackingRepository {
             "SELECT char_id, char_name, class_id, item_level, combat_power, display_order
              FROM conf_character 
              WHERE roster_id = ?1
-             ORDER BY display_order"
+             ORDER BY CAST(display_order AS INTEGER)"
         )?;
         
         let character_iter = char_stmt.query_map([roster_id], |row| {

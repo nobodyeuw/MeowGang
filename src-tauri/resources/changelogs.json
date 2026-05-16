@@ -1,5 +1,65 @@
 {
   "versions": [
+
+    {
+      "version": "1.1.2",
+      "date": "2026-05-16",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "MarketPrices table and category layout now display consistently across Gems, Engravings, Honing, and Additional Honing"
+        },
+        {
+          "type": "Fixed",
+          "description": "Gems tab now loads manual gem entries and merges gem pricing into the market price view"
+        },
+        {
+          "type": "Fixed",
+          "description": "Gem icon loading now falls back to alternate file extensions and a default gem image asset when missing"
+        },
+        {
+          "type": "Fixed",
+          "description": "Market favorite command wiring corrected and backend favorite field persisted properly"
+        },
+        {
+          "type": "Added",
+          "description": "Progression Planner tab now shows an in-progress placeholder and global character dropdown across all rosters"
+        },
+        {
+          "type": "Fixed",
+          "description": "Character scraper/loadout parsing type conversions corrected to avoid f64/i64 mismatches"
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard UI updated for clearer weekly gold progress"
+        },
+        {
+          "type": "Improved",
+          "description": "Character card UI now shows raid completion mismatches between planned tasks and LOA log activity"
+        },
+        {
+          "type": "Improved",
+          "description": "To Do tab now keeps the header and first column sticky for easier navigation"
+        },
+        {
+          "type": "Improved",
+          "description": "Settings tab tracking and raids sections now use sticky headers for better usability"
+        },
+        {
+          "type": "Fixed",
+          "description": "Display order now uses integer sorting logic instead of string ordering"
+        },
+        {
+          "type": "Added",
+          "description": "Tracking tab received a new toggle-all function"
+        },
+        {
+          "type": "Fixed",
+          "description": "Tasks not tracked by any character now still appear in the To Do tab"
+        }
+      ]
+    },
+
     {
       "version": "1.1.1",
       "date": "2026-05-15",

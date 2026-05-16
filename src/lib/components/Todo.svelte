@@ -166,10 +166,11 @@
         };
       });
       
-      // Categorize tasks
-      const dailyTasks = allTasks.filter(task => task.reset_schedule === 'daily' && task.category === 'character');
-      const rosterTasks = allTasks.filter(task => task.category === 'roster');
-      const weeklyTasks = allTasks.filter(task => task.reset_schedule === 'weekly');
+      // Categorize tasks and filter out fully untracked ones
+      const isAnyCharTracked = (task: any) => task.character_states.some((s: any) => s.tracked);
+      const dailyTasks = allTasks.filter(task => task.reset_schedule === 'daily' && task.category === 'character' && isAnyCharTracked(task));
+      const rosterTasks = allTasks.filter(task => task.category === 'roster' && isAnyCharTracked(task));
+      const weeklyTasks = allTasks.filter(task => task.reset_schedule === 'weekly' && isAnyCharTracked(task));
       
       // Transform raids from RAIDS - only show raids that at least one character tracks
       const raidMap = new Map<string, typeof RAIDS[0]>();
@@ -683,10 +684,14 @@
                     {/if}
                   </div>
                   <div class="char-stats">
-                    <span class="stat-label">iLvl</span>
-                    <span class="char-ilvl">{character.ilvl?.toFixed(0) || '0'}</span>
-                    <span class="stat-label cp-label">CP</span>
-                    <span class="char-cp">{character.combat_power?.toFixed(0) || '0'}</span>
+                    <div class="stat-pair">
+                      <span class="stat-label">iLvl</span>
+                      <span class="char-ilvl">{character.ilvl?.toFixed(0) || '0'}</span>
+                    </div>
+                    <div class="stat-pair">
+                      <span class="stat-label cp-label">CP</span>
+                      <span class="char-cp">{character.combat_power?.toFixed(0) || '0'}</span>
+                    </div>
                   </div>
                 </div>
               </th>
@@ -695,6 +700,7 @@
         </thead>
         <tbody>
           <!-- DAILY TASKS -->
+          {#if matrixData.daily_tasks.length > 0}
           <tr class="section-separator">
             <td colspan={matrixData.characters.length + 1}>
               <div class="section-title">DAILY</div>
@@ -745,6 +751,7 @@
               {/each}
             </tr>
           {/each}
+          {/if}
           
           <!-- ROSTER WIDE TASKS -->
           {#if matrixData.roster_tasks.length > 0}
@@ -905,6 +912,8 @@
     padding: 1rem;
     display: flex;
     flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
   }
 
   .roster-selector {
@@ -970,26 +979,48 @@
 
   .matrix-content {
     flex: 1;
+    min-height: 0;
     overflow: auto;
+    position: relative;
   }
 
   .todo-matrix {
     width: 100%;
-    border-collapse: collapse;
-    background: var(--surface);
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--md-sys-color-surface);
   }
 
   .header-row {
-    background: var(--surface-container);
+    background: var(--md-sys-color-surface-container);
+  }
+
+  .header-row th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--md-sys-color-surface-container);
+  }
+
+  .header-row th.first-col {
+    z-index: 30;
   }
 
   .sticky-col {
-    background: var(--surface);
+    position: sticky;
+    left: 0;
+    background: var(--md-sys-color-surface);
   }
 
   .first-col {
     z-index: 11;
     min-width: 200px;
+    background: var(--md-sys-color-surface-variant);
+  }
+
+  .task-name-cell.sticky-col.first-col {
+    background: var(--md-sys-color-surface-variant);
+    z-index: 11;
   }
 
   .char-header {
@@ -1103,9 +1134,18 @@
 
   .char-stats {
     display: flex;
-    gap: 0.25rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
     font-size: 0.75rem;
     opacity: 0.8;
+  }
+
+  .stat-pair {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
   }
 
   .stat-label {

@@ -66,6 +66,7 @@
   let successMessage = '';
   let showSuccessMessage = false;
   let expandedRaids = new Set<string>();
+  let lastLoadedRosterId: string = '';
   
   // Reactive checkbox states to force UI updates
   let checkboxUpdateTrigger = 0;
@@ -115,6 +116,8 @@
   // Load raid configuration from database
   async function loadRaidConfiguration() {
     try {
+      error = '';
+      raidMatrix = [];
       isLoading = true;
       
       if (!$activeRosterId) {
@@ -1201,7 +1204,8 @@
   }
 
   // Load data when component mounts or roster changes
-  $: if ($activeRosterId) {
+  $: if ($activeRosterId && $activeRosterId !== lastLoadedRosterId) {
+    lastLoadedRosterId = $activeRosterId;
     loadRaidConfiguration();
   }
 </script>
@@ -1453,8 +1457,9 @@
     display: flex;
     flex-direction: column;
     padding: 0;
-    height: 100%;
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     overflow: hidden;
   }
 
@@ -1515,27 +1520,28 @@
 
   .matrix-container {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     background: var(--md-sys-color-surface);
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--md-sys-color-outline);
-    height: 100%;
-    max-height: none;
   }
 
   .matrix-wrapper {
+    flex: 1 1 0;
     min-height: 0;
+    height: 100%;
     overflow-x: auto;
     overflow-y: auto;
-    height: 100%;
     position: relative;
   }
 
   .raid-matrix {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
     min-width: 800px;
   }
@@ -1547,6 +1553,13 @@
     border-bottom: 2px solid var(--md-sys-color-outline);
     font-weight: 600;
     color: var(--md-sys-color-on-surface-variant);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .header-row th.first-col {
+    z-index: 30;
   }
 
   .char-header {

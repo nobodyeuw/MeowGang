@@ -91,6 +91,24 @@ pub fn remove_manual_market_price(item_slug: String, market_db: State<'_, Market
         .map_err(|e| format!("Failed to remove manual price: {}", e))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FavoriteToggleInput {
+    pub item_slug: String,
+    pub favorite: bool,
+}
+
+/// Set or clear an item as a favorite.
+#[tauri::command]
+pub fn set_market_favorite(input: FavoriteToggleInput, market_db: State<'_, MarketDatabase>) -> Result<(), String> {
+    if input.item_slug.is_empty() {
+        return Err("Item slug cannot be empty".to_string());
+    }
+
+    market_db
+        .set_favorite(&input.item_slug, input.favorite)
+        .map_err(|e| format!("Failed to set favorite: {}", e))
+}
+
 /// Check if market data needs a refresh (older than 1 hour).
 #[tauri::command]
 pub fn market_needs_refresh(market_db: State<'_, MarketDatabase>) -> Result<bool, String> {

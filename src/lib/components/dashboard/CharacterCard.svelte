@@ -9,7 +9,7 @@
   export let classIcon: string = '';
   export let className: string = '';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
-  export let completionStatus: Array<{ content_id: string; is_completed: number }> = [];
+  export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null }> = [];
   export let raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number; is_tracked?: number }> = [];
   export let trackingStatus: Array<{ content_id: string; is_tracked: number }> = [];
 
@@ -28,6 +28,22 @@
     return completion?.is_completed === 1;
   }
 
+  function getCompletedRaidDetails(contentId: string): string | undefined {
+    const entry = [...completionStatus].reverse().find(c =>
+      c.content_id === contentId && c.is_completed === 1 && c.details
+    );
+    return entry?.details ? normalizeDifficulty(entry.details) : undefined;
+  }
+
+  function normalizeDifficulty(difficulty: string): string {
+    const normalized = difficulty.trim().toLowerCase();
+    if (normalized.includes('hard')) return 'Hard';
+    if (normalized.includes('nightmare')) return 'Nightmare';
+    if (normalized.includes('solo')) return 'Solo';
+    if (normalized.includes('normal')) return 'Normal';
+    return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  }
+
   // Group raids by content_id with difficulty
   $: groupedRaids = raidConfigs.reduce((groups: Record<string, any>, raid: any) => {
     const key = raid.content_id;
@@ -42,31 +58,47 @@
     return groups;
   }, {});
 
+  function getRaidDisplayName(contentId: string, difficulty: string): string {
+    const raid = RAIDS.find(r => r.id === contentId && r.difficulty === difficulty);
+    const raidName = raid ? raid.name : contentId;
+    const formattedDifficulty = normalizeDifficulty(difficulty);
+    return `${raidName} ${formattedDifficulty}`;
+  }
+
   // Get raids to display
   $: displayRaids = (() => {
-    const raids = Object.values(groupedRaids);
-    
+    const raids = Object.values(groupedRaids).map((r: any) => {
+      const completed = getCompletionStatus(r.content_id);
+      const actualDifficulty = getCompletedRaidDetails(r.content_id);
+      const plannedDifficulty = normalizeDifficulty(r.difficulty);
+      const mismatch = completed && actualDifficulty && actualDifficulty !== plannedDifficulty;
+      return {
+        ...r,
+        isGoldRaid: r.take_gold === 1,
+        completed,
+        completionMismatch: mismatch,
+        completionTooltip: mismatch ? `Planned to run ${plannedDifficulty} mode but finished in ${actualDifficulty} mode` : undefined
+      };
+    });
+
     if (character.earns_gold) {
       // Gold earners: show gold raids with gold styling
       return raids
         .filter((r: any) => r.take_gold === 1)
-        .slice(0, 3)
-        .map((r: any) => ({ ...r, isGoldRaid: true }));
-    } else {
-      // Non-gold earners: show max 3 tracked raids, sorted by difficulty
-      return raids
-        .filter((r: any) => r.is_tracked === 1)
-        .sort((a: any, b: any) => {
-          // Sort by raid difficulty (higher ilvl raids first)
-          const raidA = RAIDS.find(r => r.id === a.content_id && r.difficulty === a.difficulty);
-          const raidB = RAIDS.find(r => r.id === b.content_id && r.difficulty === b.difficulty);
-          const maxIlvlA = Math.max(...(raidA?.gates.map(g => g.minIlvl) || [0]));
-          const maxIlvlB = Math.max(...(raidB?.gates.map(g => g.minIlvl) || [0]));
-          return maxIlvlB - maxIlvlA;
-        })
-        .slice(0, 3)
-        .map((r: any) => ({ ...r, isGoldRaid: false }));
+        .slice(0, 3);
     }
+
+    // Non-gold earners: show max 3 tracked raids, sorted by difficulty
+    return raids
+      .filter((r: any) => r.is_tracked === 1)
+      .sort((a: any, b: any) => {
+        const raidA = RAIDS.find(r => r.id === a.content_id && r.difficulty === a.difficulty);
+        const raidB = RAIDS.find(r => r.id === b.content_id && r.difficulty === b.difficulty);
+        const maxIlvlA = Math.max(...(raidA?.gates.map(g => g.minIlvl) || [0]));
+        const maxIlvlB = Math.max(...(raidB?.gates.map(g => g.minIlvl) || [0]));
+        return maxIlvlB - maxIlvlA;
+      })
+      .slice(0, 3);
   })();
 
   // Chaos and Guardian status
@@ -92,7 +124,7 @@
 
   
   function formatItemLevel(itemLevel: number): string {
-    return Math.floor(itemLevel).toString();
+    return itemLevel.toFixed(2);
   }
 
   function getClassIconUrl(iconId: string): string {
@@ -182,10 +214,13 @@
     <div class="raid-section">
       <div class="raid-list">
         {#each displayRaids as raid}
-          <div class="raid-item {isRaidCompleted(raid.content_id) ? 'completed' : ''} {raid.isGoldRaid ? 'gold-raid' : ''}">
+          <div
+            class="raid-item {raid.completed ? 'completed' : ''} {raid.isGoldRaid ? 'gold-raid' : ''} {raid.completionMismatch ? 'mismatch' : ''}"
+            title={raid.completionTooltip || ''}
+          >
             <div class="raid-content">
               <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon" />
-              <span class="raid-name">{getRaidName(raid.content_id, raid.difficulty)}</span>
+              <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
               {#if raid.isGoldRaid}
                 <img src="/images/gold.png" alt="Gold" class="gold-icon" />
               {/if}
@@ -391,8 +426,20 @@
     color: rgba(255, 215, 0, 0.6);
   }
 
+  .raid-item.mismatch {
+    opacity: 0.9;
+    background: rgba(239, 68, 68, 0.12);
+    color: #b91c1c;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    text-decoration: line-through;
+    text-decoration-color: #dc2626;
+  }
+
+  .raid-item.mismatch .raid-name {
+    color: inherit;
+  }
+
   .raid-content {
-    display: flex;
     align-items: center;
     gap: 0.25rem;
     flex: 1;
