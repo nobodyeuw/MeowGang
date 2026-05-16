@@ -856,84 +856,10 @@ impl HumanizedScraper {
         equipment
     }
 
-    fn extract_gems_from_html(&self, html: &str) -> Vec<CharacterGem> {
-        let mut gems = Vec::new();
-        
-        // Try to find gem data in the HTML
-        // Look for patterns like gem names, levels, types
-        
-        crate::log_debug!("Attempting to extract gems from HTML");
-        
-        // Pattern 1: Look for gem data in script tags or JSON data
-        if let Some(script_start) = html.find("gems") {
-            let section = &html[script_start..];
-            // Try to find patterns like: {"name":"Lightning Shock","level":9,"type":"attack"}
-            let json_pattern = Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap();
-            
-            for cap in json_pattern.captures_iter(section) {
-                if let Some(name) = cap.get(1) {
-                    let skill_name = name.as_str().trim().to_string();
-                    
-                    // Try to extract additional data from the same object
-                    let obj_start = cap.get(0).unwrap().start();
-                    let obj_end = cap.get(0).unwrap().end();
-                    let obj_str = &section[obj_start..obj_end];
-                    
-                    let gem_level = self.extract_number_from_json(obj_str, "level").unwrap_or(0.0) as i64;
-                    let gem_type = self.extract_string_from_json(obj_str, "type").unwrap_or_else(|| "Unknown".to_string());
-                    
-                    gems.push(CharacterGem {
-                        skill_name,
-                        gem_type,
-                        gem_level: gem_level as f64,
-                    });
-                }
-            }
-        }
-        
-        // Pattern 2: Look for text-based patterns for gems
-        // Common gem patterns like "Level 9 Attack Gem" or "Lv. 10 Cooldown Gem"
-        let gem_level_pattern = Regex::new(r"(?:Level\s|Lv\.\s*)(\d+)").unwrap();
-        let gem_type_pattern = Regex::new(r"(Attack|Cooldown|attack|cooldown)").unwrap();
-        
-        // Look for gem sections in HTML
-        if let Some(gems_section_start) = html.find("gem") {
-            let gems_section = &html[gems_section_start..];
-            
-            // Extract potential gem names/skills
-            let skill_names = vec![
-                "Lightning Shock", "Sonic Vibration", "Heavenly Blessing", "Shield Heavenly Blessing",
-                "Judgment of the Righteous", "Holy Sword", "Godsent Law", "Deadly Blow",
-                "Surge of Light", "Execution of Justice", "Wheel of Destiny", "Spirit of Salvation"
-            ];
-            
-            for skill_name in &skill_names {
-                if let Some(pos) = gems_section.find(skill_name) {
-                    let after_skill = &gems_section[pos + skill_name.len()..pos + skill_name.len() + 50];
-                    
-                    let gem_level = gem_level_pattern.captures(after_skill)
-                        .and_then(|cap| cap.get(1))
-                        .and_then(|m| m.as_str().parse().ok())
-                        .unwrap_or(0);
-                    
-                    let gem_type = if let Some(cap) = gem_type_pattern.captures(after_skill) {
-                        let type_str = cap.get(1).map(|m| m.as_str()).unwrap_or("Unknown");
-                        if type_str.to_lowercase().contains("attack") {
-                            "attack".to_string()
-                        } else {
-                            "cooldown".to_string()
-                        }
-                    } else {
-                        "attack".to_string() // Default to attack
-                    };
-                    
-                    gems.push(CharacterGem {
-                        skill_name: skill_name.to_string(),
-                        gem_type,
-                        gem_level: gem_level as f64,
-                    });
-                }
-            }
+    fn extract_gems_from_html(&self, _html: &str) -> Vec<CharacterGem> {
+        let gems = Vec::new();
+        // Superseded by extract_gems_from_loadout — kept as a no-op stub.
+        crate::log_debug!("extract_gems_from_html: no-op stub, use loadout extractor");
         }
         
         crate::log_debug!("Extracted {} gems from HTML", gems.len());
