@@ -9,7 +9,7 @@
     {
       "severity": "Critical",
       "description": "Raid Completion tracking is inaccurate due to LOA log parsing issues, leading to incorrect progression status of a raid gate. Current workaround: finish raid, dont get jailed."
-    }
+    },
 
     {
       "severity": "Low Priority",
