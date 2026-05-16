@@ -857,13 +857,9 @@ impl HumanizedScraper {
     }
 
     fn extract_gems_from_html(&self, _html: &str) -> Vec<CharacterGem> {
-        let gems = Vec::new();
         // Superseded by extract_gems_from_loadout — kept as a no-op stub.
         crate::log_debug!("extract_gems_from_html: no-op stub, use loadout extractor");
-        }
-        
-        crate::log_debug!("Extracted {} gems from HTML", gems.len());
-        gems
+        Vec::new()
     }
 
     fn extract_engravings_from_loadout(&self, loadout: &serde_json::Value) -> Vec<CharacterEngraving> {
