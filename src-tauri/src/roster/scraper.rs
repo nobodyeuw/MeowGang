@@ -745,6 +745,64 @@ impl HumanizedScraper {
         // For now, return empty since we don't have the exact HTML structure
         // The actual implementation would need to inspect the HTML structure
         crate::log_debug!("Attempting to extract engravings from HTML");
+        
+        // Try to find engraving data in HTML structure
+        
+        // Pattern 1: Look for engraving data in script tags or JSON data
+        if let Some(script_start) = html.find("engravings") {
+            let section = &html[script_start..];
+            // Try to find patterns like: {"name":"Adrenaline","points":20,"max":20,"stoneBonus":1}
+            let json_pattern = Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*"points"\s*:\s*(\d+)[^}]*"max"\s*:\s*(\d+)[^}]*"stoneBonus"\s*:\s*(\d+)[^}]*\}"#).unwrap_or_else(|_| {
+                Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap()
+            });
+            
+            for cap in json_pattern.captures_iter(section) {
+                if let (Some(name), Some(points)) = (cap.get(1), cap.get(2)) {
+                    let engraving_name = name.as_str().trim().to_string();
+                    let books_read: f64 = points.as_str().parse().unwrap_or(0.0);
+                    let max_books: f64 = cap.get(3).map(|m| m.as_str().parse().unwrap_or(20.0)).unwrap_or(20.0);
+                    let stone_bonus: f64 = cap.get(4).map(|m| m.as_str().parse().unwrap_or(0.0)).unwrap_or(0.0);
+                    
+                    engravings.push(CharacterEngraving {
+                        engraving_name,
+                        books_read,
+                        max_books,
+                        stone_bonus,
+                    });
+                }
+            }
+        }
+        
+        // Pattern 2: Look for text-based patterns in the HTML
+        // Search for common engraving names followed by numbers
+        let engraving_pattern = Regex::new(r"(\d+)/(\d+)\s*\+*(\d*)").unwrap_or_else(|_| {
+            Regex::new(r"(\d+)/(\d+)").unwrap()
+        });
+        
+        let common_engravings = vec![
+            "Adrenaline", "Grudge", "Keen Blunt Weapon", "Raid Captain", "Cursed Doll",
+            "Spirit Absorption", "Hit Master", "Awakening", "Heavy Armor", "Drops of Ether"
+        ];
+        
+        for engraving_name in &common_engravings {
+            if let Some(pos) = html.find(engraving_name) {
+                let after_name = &html[pos + engraving_name.len()..pos + engraving_name.len() + 50];
+                if let Some(cap) = engraving_pattern.captures(after_name) {
+                    let books_read: f64 = cap.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
+                    let max_books: f64 = cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(20.0);
+                    let stone_bonus: f64 = cap.get(3).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
+                    
+                    engravings.push(CharacterEngraving {
+                        engraving_name: engraving_name.to_string(),
+                        books_read,
+                        max_books,
+                        stone_bonus,
+                    });
+                }
+            }
+        }
+        
+        crate::log_debug!("Extracted {} engravings from HTML", engravings.len());
         engravings
     }
 
@@ -755,6 +813,80 @@ impl HumanizedScraper {
         // Look for patterns like equipment slots, item levels, etc.
         
         crate::log_debug!("Attempting to extract equipment from HTML");
+        
+        // Pattern 1: Look for equipment data in script tags or JSON data
+        if let Some(script_start) = html.find("items") {
+            let section = &html[script_start..];
+            // Try to find patterns like: {"slot":"Head","honing":11,"tier":"T4","quality":90,"itemLevel":1730}
+            let json_pattern = Regex::new(r#"\{[^}]*"slot"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap();
+            
+            for cap in json_pattern.captures_iter(section) {
+                if let Some(slot) = cap.get(1) {
+                    let slot_str = slot.as_str().trim().to_string();
+                    
+                    // Try to extract additional data from the same object
+                    let obj_start = cap.get(0).unwrap().start();
+                    let obj_end = cap.get(0).unwrap().end();
+                    let obj_str = &section[obj_start..obj_end];
+                    
+                    let enhancement_level = self.extract_number_from_json(obj_str, "honing");
+                    let tier = self.extract_string_from_json(obj_str, "tier");
+                    let quality = self.extract_number_from_json(obj_str, "quality");
+                    let item_level = self.extract_number_from_json(obj_str, "itemLevel");
+                    
+                    equipment.push(CharacterEquipment {
+                        slot: slot_str,
+                        enhancement_level,
+                        tier,
+                        quality,
+                        item_level,
+                    });
+                }
+            }
+        }
+        
+        // Pattern 2: Look for text-based patterns for equipment slots
+        let slots = vec!["Head", "Shoulder", "Chest", "Pants", "Gloves", "Weapon"];
+        
+        for slot_name in &slots {
+            if let Some(pos) = html.find(slot_name) {
+                let after_slot = &html[pos + slot_name.len()..pos + slot_name.len() + 100];
+                
+                // Look for enhancement level pattern like "+11"
+                let enhancement_pattern = Regex::new(r"\+(\d+)").unwrap();
+                let enhancement_level = enhancement_pattern.captures(after_slot)
+                    .and_then(|cap| cap.get(1))
+                    .and_then(|m| m.as_str().parse().ok());
+                
+                // Look for tier pattern like "T4"
+                let tier_pattern = Regex::new(r"T(\d+)").unwrap();
+                let tier = tier_pattern.captures(after_slot)
+                    .and_then(|cap| cap.get(1))
+                    .map(|m| format!("T{}", m.as_str()));
+                
+                // Look for quality pattern like "90"
+                let quality_pattern = Regex::new(r"quality[^\d]*(\d+)").unwrap();
+                let quality = quality_pattern.captures(after_slot)
+                    .and_then(|cap| cap.get(1))
+                    .and_then(|m| m.as_str().parse().ok());
+                
+                // Look for item level pattern like "1730"
+                let item_level_pattern = Regex::new(r"itemLevel[^\d]*(\d+)").unwrap();
+                let item_level = item_level_pattern.captures(after_slot)
+                    .and_then(|cap| cap.get(1))
+                    .and_then(|m| m.as_str().parse().ok());
+                
+                equipment.push(CharacterEquipment {
+                    slot: slot_name.to_string(),
+                    enhancement_level,
+                    tier,
+                    quality,
+                    item_level,
+                });
+            }
+        }
+        
+        crate::log_debug!("Extracted {} equipment pieces from HTML", equipment.len());
         equipment
     }
 
@@ -765,6 +897,80 @@ impl HumanizedScraper {
         // Look for patterns like gem names, levels, types
         
         crate::log_debug!("Attempting to extract gems from HTML");
+        
+        // Pattern 1: Look for gem data in script tags or JSON data
+        if let Some(script_start) = html.find("gems") {
+            let section = &html[script_start..];
+            // Try to find patterns like: {"name":"Lightning Shock","level":9,"type":"attack"}
+            let json_pattern = Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap();
+            
+            for cap in json_pattern.captures_iter(section) {
+                if let Some(name) = cap.get(1) {
+                    let skill_name = name.as_str().trim().to_string();
+                    
+                    // Try to extract additional data from the same object
+                    let obj_start = cap.get(0).unwrap().start();
+                    let obj_end = cap.get(0).unwrap().end();
+                    let obj_str = &section[obj_start..obj_end];
+                    
+                    let gem_level = self.extract_number_from_json(obj_str, "level").unwrap_or(0.0) as i64;
+                    let gem_type = self.extract_string_from_json(obj_str, "type").unwrap_or_else(|| "Unknown".to_string());
+                    
+                    gems.push(CharacterGem {
+                        skill_name,
+                        gem_type,
+                        gem_level: gem_level as f64,
+                    });
+                }
+            }
+        }
+        
+        // Pattern 2: Look for text-based patterns for gems
+        // Common gem patterns like "Level 9 Attack Gem" or "Lv. 10 Cooldown Gem"
+        let gem_level_pattern = Regex::new(r"(?:Level\s|Lv\.\s*)(\d+)").unwrap();
+        let gem_type_pattern = Regex::new(r"(Attack|Cooldown|attack|cooldown)").unwrap();
+        
+        // Look for gem sections in HTML
+        if let Some(gems_section_start) = html.find("gem") {
+            let gems_section = &html[gems_section_start..];
+            
+            // Extract potential gem names/skills
+            let skill_names = vec![
+                "Lightning Shock", "Sonic Vibration", "Heavenly Blessing", "Shield Heavenly Blessing",
+                "Judgment of the Righteous", "Holy Sword", "Godsent Law", "Deadly Blow",
+                "Surge of Light", "Execution of Justice", "Wheel of Destiny", "Spirit of Salvation"
+            ];
+            
+            for skill_name in &skill_names {
+                if let Some(pos) = gems_section.find(skill_name) {
+                    let after_skill = &gems_section[pos + skill_name.len()..pos + skill_name.len() + 50];
+                    
+                    let gem_level = gem_level_pattern.captures(after_skill)
+                        .and_then(|cap| cap.get(1))
+                        .and_then(|m| m.as_str().parse().ok())
+                        .unwrap_or(0);
+                    
+                    let gem_type = if let Some(cap) = gem_type_pattern.captures(after_skill) {
+                        let type_str = cap.get(1).map(|m| m.as_str()).unwrap_or("Unknown");
+                        if type_str.to_lowercase().contains("attack") {
+                            "attack".to_string()
+                        } else {
+                            "cooldown".to_string()
+                        }
+                    } else {
+                        "attack".to_string() // Default to attack
+                    };
+                    
+                    gems.push(CharacterGem {
+                        skill_name: skill_name.to_string(),
+                        gem_type,
+                        gem_level: gem_level as f64,
+                    });
+                }
+            }
+        }
+        
+        crate::log_debug!("Extracted {} gems from HTML", gems.len());
         gems
     }
 
@@ -981,6 +1187,21 @@ impl HumanizedScraper {
             equipment,
             gems,
         })
+    }
+}
+
+    fn extract_number_from_json(&self, json_str: &str, key: &str) -> Option<f64> {
+        let pattern = Regex::new(&format!(r#""{}"\s*:\s*(\d+\.?\d*)"#, key)).unwrap();
+        pattern.captures(json_str)
+            .and_then(|cap| cap.get(1))
+            .and_then(|m| m.as_str().parse().ok())
+    }
+    
+    fn extract_string_from_json(&self, json_str: &str, key: &str) -> Option<String> {
+        let pattern = Regex::new(&format!(r#""{}"\s*:\s*"([^"]+)""#, key)).unwrap();
+        pattern.captures(json_str)
+            .and_then(|cap| cap.get(1))
+            .map(|m| m.as_str().to_string())
     }
 }
 
