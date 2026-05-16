@@ -807,53 +807,9 @@ impl HumanizedScraper {
     }
 
     fn extract_equipment_from_html(&self, _html: &str) -> Vec<CharacterEquipment> {
-        let equipment = Vec::new();
         // Superseded by extract_equipment_from_loadout — kept as a no-op stub.
         crate::log_debug!("extract_equipment_from_html: no-op stub, use loadout extractor");
-        
-        // Pattern 2: Look for text-based patterns for equipment slots
-        let slots = vec!["Head", "Shoulder", "Chest", "Pants", "Gloves", "Weapon"];
-        
-        for slot_name in &slots {
-            if let Some(pos) = html.find(slot_name) {
-                let after_slot = &html[pos + slot_name.len()..pos + slot_name.len() + 100];
-                
-                // Look for enhancement level pattern like "+11"
-                let enhancement_pattern = Regex::new(r"\+(\d+)").unwrap();
-                let enhancement_level = enhancement_pattern.captures(after_slot)
-                    .and_then(|cap| cap.get(1))
-                    .and_then(|m| m.as_str().parse().ok());
-                
-                // Look for tier pattern like "T4"
-                let tier_pattern = Regex::new(r"T(\d+)").unwrap();
-                let tier = tier_pattern.captures(after_slot)
-                    .and_then(|cap| cap.get(1))
-                    .map(|m| format!("T{}", m.as_str()));
-                
-                // Look for quality pattern like "90"
-                let quality_pattern = Regex::new(r"quality[^\d]*(\d+)").unwrap();
-                let quality = quality_pattern.captures(after_slot)
-                    .and_then(|cap| cap.get(1))
-                    .and_then(|m| m.as_str().parse().ok());
-                
-                // Look for item level pattern like "1730"
-                let item_level_pattern = Regex::new(r"itemLevel[^\d]*(\d+)").unwrap();
-                let item_level = item_level_pattern.captures(after_slot)
-                    .and_then(|cap| cap.get(1))
-                    .and_then(|m| m.as_str().parse().ok());
-                
-                equipment.push(CharacterEquipment {
-                    slot: slot_name.to_string(),
-                    enhancement_level,
-                    tier,
-                    quality,
-                    item_level,
-                });
-            }
-        }
-        
-        crate::log_debug!("Extracted {} equipment pieces from HTML", equipment.len());
-        equipment
+        Vec::new()
     }
 
     fn extract_gems_from_html(&self, _html: &str) -> Vec<CharacterGem> {
