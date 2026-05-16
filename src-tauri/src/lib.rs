@@ -170,7 +170,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version = database::data_manager::DataManager::get_schema_version(&db_manager.pool)
                 .unwrap_or(1);
-            const TARGET_VERSION: i32 = 4;
+            const TARGET_VERSION: i32 = 5;
             crate::log_info!("Current schema version: {}, target version: {}", current_version, TARGET_VERSION);
             
             if current_version < TARGET_VERSION {
