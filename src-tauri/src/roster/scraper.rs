@@ -716,21 +716,23 @@ impl HumanizedScraper {
     }
 
     fn parse_loadouts_json(&self, loadouts_js: &str) -> Result<Vec<serde_json::Value>, ScraperError> {
-        crate::log_debug!("Raw loadouts JSON (first 500 chars): {}", &loadouts_js.chars().take(500).collect::<String>());
-        crate::log_debug!("Raw loadouts JSON (last 500 chars): {}", &loadouts_js.chars().rev().take(500).collect::<String>());
         crate::log_debug!("Raw loadouts JSON length: {}", loadouts_js.len());
 
-        // Use json5 to parse JavaScript-style JSON directly
-        // json5 handles unquoted property names, trailing commas, and other JS JSON features
-        let parsed: Vec<serde_json::Value> = json5::from_str(loadouts_js)
+        // lostark.bible embeds JavaScript literals that are invalid in JSON5:
+        //   `void 0` and `void(0)` mean `undefined` in JS — replace with `null`.
+        let sanitized = loadouts_js
+            .replace("void 0", "null")
+            .replace("void(0)", "null");
+
+        // Use json5 to parse JavaScript-style JSON directly.
+        // json5 handles unquoted property names, trailing commas, etc.
+        let parsed: Vec<serde_json::Value> = json5::from_str(&sanitized)
             .map_err(|e| {
                 crate::log_error!("JSON5 parsing error: {}", e);
-                crate::log_error!("Failed JSON (first 1000 chars): {}", &loadouts_js.chars().take(1000).collect::<String>());
-                crate::log_error!("Failed JSON (last 1000 chars): {}", &loadouts_js.chars().rev().take(1000).collect::<String>());
-                crate::log_error!("Failed JSON length: {}", loadouts_js.len());
+                crate::log_error!("Sanitized JSON (first 500 chars): {}", &sanitized.chars().take(500).collect::<String>());
                 ScraperError::Generic(format!("JSON5 parsing error: {}", e))
             })?;
-        
+
         crate::log_debug!("Successfully parsed {} loadouts using json5", parsed.len());
         Ok(parsed)
     }
