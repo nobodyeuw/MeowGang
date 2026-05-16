@@ -806,44 +806,10 @@ impl HumanizedScraper {
         engravings
     }
 
-    fn extract_equipment_from_html(&self, html: &str) -> Vec<CharacterEquipment> {
-        let mut equipment = Vec::new();
-        
-        // Try to find equipment data in the HTML
-        // Look for patterns like equipment slots, item levels, etc.
-        
-        crate::log_debug!("Attempting to extract equipment from HTML");
-        
-        // Pattern 1: Look for equipment data in script tags or JSON data
-        if let Some(script_start) = html.find("items") {
-            let section = &html[script_start..];
-            // Try to find patterns like: {"slot":"Head","honing":11,"tier":"T4","quality":90,"itemLevel":1730}
-            let json_pattern = Regex::new(r#"\{[^}]*"slot"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap();
-            
-            for cap in json_pattern.captures_iter(section) {
-                if let Some(slot) = cap.get(1) {
-                    let slot_str = slot.as_str().trim().to_string();
-                    
-                    // Try to extract additional data from the same object
-                    let obj_start = cap.get(0).unwrap().start();
-                    let obj_end = cap.get(0).unwrap().end();
-                    let obj_str = &section[obj_start..obj_end];
-                    
-                    let enhancement_level = self.extract_number_from_json(obj_str, "honing");
-                    let tier = self.extract_string_from_json(obj_str, "tier");
-                    let quality = self.extract_number_from_json(obj_str, "quality");
-                    let item_level = self.extract_number_from_json(obj_str, "itemLevel");
-                    
-                    equipment.push(CharacterEquipment {
-                        slot: slot_str,
-                        enhancement_level,
-                        tier,
-                        quality,
-                        item_level,
-                    });
-                }
-            }
-        }
+    fn extract_equipment_from_html(&self, _html: &str) -> Vec<CharacterEquipment> {
+        let equipment = Vec::new();
+        // Superseded by extract_equipment_from_loadout — kept as a no-op stub.
+        crate::log_debug!("extract_equipment_from_html: no-op stub, use loadout extractor");
         
         // Pattern 2: Look for text-based patterns for equipment slots
         let slots = vec!["Head", "Shoulder", "Chest", "Pants", "Gloves", "Weapon"];
