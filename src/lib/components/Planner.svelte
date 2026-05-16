@@ -1,372 +1,842 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { characters, activeRosterId } from '$lib/store';
+  import { characters } from '$lib/store';
 
-  // Character detail state
+  // ── Types ──────────────────────────────────────────────────────────────────
+  interface EngravingRow {
+    id: number;
+    characterId: number;
+    engravingName: string;
+    booksRead: number;
+    maxBooks: number;
+    stoneBonus: number;
+    isManualEntry: boolean;
+    updatedAt: number;
+  }
+
+  interface EquipmentRow {
+    id: number;
+    characterId: number;
+    slot: string;
+    enhancementLevel: number | null;
+    tier: string | null;
+    quality: number | null;
+    itemLevel: number | null;
+    isManualEntry: boolean;
+    updatedAt: number;
+  }
+
+  interface GemRow {
+    id: number;
+    characterId: number;
+    skillName: string;
+    gemType: string;   // "attack", "cooldown", "attack|bound", "cooldown|bound"
+    gemLevel: number;
+    isManualEntry: boolean;
+    updatedAt: number;
+  }
+
+  interface ProgressionSnapshot {
+    characterId: number;
+    engravings: EngravingRow[];
+    equipment: EquipmentRow[];
+    gems: GemRow[];
+    goals: any[];
+  }
+
+  // ── State ──────────────────────────────────────────────────────────────────
   let selectedCharacterId: number | null = null;
-  let characterProgression: any = null;
-  let loadingProgression = false;
-  let scrapingProgression = false;
+  let snapshot: ProgressionSnapshot | null = null;
+  let loadingSnapshot = false;
+  let scraping = false;
+  let scrapeError: string | null = null;
+  let scrapeSuccess: string | null = null;
 
-  // Reactive values - show all characters, not just from active roster
   $: allCharacters = $characters;
 
-  async function loadCharacterProgression() {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const SLOT_LABELS: Record<string, string> = {
+    head: 'Head',
+    shoulder: 'Shoulder',
+    chest: 'Chest',
+    pants: 'Pants',
+    gloves: 'Gloves',
+    weapon: 'Weapon',
+  };
+
+  const SLOT_ORDER = ['head', 'shoulder', 'chest', 'pants', 'gloves', 'weapon'];
+
+  function qualityColor(q: number | null): string {
+    if (q === null) return 'var(--md-sys-color-outline-variant)';
+    if (q >= 90) return '#f59e0b';   // gold
+    if (q >= 70) return '#10b981';   // green
+    if (q >= 30) return '#3b82f6';   // blue
+    return 'var(--md-sys-color-on-surface-variant)';
+  }
+
+  function gemTypeLabel(gemType: string): { icon: string; label: string; bound: boolean } {
+    const bound = gemType.includes('|bound');
+    const base = gemType.replace('|bound', '');
+    if (base === 'attack') return { icon: '⚔', label: 'Atk', bound };
+    if (base === 'cooldown') return { icon: '⏱', label: 'CD', bound };
+    return { icon: '💎', label: base, bound };
+  }
+
+  function gemLevelColor(level: number): string {
+    if (level >= 10) return '#f59e0b';
+    if (level >= 8)  return '#a855f7';
+    if (level >= 6)  return '#3b82f6';
+    return 'var(--md-sys-color-on-surface-variant)';
+  }
+
+  function engravingNodes(booksRead: number, stoneBonus: number): number {
+    // Each node = 5 books. Stone bonus adds directly to node count.
+    return Math.floor(booksRead / 5) + stoneBonus;
+  }
+
+  function lastScrapedLabel(updatedAt: number): string {
+    if (!updatedAt) return '';
+    const d = new Date(updatedAt * 1000);
+    return d.toLocaleString();
+  }
+
+  function sortedEquipment(equipment: EquipmentRow[]): EquipmentRow[] {
+    return [...equipment].sort((a, b) => {
+      const ai = SLOT_ORDER.indexOf(a.slot);
+      const bi = SLOT_ORDER.indexOf(b.slot);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+  }
+
+  function sortedEngravings(engravings: EngravingRow[]): EngravingRow[] {
+    return [...engravings].sort((a, b) => (b.booksRead + b.stoneBonus) - (a.booksRead + a.stoneBonus));
+  }
+
+  function sortedGems(gems: GemRow[]): GemRow[] {
+    return [...gems].sort((a, b) => b.gemLevel - a.gemLevel);
+  }
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  async function loadSnapshot() {
     if (!selectedCharacterId) return;
-    loadingProgression = true;
+    loadingSnapshot = true;
+    scrapeError = null;
     try {
-      characterProgression = await invoke('get_character_progression_snapshot', {
+      snapshot = await invoke<ProgressionSnapshot>('get_character_progression_snapshot', {
         characterId: selectedCharacterId
       });
-    } catch (error) {
-      console.error('Failed to load character progression:', error);
-      characterProgression = null;
+    } catch (e) {
+      console.error('Failed to load snapshot:', e);
+      snapshot = null;
     } finally {
-      loadingProgression = false;
+      loadingSnapshot = false;
     }
   }
 
-  async function scrapeCharacterProgression() {
+  async function scrapeCharacter() {
     if (!selectedCharacterId) return;
     const character = allCharacters.find(c => c.char_id === selectedCharacterId);
     if (!character) return;
 
-    scrapingProgression = true;
+    scraping = true;
+    scrapeError = null;
+    scrapeSuccess = null;
     try {
-      const result = await invoke('scrape_character_details', {
+      const result = await invoke<string>('scrape_character_details', {
         request: {
           characterName: character.char_name,
           characterId: character.char_id,
           rosterName: character.roster_name
         }
       });
-      console.log('Scraped character details:', result);
-      // Reload progression after scraping
-      await loadCharacterProgression();
-    } catch (error) {
-      console.error('Failed to scrape character details:', error);
+      scrapeSuccess = result;
+      await loadSnapshot();
+    } catch (e: any) {
+      scrapeError = typeof e === 'string' ? e : (e?.message ?? 'Unknown error');
     } finally {
-      scrapingProgression = false;
+      scraping = false;
     }
   }
 
-  function selectCharacter(characterId: number) {
-    selectedCharacterId = characterId;
-    loadCharacterProgression();
+  function onCharacterChange() {
+    snapshot = null;
+    scrapeError = null;
+    scrapeSuccess = null;
+    loadSnapshot();
   }
+
+  // Derived
+  $: hasData = snapshot && (
+    snapshot.engravings.length > 0 ||
+    snapshot.equipment.length > 0 ||
+    snapshot.gems.length > 0
+  );
+
+  $: lastUpdated = (() => {
+    if (!snapshot) return null;
+    const all = [
+      ...snapshot.engravings.map(e => e.updatedAt),
+      ...snapshot.equipment.map(e => e.updatedAt),
+      ...snapshot.gems.map(g => g.updatedAt),
+    ];
+    if (!all.length) return null;
+    return Math.max(...all);
+  })();
 </script>
 
 <div class="planner-container">
+  <!-- Header -->
   <div class="planner-header">
-    <h2 class="planner-title">Progression Planner</h2>
-    <p class="planner-subtitle">Set progression goals and track your character's progress</p>
+    <div class="header-left">
+      <h2 class="planner-title">Progression Planner</h2>
+      <p class="planner-subtitle">View and track your character's current gear state</p>
+    </div>
   </div>
 
-  <div class="character-details-section">
-    <div class="character-selector">
-      <label for="character-select">Select Character:</label>
-      <select id="character-select" bind:value={selectedCharacterId} on:change={loadCharacterProgression}>
-        <option value="">-- Choose a character --</option>
-        {#each allCharacters as character}
-          <option value={character.char_id}>{character.char_name} (iLvl {character.item_level.toFixed(2)})</option>
+  <!-- Character selector + scrape button -->
+  <div class="selector-bar">
+    <div class="selector-group">
+      <label for="char-select">Character</label>
+      <select
+        id="char-select"
+        bind:value={selectedCharacterId}
+        on:change={onCharacterChange}
+      >
+        <option value={null}>— Select a character —</option>
+        {#each allCharacters as c}
+          <option value={c.char_id}>
+            {c.char_name} &nbsp;·&nbsp; iLvl {c.item_level.toFixed(0)}
+          </option>
         {/each}
       </select>
     </div>
 
-    {#if !selectedCharacterId}
-      <div class="in-progress-state">
-        <div class="in-progress-content">
-          <div class="in-progress-icon">📋</div>
-          <h3>Progression Planner</h3>
-          <p>Select a character to get started with the progression planner. You can:</p>
-          <ul>
-            <li>View your current engravings, gems, and equipment</li>
-            <li>Scrape the latest data from lostark.bible</li>
-            <li>Track your progression goals</li>
-          </ul>
-          <p class="select-prompt">👆 Choose a character from the dropdown above to begin</p>
-        </div>
-      </div>
-    {:else if loadingProgression}
-      <div class="loading-state">
-        <span class="spinner large"></span>
-        <p>Loading character details...</p>
-      </div>
-    {:else}
-      <div class="in-progress-state">
-        <div class="in-progress-content">
-          <div class="in-progress-icon">🔨</div>
-          <h3>Coming Soon</h3>
-          <p>The detailed progression planner is currently under development.</p>
-          <p class="select-prompt">Check back soon for planning features!</p>
-        </div>
+    {#if selectedCharacterId}
+      <div class="scrape-group">
+        {#if lastUpdated}
+          <span class="last-scraped">Last scraped: {lastScrapedLabel(lastUpdated)}</span>
+        {/if}
+        <button
+          class="scrape-btn"
+          on:click={scrapeCharacter}
+          disabled={scraping}
+        >
+          {#if scraping}
+            <span class="spinner"></span> Scraping…
+          {:else}
+            🔄 Scrape from lostark.bible
+          {/if}
+        </button>
       </div>
     {/if}
   </div>
+
+  <!-- Feedback banners -->
+  {#if scrapeError}
+    <div class="banner error">⚠ {scrapeError}</div>
+  {/if}
+  {#if scrapeSuccess}
+    <div class="banner success">✓ {scrapeSuccess}</div>
+  {/if}
+
+  <!-- Body -->
+  {#if !selectedCharacterId}
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>Select a character to get started</h3>
+      <p>Choose a character from the dropdown above, then click <strong>Scrape from lostark.bible</strong> to load their current gear state.</p>
+    </div>
+
+  {:else if loadingSnapshot}
+    <div class="loading-state">
+      <span class="spinner large"></span>
+      <p>Loading character data…</p>
+    </div>
+
+  {:else if !hasData}
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h3>No data yet</h3>
+      <p>Click <strong>Scrape from lostark.bible</strong> above to fetch this character's engravings, gems, and equipment.</p>
+    </div>
+
+  {:else}
+    <!-- ── Main content grid ── -->
+    <div class="content-grid">
+
+      <!-- Equipment panel -->
+      <section class="panel">
+        <h3 class="panel-title">⚔ Equipment</h3>
+        <div class="equipment-list">
+          {#each sortedEquipment(snapshot?.equipment ?? []) as item}
+            <div class="equip-row">
+              <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
+              <div class="equip-details">
+                <div class="equip-top">
+                  {#if item.enhancementLevel !== null}
+                    <span class="honing-badge">+{item.enhancementLevel}</span>
+                  {/if}
+                  {#if item.tier}
+                    <span class="tier-badge">{item.tier}</span>
+                  {/if}
+                  {#if item.itemLevel !== null}
+                    <span class="ilvl-text">{item.itemLevel.toFixed(0)} ilvl</span>
+                  {/if}
+                </div>
+                {#if item.quality !== null}
+                  <div class="quality-bar-wrap">
+                    <div
+                      class="quality-bar-fill"
+                      style="width:{item.quality}%; background:{qualityColor(item.quality)}"
+                    ></div>
+                    <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality}</span>
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+          {#if (snapshot?.equipment ?? []).length === 0}
+            <p class="empty-msg">No equipment data scraped yet.</p>
+          {/if}
+        </div>
+      </section>
+
+      <!-- Engravings panel -->
+      <section class="panel">
+        <h3 class="panel-title">📚 Engravings</h3>
+        <div class="engraving-list">
+          {#each sortedEngravings(snapshot?.engravings ?? []) as eng}
+            {@const nodes = engravingNodes(eng.booksRead, eng.stoneBonus)}
+            <div class="eng-row">
+              <div class="eng-header">
+                <span class="eng-name">{eng.engravingName}</span>
+                <div class="eng-badges">
+                  {#if eng.stoneBonus > 0}
+                    <span class="stone-badge">+{eng.stoneBonus} stone</span>
+                  {/if}
+                  <span class="node-badge" class:node-full={nodes >= 4}>{nodes} node{nodes !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <div class="eng-progress-wrap">
+                <div
+                  class="eng-progress-fill"
+                  style="width:{(eng.booksRead / eng.maxBooks) * 100}%"
+                ></div>
+                <span class="eng-progress-label">{eng.booksRead}/{eng.maxBooks}</span>
+              </div>
+            </div>
+          {/each}
+          {#if (snapshot?.engravings ?? []).length === 0}
+            <p class="empty-msg">No engraving data scraped yet.</p>
+          {/if}
+        </div>
+      </section>
+
+      <!-- Gems panel -->
+      <section class="panel gems-panel">
+        <h3 class="panel-title">💎 Gems</h3>
+        <div class="gems-grid">
+          {#each sortedGems(snapshot?.gems ?? []) as gem}
+            {@const info = gemTypeLabel(gem.gemType)}
+            <div class="gem-card">
+              <div class="gem-level-badge" style="color:{gemLevelColor(gem.gemLevel)}">
+                Lv.{gem.gemLevel}
+              </div>
+              <div class="gem-type-icon" title={info.label}>{info.icon}</div>
+              <div class="gem-skill">{gem.skillName}</div>
+              {#if info.bound}
+                <div class="gem-bound">Bound</div>
+              {/if}
+            </div>
+          {/each}
+          {#if (snapshot?.gems ?? []).length === 0}
+            <p class="empty-msg">No gem data scraped yet.</p>
+          {/if}
+        </div>
+      </section>
+
+      <!-- Ark Grid placeholder -->
+      <section class="panel placeholder-panel">
+        <h3 class="panel-title">🌟 Ark Grid</h3>
+        <div class="placeholder-content">
+          <span class="placeholder-icon">🔮</span>
+          <p>Ark Grid data coming soon</p>
+          <p class="placeholder-sub">Jumper / Order Sun / Chaos Moon points will appear here once scraping support is added.</p>
+        </div>
+      </section>
+
+      <!-- Ark Passive placeholder -->
+      <section class="panel placeholder-panel">
+        <h3 class="panel-title">✨ Ark Passive</h3>
+        <div class="placeholder-content">
+          <span class="placeholder-icon">📖</span>
+          <p>Ark Passive data coming soon</p>
+          <p class="placeholder-sub">Evolution / Enlightenment / Leap trees will appear here.</p>
+        </div>
+      </section>
+
+      <!-- Cards placeholder -->
+      <section class="panel placeholder-panel">
+        <h3 class="panel-title">🃏 Cards</h3>
+        <div class="placeholder-content">
+          <span class="placeholder-icon">🎴</span>
+          <p>Card set data coming soon</p>
+          <p class="placeholder-sub">Card set name and awakening level will appear here.</p>
+        </div>
+      </section>
+
+    </div>
+  {/if}
 </div>
 
 <style>
+  /* ── Layout ── */
   .planner-container {
-    padding: 1.5rem;
-    max-width: 1000px;
+    padding: 1.25rem 1.5rem;
+    max-width: 1100px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
   .planner-header {
-    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .planner-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 0 0 0.5rem 0;
+    font-size: 1.375rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
     color: var(--md-sys-color-on-surface);
   }
 
   .planner-subtitle {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--md-sys-color-on-surface-variant);
     margin: 0;
   }
 
-  .character-details-section {
-    background: var(--md-sys-color-surface);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: 12px;
-    padding: 1.5rem;
-  }
-
-  .character-selector {
+  /* ── Selector bar ── */
+  .selector-bar {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    flex-wrap: wrap;
+    background: var(--md-sys-color-surface-container-low, var(--md-sys-color-surface));
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
   }
 
-  .character-selector label {
-    font-size: 0.875rem;
+  .selector-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .selector-group label {
+    font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--md-sys-color-on-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
   }
 
-  .character-selector select {
-    padding: 0.5rem 0.75rem;
+  .selector-group select {
+    padding: 0.4rem 0.65rem;
     border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface);
-    border-radius: 8px;
+    border-radius: 7px;
     font-size: 0.875rem;
-    min-width: 250px;
+    min-width: 240px;
   }
 
-  .refresh-btn {
-    padding: 0.45rem 0.9rem;
-    border: 1px solid var(--md-sys-color-outline-variant);
-    background: var(--md-sys-color-surface);
-    color: var(--md-sys-color-on-surface);
+  .scrape-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+  }
+
+  .last-scraped {
     font-size: 0.75rem;
-    font-weight: 500;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .scrape-btn {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--md-sys-color-primary);
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
   }
 
-  .refresh-btn:hover:not(:disabled) {
-    background: var(--md-sys-color-surface-variant);
+  .scrape-btn:hover:not(:disabled) {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
   }
 
-  .refresh-btn:disabled {
-    opacity: 0.6;
+  .scrape-btn:disabled {
+    opacity: 0.55;
     cursor: not-allowed;
   }
 
-  .planner-split-view {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    margin-top: 1.5rem;
-  }
-
-  .planner-left,
-  .planner-right {
-    background: var(--md-sys-color-surface);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: 12px;
-    padding: 1.5rem;
-  }
-
-  .planner-left h3,
-  .planner-right h3 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--md-sys-color-on-surface);
-    margin: 0 0 1rem 0;
-  }
-
-  .progression-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-  }
-
-  .progression-section h4 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--md-sys-color-on-surface);
-    margin: 0 0 0.75rem 0;
-  }
-
-  .goals-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 200px;
-    color: var(--md-sys-color-on-surface-variant);
-    font-style: italic;
-  }
-
-  .engravings-grid,
-  .gems-grid,
-  .equipment-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .engraving-item,
-  .gem-item,
-  .equipment-item {
-    background: var(--md-sys-color-surface);
-    border: 1px solid var(--md-sys-color-outline-variant);
+  /* ── Banners ── */
+  .banner {
+    padding: 0.6rem 1rem;
     border-radius: 8px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-  }
-
-  .engraving-name,
-  .gem-name,
-  .equipment-slot {
-    font-weight: 600;
-    color: var(--md-sys-color-on-surface);
-    font-size: 0.875rem;
-  }
-
-  .engraving-level,
-  .gem-info,
-  .enhancement,
-  .tier,
-  .quality,
-  .item-level {
     font-size: 0.8125rem;
-    color: var(--md-sys-color-on-surface-variant);
-  }
-
-  .stone-bonus {
-    font-size: 0.8125rem;
-    color: #10b981;
     font-weight: 500;
   }
 
-  .empty-message {
-    color: var(--md-sys-color-on-surface-variant);
-    font-size: 0.875rem;
-    font-style: italic;
+  .banner.error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
   }
 
-  .loading-state, .empty-state {
+  .banner.success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  /* ── Empty / loading states ── */
+  .empty-state,
+  .loading-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 3rem 1rem;
+    min-height: 320px;
     gap: 0.75rem;
+    text-align: center;
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .in-progress-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    padding: 2rem;
+  .empty-icon {
+    font-size: 3rem;
+    opacity: 0.7;
   }
 
-  .in-progress-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    max-width: 500px;
-    gap: 1.5rem;
-  }
-
-  .in-progress-icon {
-    font-size: 3.5rem;
-    opacity: 0.8;
-  }
-
-  .in-progress-content h3 {
-    font-size: 1.5rem;
+  .empty-state h3 {
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
     margin: 0;
   }
 
-  .in-progress-content p {
-    color: var(--md-sys-color-on-surface-variant);
-    font-size: 0.95rem;
+  .empty-state p {
+    font-size: 0.875rem;
+    max-width: 380px;
     margin: 0;
     line-height: 1.5;
   }
 
-  .in-progress-content ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  /* ── Content grid ── */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .gems-panel {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Panel base ── */
+  .panel {
+    background: var(--md-sys-color-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 12px;
+    padding: 1.125rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .panel-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+    margin: 0 0 0.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  }
+
+  /* ── Equipment ── */
+  .equipment-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    text-align: left;
-    background: var(--md-sys-color-surface-variant);
-    border-radius: 8px;
-    padding: 1rem;
   }
 
-  .in-progress-content li {
-    font-size: 0.9rem;
+  .equip-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .equip-slot-label {
+    font-size: 0.75rem;
+    font-weight: 600;
     color: var(--md-sys-color-on-surface-variant);
+    width: 62px;
+    flex-shrink: 0;
+    padding-top: 0.15rem;
+  }
+
+  .equip-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .equip-top {
     display: flex;
     align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .honing-badge {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+  }
+
+  .tier-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--md-sys-color-primary);
+    background: rgba(var(--md-sys-color-primary-rgb, 99, 102, 241), 0.1);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+  }
+
+  .ilvl-text {
+    font-size: 0.8125rem;
+    color: var(--md-sys-color-on-surface);
+    font-weight: 500;
+  }
+
+  .quality-bar-wrap {
+    position: relative;
+    height: 6px;
+    background: var(--md-sys-color-surface-variant);
+    border-radius: 3px;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+  }
+
+  .quality-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .quality-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.4rem;
+    white-space: nowrap;
+  }
+
+  /* ── Engravings ── */
+  .engraving-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .eng-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .eng-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
   }
 
-  .in-progress-content li::before {
-    content: '✓';
-    color: var(--md-sys-color-primary);
-    font-weight: bold;
+  .eng-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
   }
 
-  .select-prompt {
+  .eng-badges {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .stone-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+  }
+
+  .node-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-variant);
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+  }
+
+  .node-badge.node-full {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .eng-progress-wrap {
+    position: relative;
+    height: 6px;
+    background: var(--md-sys-color-surface-variant);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+  }
+
+  .eng-progress-fill {
+    height: 100%;
+    background: var(--md-sys-color-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .eng-progress-label {
+    font-size: 0.7rem;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-left: 0.4rem;
+    white-space: nowrap;
+  }
+
+  /* ── Gems ── */
+  .gems-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .gem-card {
+    background: var(--md-sys-color-surface-variant);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    padding: 0.6rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+  }
+
+  .gem-level-badge {
+    font-size: 0.875rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .gem-type-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .gem-skill {
+    font-size: 0.7rem;
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .gem-bound {
+    font-size: 0.65rem;
+    color: #ef4444;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+  }
+
+  /* ── Placeholder panels ── */
+  .placeholder-panel {
+    opacity: 0.7;
+  }
+
+  .placeholder-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .placeholder-icon {
+    font-size: 2rem;
+    opacity: 0.6;
+  }
+
+  .placeholder-content p {
+    margin: 0;
+    font-size: 0.875rem;
     font-weight: 500;
-    color: var(--md-sys-color-on-surface);
-    margin: 0.5rem 0 0 0 !important;
+  }
+
+  .placeholder-sub {
+    font-size: 0.75rem !important;
+    font-weight: 400 !important;
+    opacity: 0.8;
+  }
+
+  /* ── Misc ── */
+  .empty-msg {
+    font-size: 0.8125rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-style: italic;
+    margin: 0;
   }
 
   .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--md-sys-color-outline-variant);
-    border-top-color: var(--md-sys-color-primary);
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
   }
 
   .spinner.large {
@@ -379,17 +849,27 @@
     to { transform: rotate(360deg); }
   }
 
-  @media (max-width: 768px) {
-    .planner-split-view {
+  /* ── Responsive ── */
+  @media (max-width: 720px) {
+    .content-grid {
       grid-template-columns: 1fr;
     }
 
-    .character-selector {
+    .gems-panel {
+      grid-column: 1;
+    }
+
+    .selector-bar {
       flex-direction: column;
       align-items: stretch;
     }
 
-    .character-selector select {
+    .scrape-group {
+      margin-left: 0;
+      flex-wrap: wrap;
+    }
+
+    .selector-group select {
       min-width: 100%;
     }
   }
