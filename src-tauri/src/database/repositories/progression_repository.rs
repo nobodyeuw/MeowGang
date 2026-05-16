@@ -36,9 +36,12 @@ pub struct CharacterEquipmentRow {
 pub struct CharacterGemRow {
     pub id: i64,
     pub character_id: i64,
+    pub slot_index: i64,
+    pub gem_name: String,
     pub skill_name: String,
     pub gem_type: String,
     pub gem_level: i64,
+    pub is_bound: bool,
     pub is_manual_entry: bool,
     pub updated_at: i64,
 }
@@ -89,9 +92,12 @@ pub struct CharacterEquipmentInput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CharacterGemInput {
+    pub slot_index: i64,
+    pub gem_name: String,
     pub skill_name: String,
     pub gem_type: String,
     pub gem_level: i64,
+    pub is_bound: bool,
     pub is_manual_entry: bool,
 }
 
@@ -160,19 +166,22 @@ impl ProgressionRepository {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, character_id, skill_name, gem_type, gem_level, is_manual_entry, updated_at
-             FROM character_gems WHERE character_id = ?1 ORDER BY skill_name, gem_type",
+            "SELECT id, character_id, slot_index, gem_name, skill_name, gem_type, gem_level, is_bound, is_manual_entry, updated_at
+             FROM character_gems WHERE character_id = ?1 ORDER BY slot_index",
         )?;
         let gems = stmt
             .query_map([character_id], |row| {
                 Ok(CharacterGemRow {
                     id: row.get(0)?,
                     character_id: row.get(1)?,
-                    skill_name: row.get(2)?,
-                    gem_type: row.get(3)?,
-                    gem_level: row.get(4)?,
-                    is_manual_entry: row.get::<_, i64>(5)? != 0,
-                    updated_at: row.get(6)?,
+                    slot_index: row.get(2)?,
+                    gem_name: row.get(3)?,
+                    skill_name: row.get(4)?,
+                    gem_type: row.get(5)?,
+                    gem_level: row.get(6)?,
+                    is_bound: row.get::<_, i64>(7)? != 0,
+                    is_manual_entry: row.get::<_, i64>(8)? != 0,
+                    updated_at: row.get(9)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -349,14 +358,18 @@ impl ProgressionRepository {
         )?;
         for r in gems {
             let manual = if r.is_manual_entry { 1 } else { 0 };
+            let bound = if r.is_bound { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO character_gems (character_id, skill_name, gem_type, gem_level, is_manual_entry, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO character_gems (character_id, slot_index, gem_name, skill_name, gem_type, gem_level, is_bound, is_manual_entry, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     character_id,
+                    r.slot_index,
+                    &r.gem_name,
                     &r.skill_name,
                     &r.gem_type,
                     r.gem_level,
+                    bound,
                     manual,
                     ts,
                 ],
