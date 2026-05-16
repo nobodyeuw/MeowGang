@@ -1262,21 +1262,6 @@ impl HumanizedScraper {
     }
 }
 
-    fn extract_number_from_json(&self, json_str: &str, key: &str) -> Option<f64> {
-        let pattern = Regex::new(&format!(r#""{}"\s*:\s*(\d+\.?\d*)"#, key)).unwrap();
-        pattern.captures(json_str)
-            .and_then(|cap| cap.get(1))
-            .and_then(|m| m.as_str().parse().ok())
-    }
-    
-    fn extract_string_from_json(&self, json_str: &str, key: &str) -> Option<String> {
-        let pattern = Regex::new(&format!(r#""{}"\s*:\s*"([^"]+)""#, key)).unwrap();
-        pattern.captures(json_str)
-            .and_then(|cap| cap.get(1))
-            .map(|m| m.as_str().to_string())
-    }
-}
-
 pub struct ScraperManager {
     scrapers: HashMap<String, HumanizedScraper>,
 }
