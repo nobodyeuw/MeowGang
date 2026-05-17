@@ -9,6 +9,7 @@ use sysinfo::System;
 pub struct SystemSettings {
     pub encounters_db_path: Option<String>,
     pub lost_ark_exe_path: Option<String>,
+    pub loa_logs_exe_path: Option<String>,
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
 }
@@ -26,7 +27,7 @@ pub async fn get_system_settings(
     let mut settings = settings_manager.read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
-    
+
     // Auto-detect paths if not set
     let encounters_db_path = if settings.system.encounters_db_path.is_none() {
         if let Some(path) = detect_encounters_db_path() {
@@ -40,7 +41,7 @@ pub async fn get_system_settings(
     } else {
         settings.system.encounters_db_path.clone()
     };
-    
+
     let lost_ark_exe_path = if settings.system.lost_ark_exe_path.is_none() {
         if let Some(path) = detect_lost_ark_exe_path() {
             // Save auto-detected path
@@ -53,12 +54,28 @@ pub async fn get_system_settings(
     } else {
         settings.system.lost_ark_exe_path.clone()
     };
-    
+
+    let loa_logs_exe_path = if settings.system.loa_logs_exe_path.is_none() {
+        if let Some(path) = detect_loa_logs_exe_path() {
+            settings.system.loa_logs_exe_path = Some(path.clone());
+            let _ = settings_manager.save(&settings);
+            Some(path)
+        } else {
+            None
+        }
+    } else {
+        settings.system.loa_logs_exe_path.clone()
+    };
+
+    let start_with_loa_logs = settings.system.start_with_loa_logs;
+
     Ok(crate::settings::SystemSettings {
         encounters_db_path,
         lost_ark_exe_path,
+        loa_logs_exe_path,
         start_with_windows: settings.system.start_with_windows,
         start_with_lost_ark: settings.system.start_with_lost_ark,
+        start_with_loa_logs: start_with_loa_logs,
         extra: settings.system.extra,
     })
 }
@@ -74,12 +91,12 @@ pub fn detect_encounters_db_path() -> Option<String> {
             }
         }
     }
-    
+
     // Use current directory like reference project
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent_dir) = current_exe.parent() {
             let encounters_path = parent_dir.join("encounters.db");
-            
+
             if encounters_path.exists() {
                 if let Some(path_str) = encounters_path.to_str() {
                     crate::log_info!("Auto-detected encounters.db at: {}", path_str);
@@ -88,7 +105,7 @@ pub fn detect_encounters_db_path() -> Option<String> {
             }
         }
     }
-    
+
     // Fallback to current working directory
     if let Ok(current_dir) = std::env::current_dir() {
         let fallback_path = current_dir.join("encounters.db");
@@ -99,7 +116,7 @@ pub fn detect_encounters_db_path() -> Option<String> {
             }
         }
     }
-    
+
     None
 }
 
@@ -108,7 +125,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
     let steam_paths = vec![
         // D:\steam\steamapps\common\Lost Ark\Binaries\Win64
         Some(PathBuf::from("D:\\steam\\steamapps\\common\\Lost Ark\\Binaries\\Win64\\LOSTARK.exe")),
-        
+
         // Program Files (x86)
         std::env::var("PROGRAMFILES(X86)").ok()
             .map(|p| PathBuf::from(&p)
@@ -119,7 +136,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
                 .join("Binaries")
                 .join("Win64")
                 .join("LOSTARK.exe")),
-        
+
         // Program Files
         std::env::var("PROGRAMFILES").ok()
             .map(|p| PathBuf::from(&p)
@@ -131,7 +148,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
                 .join("Win64")
                 .join("LOSTARK.exe")),
     ];
-    
+
     for path_option in steam_paths {
         if let Some(path) = path_option {
             if path.exists() {
@@ -142,7 +159,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
             }
         }
     }
-    
+
     // Try user's specific Steam path from environment
     if let Ok(steam_path) = std::env::var("STEAM_PATH") {
         let lostark_path = PathBuf::from(&steam_path)
@@ -152,7 +169,7 @@ fn detect_lost_ark_exe_path() -> Option<String> {
             .join("Binaries")
             .join("Win64")
             .join("LOSTARK.exe");
-            
+
         if lostark_path.exists() {
             if let Some(path_str) = lostark_path.to_str() {
                 crate::log_info!("Auto-detected LostArk.exe from STEAM_PATH: {}", path_str);
@@ -160,7 +177,43 @@ fn detect_lost_ark_exe_path() -> Option<String> {
             }
         }
     }
-    
+
+    None
+}
+
+fn detect_loa_logs_exe_path() -> Option<String> {
+    // Common LOA Logs locations: Local AppData LOA Logs folder, Program Files
+    if let Some(local_data_dir) = dirs::data_local_dir() {
+        let loa_logs_exe = local_data_dir.join("LOA Logs").join("LOA Logs.exe");
+        if loa_logs_exe.exists() {
+            if let Some(path_str) = loa_logs_exe.to_str() {
+                crate::log_info!("Auto-detected LOA Logs exe in LocalAppData: {}", path_str);
+                return Some(path_str.to_string());
+            }
+        }
+    }
+
+    // Check Program Files locations
+    if let Ok(program_files) = std::env::var("PROGRAMFILES") {
+        let candidate = PathBuf::from(&program_files).join("LOA Logs").join("LOA Logs.exe");
+        if candidate.exists() {
+            if let Some(path_str) = candidate.to_str() {
+                crate::log_info!("Auto-detected LOA Logs exe in ProgramFiles: {}", path_str);
+                return Some(path_str.to_string());
+            }
+        }
+    }
+
+    if let Ok(program_files_x86) = std::env::var("PROGRAMFILES(X86)") {
+        let candidate = PathBuf::from(&program_files_x86).join("LOA Logs").join("LOA Logs.exe");
+        if candidate.exists() {
+            if let Some(path_str) = candidate.to_str() {
+                crate::log_info!("Auto-detected LOA Logs exe in ProgramFiles(x86): {}", path_str);
+                return Some(path_str.to_string());
+            }
+        }
+    }
+
     None
 }
 
@@ -174,15 +227,15 @@ pub async fn set_encounters_db_path(
     if !path_obj.exists() {
         return Err("File not found".to_string());
     }
-    
+
     if !path_obj.extension().map_or(false, |ext| ext == "db") {
         return Err("Invalid file extension. Expected .db file".to_string());
     }
-    
+
     let mut settings = settings_manager.read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
-    
+
     settings.system.encounters_db_path = Some(path);
     settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
 }
@@ -197,17 +250,71 @@ pub async fn set_lost_ark_exe_path(
     if !path_obj.exists() {
         return Err("File not found".to_string());
     }
-    
+
     if !path_obj.extension().map_or(false, |ext| ext == "exe") {
         return Err("Invalid file extension. Expected .exe file".to_string());
     }
-    
+
     let mut settings = settings_manager.read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
-    
+
     settings.system.lost_ark_exe_path = Some(path);
     settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
+}
+
+#[tauri::command]
+pub async fn set_loa_logs_exe_path(
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+    path: String,
+) -> Result<(), String> {
+    // Validate path exists and is an .exe file
+    let path_obj = std::path::Path::new(&path);
+    if !path_obj.exists() {
+        return Err("File not found".to_string());
+    }
+
+    if !path_obj.extension().map_or(false, |ext| ext == "exe") {
+        return Err("Invalid file extension. Expected .exe file".to_string());
+    }
+
+    let mut settings = settings_manager.read()
+        .map_err(|e| format!("Failed to read settings: {}", e))?
+        .unwrap_or_else(|| settings_manager.get_default());
+
+    settings.system.loa_logs_exe_path = Some(path);
+    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
+}
+
+#[tauri::command]
+pub async fn set_start_with_loa_logs(
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut settings = settings_manager.read()
+        .map_err(|e| format!("Failed to read settings: {}", e))?
+        .unwrap_or_else(|| settings_manager.get_default());
+
+    settings.system.start_with_loa_logs = enabled;
+    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    crate::log_info!("Successfully set start with LOA Logs to: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn is_loa_logs_running() -> Result<bool, String> {
+    let mut system = System::new_all();
+    system.refresh_processes();
+
+    for process in system.processes().values() {
+        let name = process.name().to_lowercase();
+        if name == "loa logs.exe" || name == "loa_logs.exe" || name.contains("loa") && name.contains("logs") {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 #[tauri::command]
@@ -218,10 +325,10 @@ pub async fn set_start_with_windows(
     let mut settings = settings_manager.read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
-    
+
     settings.system.start_with_windows = enabled;
     settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
-    
+
     // Windows Registry Integration
     match set_autostart_registry(enabled) {
         Ok(_) => {
@@ -232,7 +339,7 @@ pub async fn set_start_with_windows(
             return Err(format!("Failed to set Windows autostart: {}", e));
         }
     }
-    
+
     Ok(())
 }
 
@@ -240,13 +347,13 @@ pub async fn set_start_with_windows(
 fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
     let exe_path = std::env::current_exe()?;
     let exe_path_str = exe_path.to_string_lossy().to_string();
-    
+
     let hkcu = RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let path = hkcu.open_subkey_with_flags(
         r"Software\Microsoft\Windows\CurrentVersion\Run",
         winreg::enums::KEY_WRITE,
     )?;
-    
+
     if enabled {
         path.set_value("LOA Tracker", &exe_path_str)?;
         crate::log_info!("Added LOA Tracker to Windows startup registry");
@@ -259,7 +366,7 @@ fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error
             Err(e) => return Err(Box::new(e)),
         }
     }
-    
+
     Ok(())
 }
 
@@ -271,10 +378,10 @@ pub async fn set_start_with_lost_ark(
     let mut settings = settings_manager.read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
-    
+
     settings.system.start_with_lost_ark = enabled;
     settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
-    
+
     // Lost Ark Process Monitoring
     match set_lost_ark_monitoring(enabled) {
         Ok(_) => {
@@ -285,7 +392,7 @@ pub async fn set_start_with_lost_ark(
             return Err(format!("Failed to set Lost Ark monitoring: {}", e));
         }
     }
-    
+
     Ok(())
 }
 
@@ -293,27 +400,27 @@ pub async fn set_start_with_lost_ark(
 pub async fn is_lost_ark_running() -> Result<bool, String> {
     let mut system = System::new_all();
     system.refresh_processes();
-    
+
     for process in system.processes().values() {
         let name = process.name();
         if name.to_lowercase() == "lostark.exe" {
             return Ok(true);
         }
     }
-    
+
     Ok(false)
 }
 
 // Helper function for Lost Ark monitoring setup
-fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
-    
+
     static MONITOR_STATE: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
-    
+
     let state = MONITOR_STATE.get_or_init(|| Arc::new(Mutex::new(false)));
-    
+
     if enabled {
         // Start monitoring thread if not already running
         {
@@ -324,14 +431,14 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
             }
             *is_monitoring = true;
         }
-        
+
         let state_clone = Arc::clone(state);
         thread::spawn(move || {
             crate::log_info!("Started Lost Ark process monitoring thread");
-            
+
             let mut system = System::new_all();
             let mut was_running = false;
-            
+
             loop {
                 // Check if monitoring should stop
                 {
@@ -341,17 +448,24 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
                         break;
                     }
                 }
-                
+
                 // Refresh process list
                 system.refresh_processes();
-                
-                let is_running = system.processes().values()
-                    .any(|process| process.name().to_lowercase() == "lostark.exe");
-                
+
+                // Collect some process names for debug
+                let process_names: Vec<String> = system.processes().values()
+                    .map(|p| p.name().to_lowercase())
+                    .take(50)
+                    .collect();
+                crate::log_debug!("Sample processes: {:?}", process_names);
+
+                let is_running = process_names.iter()
+                    .any(|name| name == "lostark.exe" || name.contains("lostark"));
+
                 // Launch LOA Tracker when Lost Ark starts (if it wasn't running before)
                 if is_running && !was_running {
                     crate::log_info!("Lost Ark detected starting up - launching LOA Tracker");
-                    
+
                     // Get current executable path
                     if let Ok(exe_path) = std::env::current_exe() {
                         // Launch new instance if not already running
@@ -361,14 +475,14 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
                         }
                     }
                 }
-                
+
                 was_running = is_running;
-                
+
                 // Check every 5 seconds
                 thread::sleep(Duration::from_secs(5));
             }
         });
-        
+
         crate::log_info!("Lost Ark process monitoring enabled");
     } else {
         // Stop monitoring
@@ -378,7 +492,7 @@ fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Erro
         }
         crate::log_info!("Lost Ark process monitoring disabled");
     }
-    
+
     Ok(())
 }
 
@@ -397,9 +511,9 @@ pub struct UpdateInfo {
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     logging_service::info("Checking for updates");
-    
+
     let current_version = app.package_info().version.to_string();
-    
+
     match app.updater() {
         Ok(updater) => {
             match updater.check().await {
@@ -437,13 +551,13 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<String, String> {
     logging_service::info("Starting update installation");
-    
+
     match app.updater() {
         Ok(updater) => {
             match updater.check().await {
                 Ok(Some(update)) => {
                     logging_service::info(&format!("Downloading and installing update: {}", update.version));
-                    
+
                     // Download and install in one step like loa-logs-master
                     match update.download_and_install(|_, _| {}, || {}).await {
                         Ok(_) => {
@@ -496,10 +610,10 @@ pub async fn clear_log() -> Result<(), String> {
 pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     use std::fs;
     use std::path::PathBuf;
-    
+
     // Use Tauri's path resolution for consistency
     let resources_path = crate::app::resources_dir(&app);
-    
+
     // Try multiple possible locations for changelog file
     let mut possible_paths: Vec<PathBuf> = vec![
         // Primary: app data resources directory (LOA Tracker/resources/)
@@ -517,20 +631,20 @@ pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, 
         // Fallback: src-tauri/resources/ (might work in some setups)
         PathBuf::from("src-tauri/resources/changelogs.json"),
     ];
-    
+
     // Find first existing path
     let path = possible_paths.iter().find(|p| p.exists()).cloned();
-    
+
     let path = path.ok_or_else(|| {
         format!(
             "Changelogs file not found. Tried: {}",
             possible_paths.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>().join(", ")
         )
     })?;
-    
+
     let content = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read changelogs file from {:?}: {}", path, e))?;
-    
+
     serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse changelogs JSON: {}", e))
 }
@@ -539,11 +653,11 @@ pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, 
 pub async fn get_known_bugs(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     use std::fs;
     use std::path::PathBuf;
-    
+
     // Get the app context to access the resources path
     let app_context = app.state::<crate::context::AppContext>();
     let resources_path = &app_context.resources_path;
-    
+
     // Try multiple possible locations for known bugs file
     let mut possible_paths: Vec<PathBuf> = vec![
         // Primary: app data resources directory (LOA Tracker/resources/)
@@ -561,20 +675,20 @@ pub async fn get_known_bugs(app: tauri::AppHandle) -> Result<serde_json::Value, 
         // Fallback: src-tauri/resources/ (might work in some setups)
         PathBuf::from("src-tauri/resources/known_bugs.json"),
     ];
-    
+
     // Find first existing path
     let path = possible_paths.iter().find(|p| p.exists()).cloned();
-    
+
     let path = path.ok_or_else(|| {
         format!(
             "Known bugs file not found. Tried: {}",
             possible_paths.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>().join(", ")
         )
     })?;
-    
+
     let content = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read known bugs file from {:?}: {}", path, e))?;
-    
+
     serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse known bugs JSON: {}", e))
 }
@@ -584,20 +698,20 @@ pub async fn send_log_report() -> Result<String, String> {
     if let Some(logger) = logging_service::get_logger() {
         let log_content = logger.get_log_content()
             .map_err(|e| e.to_string())?;
-        
+
         // Create a timestamp for the report
         let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
         let report_filename = format!("LOA_Tracker_log_report_{}.txt", timestamp);
-        
+
         // Save to temporary directory
         let temp_dir = std::env::temp_dir();
         let report_path = temp_dir.join(&report_filename);
-        
+
         std::fs::write(&report_path, &log_content)
             .map_err(|e| e.to_string())?;
-        
+
         logging_service::info(&format!("Log report created: {}", report_path.display()));
-        
+
         // Open the file in default application using Windows command
         #[cfg(target_os = "windows")]
         {
@@ -606,7 +720,7 @@ pub async fn send_log_report() -> Result<String, String> {
                 .spawn()
                 .map_err(|e| format!("Failed to open log report: {}", e))?;
         }
-        
+
         #[cfg(not(target_os = "windows"))]
         {
             std::process::Command::new("xdg-open")
@@ -614,7 +728,7 @@ pub async fn send_log_report() -> Result<String, String> {
                 .spawn()
                 .map_err(|e| format!("Failed to open log report: {}", e))?;
         }
-        
+
         Ok(format!("Log report saved to: {}", report_path.display()))
     } else {
         Err("Logging system not initialized".to_string())

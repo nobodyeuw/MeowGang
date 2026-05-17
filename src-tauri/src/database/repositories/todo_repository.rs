@@ -370,62 +370,23 @@ impl TodoRepository {
         }
     }
 
-    pub fn get_raid_gate_completed(&self, char_id: i64, raid_id: &str, gate_id: &str, difficulty: &str) -> Result<Option<bool>> {
+    pub fn get_raid_gate_completed(&self, char_id: i64, raid_id: &str, gate_id: &str, _difficulty: &str) -> Result<Option<bool>> {
         let conn = self.pool.get()?;
-        
-        // First try with the provided gate_id (could be boss name from encounterMap)
+
+        // Exact session_id match only - no LIKE fallback that would mark all
+        // gates done when just one gate of the raid is completed.
         let base_session_id = format!("{}_{}", raid_id, gate_id);
-        
+
         let mut stmt = conn.prepare(
-            "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND session_id = ?2"
+            "SELECT is_completed FROM completion_status \
+            WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3 LIMIT 1"
         )?;
-        
-        match stmt.query_row(params![char_id, &base_session_id], |row| {
-            let completed: i64 = row.get::<_, i64>(0)?;
-            Ok(completed)
+
+        match stmt.query_row(params![char_id, raid_id, &base_session_id], |row| {
+            Ok(row.get::<_, i64>(0)?)
         }) {
             Ok(completed) => Ok(Some(completed == 1)),
-            Err(_) => {
-                // If boss name mapping failed, try to extract gate number and use Gate format
-                if gate_id.contains("Gate") {
-                    // gate_id is already in Gate format, try content_id fallback
-                    let mut stmt = conn.prepare(
-                        "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id IS NULL"
-                    )?;
-                    
-                    match stmt.query_row(params![char_id, raid_id], |row| {
-                        Ok(row.get::<_, i64>(0)?)
-                    }) {
-                        Ok(completed) => Ok(Some(completed == 1)),
-                        Err(_) => Ok(None)
-                    }
-                } else {
-                    // gate_id is a boss name, try to find corresponding gate entry
-                    let mut stmt = conn.prepare(
-                        "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id LIKE ?3"
-                    )?;
-                    
-                    let gate_pattern = format!("{}_Gate %", raid_id);
-                    match stmt.query_row(params![char_id, raid_id, &gate_pattern], |row| {
-                        Ok(row.get::<_, i64>(0)?)
-                    }) {
-                        Ok(completed) => Ok(Some(completed == 1)),
-                        Err(_) => {
-                            // Final fallback to content_id with NULL session_id
-                            let mut stmt = conn.prepare(
-                                "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id IS NULL"
-                            )?;
-                            
-                            match stmt.query_row(params![char_id, raid_id], |row| {
-                                Ok(row.get::<_, i64>(0)?)
-                            }) {
-                                Ok(completed) => Ok(Some(completed == 1)),
-                                Err(_) => Ok(None)
-                            }
-                        }
-                    }
-                }
-            }
+            Err(_) => Ok(Some(false)),
         }
     }
 

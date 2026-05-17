@@ -24,6 +24,8 @@
   let progressPercentage = 0;
   let estimatedGoldDisplay = 0;
 
+  let mismatchGoldLost = 0;
+
   interface CompletionStatusEntry {
     content_id: string;
     is_completed: number;
@@ -303,34 +305,70 @@
     raidLookup[`${raid.id}-${raid.difficulty}`] = raid;
   }
 
-  // Calculate maximum possible gold income based on conf_raid data
   function calculateTotalEstimatedGold(
     characters: Character[],
     raidConfigsByCharacter: Record<string, RaidConfigEntry[]>
   ): number {
     let totalGold = 0;
-    
+    let lostGold = 0;
+
     for (const character of characters) {
       if (!character.earns_gold) continue;
-      
+
       try {
-        const raidConfigs = raidConfigsByCharacter[String(character.char_id)] || [];
+        const charKey = String(character.char_id);
+        const raidConfigs = raidConfigsByCharacter[charKey] || [];
         const goldRaids = raidConfigs.filter(config => config.take_gold === 1);
         const uniqueRaids = new Set<string>();
-        
+        const completionData = characterDataMap[charKey]?.completionStatus ?? [];
+
         for (const config of goldRaids) {
           const raidKey = `${config.content_id}-${config.difficulty}`;
-          if (!uniqueRaids.has(raidKey)) {
-            uniqueRaids.add(raidKey);
-            
-            const raid = raidLookup[raidKey];
-            if (raid) {
-              const raidGold = raid.gates.reduce((sum: number, gate) => {
-                const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
-                const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
-                return sum + gateGold - boxPrice;
-              }, 0);
-              totalGold += raidGold;
+          if (uniqueRaids.has(raidKey)) continue;
+          uniqueRaids.add(raidKey);
+
+          const plannedRaid = raidLookup[raidKey];
+          if (!plannedRaid) continue;
+
+          // Gold the user planned to earn from this raid
+          const plannedGold = plannedRaid.gates.reduce((sum: number, gate) => {
+            const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
+            const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
+            return sum + gateGold - boxPrice;
+          }, 0);
+
+          totalGold += plannedGold;
+
+          // Check for a difficulty mismatch
+          const plannedDiff = (config.difficulty ?? '').trim().toLowerCase();
+          const clearedEntry = completionData.find(
+            (c: any) => c.content_id === config.content_id && c.is_completed === 1 && c.details
+          );
+          if (clearedEntry) {
+            const actualDiff = (clearedEntry.details as string).trim().toLowerCase();
+            if (actualDiff !== plannedDiff) {
+              // Find what the user actually earned in the difficulty they ran
+              const actualRaidKey = `${config.content_id}-${clearedEntry.details?.trim()}`;
+              const actualRaid = raidLookup[actualRaidKey]
+                // Fallback: try case-insensitive match
+                ?? Object.values(raidLookup).find(r =>
+                    r.id === config.content_id &&
+                    r.difficulty.toLowerCase() === actualDiff
+                  );
+
+              const actualGold = actualRaid
+                ? actualRaid.gates.reduce((sum: number, gate) => {
+                    const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
+                    const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
+                    return sum + gateGold - boxPrice;
+                  }, 0)
+                : 0;
+
+              // lostGold = difference between what was planned and what was actually earned
+              // Positive = user earned less than planned (e.g. ran Normal instead of Hard)
+              // Negative = user earned more than planned (e.g. ran Hard instead of Normal) - clamp to 0
+              const diff = plannedGold - actualGold;
+              if (diff > 0) lostGold += diff;
             }
           }
         }
@@ -338,7 +376,8 @@
         console.error(`Failed to calculate gold for character ${character.char_id}:`, error);
       }
     }
-    
+
+    mismatchGoldLost = lostGold;
     return totalGold;
   }
 
@@ -395,13 +434,23 @@
 
         <div class="progress-container-modern">
           <div class="progress-track">
-            <div class="progress-fill-glow" style="width: {progressPercentage}%">
+            <div class="progress-fill-glow" style="width: {Math.min(progressPercentage, 100)}%">
               <div class="shimmer"></div>
             </div>
+            {#if mismatchGoldLost > 0 && estimatedGoldDisplay > 0}
+              <div
+                class="progress-fill-lost"
+                style="left: {Math.min(progressPercentage, 100)}%; width: {Math.min(mismatchGoldLost / estimatedGoldDisplay * 100, 100 - Math.min(progressPercentage, 100))}%"
+              ></div>
+            {/if}
           </div>
           <div class="progress-labels">
             <span class="pct-text">{Math.round(progressPercentage)}% complete</span>
-            <span class="remaining-text">{(estimatedGoldDisplay - (goldStats?.weekly?.totalGold ?? 0)).toLocaleString()} gold remaining</span>
+            {#if mismatchGoldLost > 0}
+              <span class="remaining-text mismatch-loss">⚠ {mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
+            {:else}
+              <span class="remaining-text">{(estimatedGoldDisplay - (goldStats?.weekly?.totalGold ?? 0)).toLocaleString()} gold remaining</span>
+            {/if}
           </div>
         </div>
 
@@ -654,6 +703,22 @@
 
   .pct-text { color: #ffd700; }
   .remaining-text { color: #666; }
+  .remaining-text.mismatch-loss { color: #f87171; }
+
+  .progress-fill-lost {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(120, 120, 120, 0.45),
+      rgba(120, 120, 120, 0.45) 4px,
+      rgba(60, 60, 60, 0.2) 4px,
+      rgba(60, 60, 60, 0.2) 8px
+    );
+    border-radius: 0 3px 3px 0;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
   .gold-details-minimal {
     display: flex;

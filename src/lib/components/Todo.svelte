@@ -194,19 +194,19 @@
           return aMinIlvl - bMinIlvl;
         });
 
-      // Build one bulk request for raid gate completion instead of N+1 invoke calls
+      // Build one bulk request for raid gate completion.
+      // Always use the canonical "Gate N" string as gate_id so the session_id
+      // written by encounter-sync ("<raidId>_Gate N") and manual toggle match.
       const gateCompletionRequests: RaidGateCompletionRequest[] = [];
       candidateRaids.forEach((raid) => {
         baseMatrix.characters.forEach((char: any) => {
           const difficulty = raidConfigMap.get(raid.id)?.get(char.id) || 'Normal';
           raid.gates.forEach((gate: any) => {
-            const gateNumber = gate.gate.split(' ')[1];
-            const gateKey = `${raid.name} G${gateNumber}`;
-            const gateContentId = encounterMap[raid.id]?.[gateKey]?.[0] || gate.gate;
+            // Use the gate string directly (e.g. "Gate 1") - never resolve to boss name
             gateCompletionRequests.push({
               character_id: char.id,
               raid_id: raid.id,
-              gate_id: gateContentId,
+              gate_id: gate.gate,
               difficulty
             });
           });
@@ -223,7 +223,7 @@
         gateCompletionMap.set(completionKey, response.completed);
       });
 
-      // Check if any character tracks this raid
+      // Build tracked raids using the same canonical gate_id
       const trackedRaids = await Promise.all(
         candidateRaids.map(async raid => {
           const characterStates = await Promise.all(
@@ -233,10 +233,7 @@
               const difficulty = raidConfigMap.get(raid.id)?.get(char.id) || 'Normal';
               
               const gateStates = raid.gates.map((gate: any) => {
-                const gateNumber = gate.gate.split(' ')[1];
-                const gateKey = `${raid.name} G${gateNumber}`;
-                const gateContentId = encounterMap[raid.id]?.[gateKey]?.[0] || gate.gate;
-                const completionKey = `${char.id}_${raid.id}_${gateContentId}`;
+                const completionKey = `${char.id}_${raid.id}_${gate.gate}`;
                 return gateCompletionMap.get(completionKey) || false;
               });
               
@@ -503,18 +500,9 @@
   
   async function handleRaidGateToggle(characterId: number, raidId: string, gateId: string) {
     try {
-      // Find the correct content_id based on encounterMap
-      let contentId = raidId; // Fallback
-      
-      if (encounterMap[raidId]) {
-        const gates = Object.keys(encounterMap[raidId]);
-        const gateIndex = parseInt(gateId);
-        
-        // Validate gateIndex before using it
-        if (!isNaN(gateIndex) && gateIndex >= 0 && gateIndex < gates.length) {
-          contentId = gates[gateIndex];
-        }
-      }
+      // contentId is always the raid_id - the gate is identified by gateId ("Gate N")
+      // The session_id written to DB is "<raidId>_<gateId>" e.g. "shadow_serca_Gate 1"
+      const contentId = raidId;
       
       // Get current state from raids structure
       const raidIdx = matrixData?.raids?.findIndex(r => r.id === raidId);

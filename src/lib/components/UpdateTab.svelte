@@ -14,6 +14,9 @@
   let isChangelogLoading = false;
   let loadError = '';
   let installMessage = '';
+  let showDetailsModal = false;
+  let detailsTitle = '';
+  let detailsContent = '';
 
   onMount(async () => {
     await loadAppVersion();
@@ -90,6 +93,26 @@
 
   function formatVersionTag(version: string) {
     return version.startsWith('v') ? version : `v${version}`;
+  }
+
+  function openVersionDetails(version: any) {
+    detailsTitle = `v${version.version} — Details`;
+    // Build HTML content combining all changes
+    const parts: string[] = [];
+    for (const change of version.changes) {
+      const type = change.type ?? '';
+      const desc = change.description ?? '';
+      const det = change.details ?? '';
+      parts.push(`<div><strong>${type}:</strong> ${desc}${det ? `<div style="margin-top:6px;color:var(--md-sys-color-on-surface-variant)">${det.replace(/\n/g,'<br/>')}</div>` : ''}</div>`);
+    }
+    detailsContent = parts.join('<hr style="border:none;border-top:1px solid rgba(0,0,0,0.06);margin:8px 0;"/>');
+    showDetailsModal = true;
+  }
+
+  function closeDetailsModal() {
+    showDetailsModal = false;
+    detailsTitle = '';
+    detailsContent = '';
   }
 </script>
 
@@ -175,10 +198,14 @@
             <div class="entry-header">
               <span class="entry-version">v{version.version}</span>
               <span class="entry-date">{version.date}</span>
+              <button class="change-details" on:click={() => openVersionDetails(version)}>Click here for details</button>
             </div>
             <ul>
               {#each version.changes as change}
-                <li>{change.type}: {change.description}</li>
+                <li class="change-row">
+                  <span class={`bug-severity change-label type-${change.type.toLowerCase().replace(/\s+/g,'-')}`}>{change.type}</span>
+                  <span class="change-desc">{change.description}</span>
+                </li>
               {/each}
             </ul>
           </div>
@@ -188,6 +215,20 @@
       <div class="empty-state">No changelog data available.</div>
     {/if}
   </div>
+
+  {#if showDetailsModal}
+    <div class="modal-overlay" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h3>{detailsTitle}</h3>
+        <div class="modal-details">
+          <p>{@html detailsContent.replace(/\n/g, '<br/>')}</p>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" on:click={closeDetailsModal}>Close</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <div class="bugs-card">
     <div class="section-header">
@@ -343,6 +384,157 @@
     border-radius: 14px;
     background: var(--md-sys-color-surface);
     border: 1px solid var(--md-sys-color-outline);
+  }
+
+  .change-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.35rem 0;
+  }
+
+  /* Base styles for the premium metallic/shiny look */
+.bug-severity.change-label {
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  min-width: 54px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+
+.bug-severity.change-label::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+
+
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0.45) 43%, /* Knackige Lichtkante */
+    rgba(255, 255, 255, 0.15) 45%,
+    rgba(255, 255, 255, 0) 55%
+  );
+  transform: rotate(-10deg);
+  transition: transform 0.5s ease;
+}
+
+
+.bug-severity.change-label:hover {
+  transform: translateY(-1.5px);
+}
+
+.bug-severity.change-label:hover::after {
+  transform: translate(15%, 5%) rotate(-10deg);
+}
+
+/* */
+
+.bug-severity.change-label.type-fixed {
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  /* Ein innerer Lichtrand, der nur oben hell leuchtet */
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 14px rgba(4, 120, 87, 0.4);
+}
+.bug-severity.change-label.type-fixed:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    0 6px 18px rgba(4, 120, 87, 0.55);
+}
+
+.bug-severity.change-label.type-added {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 14px rgba(29, 78, 216, 0.4);
+}
+.bug-severity.change-label.type-added:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    0 6px 18px rgba(29, 78, 216, 0.55);
+}
+
+.bug-severity.change-label.type-improved {
+  background: linear-gradient(135deg, #a78bfa 0%, #6d28d9 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 14px rgba(109, 40, 217, 0.4);
+}
+.bug-severity.change-label.type-improved:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.6),
+    0 6px 18px rgba(109, 40, 217, 0.55);
+}
+
+.bug-severity.change-label.type-security {
+  background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 14px rgba(185, 28, 28, 0.45);
+}
+.bug-severity.change-label.type-security:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.6),
+    0 6px 18px rgba(185, 28, 28, 0.6);
+}
+
+.bug-severity.change-label.type-removed,
+.bug-severity.change-label.type-deprecated {
+  background: linear-gradient(135deg, #9ca3af 0%, #4b5563 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.bug-severity.change-label.type-removed:hover,
+.bug-severity.change-label.type-deprecated:hover {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+  .bug-severity.change-label.type-security:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.45),
+      0 5px 16px rgba(220,38,38,0.35);
+  }
+
+  .change-desc {
+    color: var(--md-sys-color-on-surface-variant);
+    flex: 1;
+  }
+
+  .change-details {
+    background: transparent;
+    border: none;
+    color: var(--md-sys-color-primary);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
   }
 
   .entry-header {

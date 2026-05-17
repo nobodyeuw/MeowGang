@@ -59,10 +59,10 @@
     (async () => {
       await initializeApp();
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
-      
+
       // Initialize gold logging system
       initializeGoldLogging();
-      
+
       // Update rested values immediately on app start
       try {
         console.log('?? Updating rested values on app start...');
@@ -71,30 +71,30 @@
       } catch (restedError) {
         console.error('?? Failed to update rested values:', restedError);
       }
-      
+
       // Set up gold event listeners (console only)
       await setupGoldEventListeners();
-      
+
       // Check and ensure data completeness on app start
       try {
         console.log('?? Checking data completeness...');
-        
-        const completenessResult = await invoke('ensure_character_data_complete', { 
-          data: { 
-            tasks: GAME_TASKS, 
+
+        const completenessResult = await invoke('ensure_character_data_complete', {
+          data: {
+            tasks: GAME_TASKS,
             raids: RAIDS
-          } 
+          }
         });
         console.log('?? Data completeness check:', completenessResult);
-        
+
         // Update reset timestamps
         const resetResult = await invoke('update_reset_timestamps');
         console.log('?? Reset timestamps updated:', resetResult);
-        
+
         // Initialize reset countdown from bootstrap snapshot
         nextResetTime = $nextDailyReset;
         await updateCountdownFromKnownReset();
-        
+
         // Debug: Trigger encounters sync on app start
         console.log('?? Triggering encounters sync on app start...');
         try {
@@ -104,17 +104,17 @@
         } catch (syncError) {
           console.error('?? Encounters sync failed:', syncError);
         }
-        
+
       } catch (error) {
         console.error('?? Data completeness check failed:', error);
       }
     })();
-    
+
     // Update countdown every second from cached reset timestamp.
     const countdownInterval = setInterval(updateResetCountdown, 1000);
     // Refresh backend reset timestamp only once per minute.
     const resetRefreshInterval = setInterval(refreshNextResetTimeFromBackend, 60000);
-    
+
     // Cleanup on unmount
     return () => {
       clearInterval(countdownInterval);
@@ -130,7 +130,7 @@
         const data = event.payload as any;
         console.log(`?? Gold Processing: ${data.processed_count} entries processed (${data.trigger})`);
       });
-      
+
       console.log('?? Gold event listeners setup complete');
     } catch (error) {
       console.error('?? Failed to setup gold event listeners:', error);
@@ -141,16 +141,16 @@
     console.log('Switching to tab:', tab);
     activeTab = tab;
     sidebarOpen = false;
-    
+
     // Update URL using SvelteKit navigation
     const searchParams = new URLSearchParams();
     searchParams.set('tab', tab);
-    
+
     // Remove char parameter when switching away from todo tab
     if (tab !== 'todo') {
       searchParams.delete('char');
     }
-    
+
     goto(`/?${searchParams.toString()}`);
   }
 
@@ -177,7 +177,7 @@
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
+
       if (hours > 0) {
         resetCountdown = `Next daily reset in: ${hours}h ${minutes}m ${seconds}s`;
       } else if (minutes > 0) {
@@ -205,7 +205,7 @@
 <div class="app">
   <!-- Sidebar -->
   <Sidebar {activeTab} {switchTab} isOpen={sidebarOpen} />
-  
+
   <!-- Overlay for mobile -->
   {#if sidebarOpen}
     <div class="overlay" role="button" tabindex="0" on:click={toggleSidebar} on:keydown={(e) => e.key === 'Enter' && toggleSidebar()} aria-label="Close sidebar"></div>
@@ -218,7 +218,7 @@
       <button class="menu-toggle" on:click={toggleSidebar} aria-label="Toggle menu">
         <span class="hamburger"></span>
       </button>
-      
+
       <div class="header-title">
         <div class="title-row">
           <h1>LOA Tracker</h1>
@@ -244,32 +244,32 @@
           </div>
         {/if}
       </div>
-      
+
       <!-- Settings Sub-Tabs (only shown when settings tab is active) -->
       {#if activeTab === 'settings'}
         <div class="settings-sub-tabs">
-          <button 
+          <button
             class="settings-tab-button"
             class:active={activeSettingsTab === 'roster'}
             on:click={() => activeSettingsTab = 'roster'}
           >
             Roster
           </button>
-          <button 
+          <button
             class="settings-tab-button"
             class:active={activeSettingsTab === 'todo'}
             on:click={() => activeSettingsTab = 'todo'}
           >
             Tracking
           </button>
-          <button 
+          <button
             class="settings-tab-button"
             class:active={activeSettingsTab === 'raid'}
             on:click={() => activeSettingsTab = 'raid'}
           >
             Raids
           </button>
-          <button 
+          <button
             class="settings-tab-button"
             class:active={activeSettingsTab === 'system'}
             on:click={() => activeSettingsTab = 'system'}
@@ -281,22 +281,25 @@
 
       <!-- Progression Sub-Tabs (only shown when progression tab is active) -->
       {#if activeTab === 'progression'}
-        <div class="settings-sub-tabs">
-          <button 
-            class="settings-tab-button"
-            class:active={activeProgressionTab === 'market_prices'}
-            on:click={() => activeProgressionTab = 'market_prices'}
-          >
-            Market Prices
-          </button>
-          <button 
-            class="settings-tab-button"
-            class:active={activeProgressionTab === 'planner'}
-            on:click={() => activeProgressionTab = 'planner'}
-          >
-            Planner
-          </button>
-        </div>
+        {#if false}
+          <div class="settings-sub-tabs">
+            <button
+              class="settings-tab-button"
+              class:active={activeProgressionTab === 'market_prices'}
+              on:click={() => activeProgressionTab = 'market_prices'}
+            >
+              Market Prices
+            </button>
+            <button
+              class="settings-tab-button"
+              class:active={activeProgressionTab === 'planner'}
+              on:click={() => activeProgressionTab = 'planner'}
+            >
+              Planner
+            </button>
+          </div>
+        {/if}
+        <!-- Progression planner sub-tabs are currently disabled while this section is under development -->
       {/if}
     </header>
 
@@ -557,17 +560,17 @@
     --md-sys-color-on-primary: #ffffff;
     --md-sys-color-primary-container: #ff8c42;
     --md-sys-color-on-primary-container: #3d1a00;
-    
+
     --md-sys-color-secondary: #6b7280;
     --md-sys-color-on-secondary: #ffffff;
     --md-sys-color-secondary-container: #8b9dc3;
     --md-sys-color-on-secondary-container: #1a1a1a;
-    
+
     --md-sys-color-tertiary: #ff8c42;
     --md-sys-color-on-tertiary: #ffffff;
     --md-sys-color-tertiary-container: #ffab55;
     --md-sys-color-on-tertiary-container: #3d1a00;
-    
+
     --md-sys-color-surface: #1a1d23;
     --md-sys-color-on-surface: #e8eaed;
     --md-sys-color-surface-variant: #25262b;
@@ -575,12 +578,12 @@
     --md-sys-color-surface-container: #2c3142;
     --md-sys-color-on-surface-container: #e8eaed;
     --md-sys-color-surface-container-highest: #323844;
-    
+
     --md-sys-color-outline: #3c4043;
     --md-sys-color-outline-variant: #4a5568;
     --md-sys-color-background: #141418;
     --md-sys-color-on-background: #e8eaed;
-    
+
     --md-sys-color-error: #cf6679;
     --md-sys-color-on-error: #ffffff;
     --md-sys-color-error-container: #ffb3ba;

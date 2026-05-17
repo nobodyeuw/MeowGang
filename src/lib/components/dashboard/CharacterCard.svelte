@@ -9,7 +9,7 @@
   export let classIcon: string = '';
   export let className: string = '';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
-  export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null }> = [];
+  export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
   export let raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number; is_tracked?: number }> = [];
   export let trackingStatus: Array<{ content_id: string; is_tracked: number }> = [];
 
@@ -26,6 +26,22 @@
   function getCompletionStatus(contentId: string): boolean {
     const completion = completionStatus.find(c => c.content_id === contentId);
     return completion?.is_completed === 1;
+  }
+
+  function getRaidGateProgress(raidId: string, difficulty: string): { completed: number; total: number } {
+    const raidDef = RAIDS.find(r => r.id === raidId && r.difficulty === difficulty)
+      ?? RAIDS.find(r => r.id === raidId);
+    const total = raidDef?.gates.length ?? 0;
+
+    // session_id format: "<raidId>_Gate <N>" (both encounter-sync and manual toggle)
+    const completed = completionStatus.filter(c =>
+      c.content_id === raidId &&
+      c.is_completed === 1 &&
+      (c.session_id ?? '').startsWith(raidId + '_') &&
+      (c.session_id ?? '').includes('_Gate ')
+    ).length;
+
+    return { completed, total };
   }
 
   function getCompletedRaidDetails(contentId: string): string | undefined {
@@ -68,16 +84,22 @@
   // Get raids to display
   $: displayRaids = (() => {
     const raids = Object.values(groupedRaids).map((r: any) => {
-      const completed = getCompletionStatus(r.content_id);
       const actualDifficulty = getCompletedRaidDetails(r.content_id);
       const plannedDifficulty = normalizeDifficulty(r.difficulty);
-      const mismatch = completed && actualDifficulty && actualDifficulty !== plannedDifficulty;
+      const mismatch = actualDifficulty != null && actualDifficulty !== plannedDifficulty;
+
+      const gateProgress = getRaidGateProgress(r.content_id, r.difficulty);
+      const fullyCompleted = gateProgress.total > 0 && gateProgress.completed >= gateProgress.total;
+
       return {
         ...r,
         isGoldRaid: r.take_gold === 1,
-        completed,
+        completed: fullyCompleted,   // only true when ALL gates done
+        gateProgress,
         completionMismatch: mismatch,
-        completionTooltip: mismatch ? `Planned to run ${plannedDifficulty} mode but finished in ${actualDifficulty} mode` : undefined
+        completionTooltip: mismatch
+          ? `Planned to run ${plannedDifficulty} mode but finished in ${actualDifficulty} mode`
+          : undefined
       };
     });
 
@@ -215,14 +237,26 @@
       <div class="raid-list">
         {#each displayRaids as raid}
           <div
-            class="raid-item {raid.completed ? 'completed' : ''} {raid.isGoldRaid ? 'gold-raid' : ''} {raid.completionMismatch ? 'mismatch' : ''}"
-            title={raid.completionTooltip || ''}
+            class="raid-item"
+            class:completed={raid.completed}
+            class:gold-raid={raid.isGoldRaid}
+            class:mismatch={raid.completionMismatch}
+            title={raid.completionTooltip ?? ''}
           >
             <div class="raid-content">
-              <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon" />
+              <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
               <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
+              {#if raid.gateProgress.total > 0}
+                <span
+                  class="gate-progress"
+                  class:gate-progress-done={raid.completed}
+                  class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
+                >
+                  {raid.gateProgress.completed}/{raid.gateProgress.total}
+                </span>
+              {/if}
               {#if raid.isGoldRaid}
-                <img src="/images/gold.png" alt="Gold" class="gold-icon" />
+                <img src="/images/gold.png" alt="Gold" class="gold-icon">
               {/if}
             </div>
           </div>
@@ -440,10 +474,24 @@
   }
 
   .raid-content {
+    display: flex;   /* was missing! */
     align-items: center;
     gap: 0.25rem;
     flex: 1;
   }
+
+  .gate-progress {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.55);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .gate-progress-partial { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.55); }
+  .gate-progress-done    { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.55); }
 
   .raid-icon {
     width: 14px;

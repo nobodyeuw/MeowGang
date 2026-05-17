@@ -22,8 +22,10 @@ pub struct GeneralSettings {
 pub struct SystemSettings {
     pub encounters_db_path: Option<String>,
     pub lost_ark_exe_path: Option<String>,
+    pub loa_logs_exe_path: Option<String>,
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
+    pub start_with_loa_logs: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -41,8 +43,10 @@ impl Default for SystemSettings {
         Self {
             encounters_db_path: None,
             lost_ark_exe_path: None,
+            loa_logs_exe_path: None,
             start_with_windows: false,
             start_with_lost_ark: false,
+            start_with_loa_logs: false,
             extra: Map::new(),
         }
     }

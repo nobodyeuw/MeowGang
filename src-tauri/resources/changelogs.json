@@ -1,112 +1,38 @@
 {
   "versions": [
-
     {
-      "version": "1.1.3",
-      "date": "2026-05-16",
-      "changes":[
-        {
-          "type": "Fixed",
-          "description": "Typo in known_bugs"
-        }
-      ]
-
-    },
-
-    {
-      "version": "1.1.2",
-      "date": "2026-05-16",
-      "changes": [
-        {
-          "type": "Fixed",
-          "description": "MarketPrices table and category layout now display consistently across Gems, Engravings, Honing, and Additional Honing"
-        },
-        {
-          "type": "Fixed",
-          "description": "Gems tab now loads manual gem entries and merges gem pricing into the market price view"
-        },
-        {
-          "type": "Fixed",
-          "description": "Gem icon loading now falls back to alternate file extensions and a default gem image asset when missing"
-        },
-        {
-          "type": "Fixed",
-          "description": "Market favorite command wiring corrected and backend favorite field persisted properly"
-        },
-        {
-          "type": "Added",
-          "description": "Progression Planner tab now shows an in-progress placeholder and global character dropdown across all rosters"
-        },
-        {
-          "type": "Fixed",
-          "description": "Character scraper/loadout parsing type conversions corrected to avoid f64/i64 mismatches"
-        },
-        {
-          "type": "Improved",
-          "description": "Dashboard UI updated for clearer weekly gold progress"
-        },
-        {
-          "type": "Improved",
-          "description": "Character card UI now shows raid completion mismatches between planned tasks and LOA log activity"
-        },
-        {
-          "type": "Improved",
-          "description": "To Do tab now keeps the header and first column sticky for easier navigation"
-        },
-        {
-          "type": "Improved",
-          "description": "Settings tab tracking and raids sections now use sticky headers for better usability"
-        },
-        {
-          "type": "Fixed",
-          "description": "Display order now uses integer sorting logic instead of string ordering"
-        },
-        {
-          "type": "Added",
-          "description": "Tracking tab received a new toggle-all function"
-        },
-        {
-          "type": "Fixed",
-          "description": "Tasks not tracked by any character now still appear in the To Do tab"
-        }
-      ]
-    },
-
-    {
-      "version": "1.1.1",
-      "date": "2026-05-15",
+      "version": "1.1.4",
+      "date": "2026-05-17",
       "changes": [
         {
           "type": "Added",
-          "description": "Progression Planner tab with market data infrastructure"
-        },
-        {
-          "type": "Added",
-          "description": "Market data: Engravings (43 items), Honing Materials (36 items), Additional Honing Materials (21 items) with live prices from LOA Buddy API"
-        },
-        {
-          "type": "Added",
-          "description": "Gems category (40 items): T3/T4 Damage & Cooldown Lv.1-10 with manual price input"
-        },
-        {
-          "type": "Added",
-          "description": "Price history charts: click any item to view 30-day min/max/avg price graph with 7d/14d/30d toggle"
-        },
-        {
-          "type": "Added",
-          "description": "Manual price override system with visual badge and fallback to API prices"
+          "description": "Auto-detect LOA Logs executable and 'Start with LOA Logs' option (UI + backend + startup auto-launch).",
+          "details": "Added LOA Logs exe path setting, a 'Start with LOA Logs' toggle in System settings, detection helper, and startup auto-launch when enabled."
         },
         {
           "type": "Fixed",
-          "description": "Roster scraper failing for rosters with characters that have combat power below 1.0 (e.g. Rexlul)"
+          "description": "Immutable raid settings updates and sequential backend saves to prevent cross-row mutations and race conditions in raid settings UI.",
+          "details": "Rewrote changeMasterDifficulty and changeGateDifficulty to produce immutable copies via .map() and perform sequential saves to backend, preventing shared reference mutations that previously caused difficulty to revert or bleed between rows."
         },
         {
           "type": "Fixed",
-          "description": "Roster scraper now detects Cloudflare blocks and retries up to 3 times with clear error message"
+          "description": "Bugfix: changing one raid's difficulty no longer affects other raids for the same character (deep-clone raid_configs and scoped updates).",
+          "details": "Fixed root cause where raid_configs were reused across rows. Now deep-clone raid_configs for each row and scope updates to specific raid.content_id and char_id."
+        },
+        {
+          "type": "Fixed",
+          "description": "Lost Ark monitoring improvements: broader process name matching and added debug logging to diagnose monitoring/startup behavior.",
+          "details": "Monitoring thread now logs sample process names and matches 'lostark' substring; added startup hook to enable monitoring if 'Start with Lost Ark' is configured. This aids diagnosing why LOA Tracker wasn't launching."
+        },
+        {
+          "type": "Fixed",
+          "description": "Backend: session tracking and raid gate progress fixes.",
+          "details": "Bug 1 - Backend: session_id missing from completion data: Added `session_id: Option<String>` to CompletionStatus struct and updated both SELECT queries to include session_id so getRaidGateProgress can match gate rows.\n\nBug 2 - CharacterCard: gate progress matching: Replaced strict regex with `startsWith(raidId + '_') && includes('_Gate ')` to handle diverse session_id formats.\n\nBug 3 - Dashboard gold: estimate reduced by mismatches: `calculateTotalEstimatedGold` now always uses the full planned max as denominator; mismatch gold is shown as plannedGold - actualGold and rendered as a grey hatched segment with a red warning label.\n\nBug 4 - Todo tab: Echidna/Serca not showing as completed & resets on reload: Removed encounterMap lookups for gate IDs and use canonical 'Gate N' strings; fixed handleRaidGateToggle to avoid parseInt on 'Gate 1'.\n\nBug 5 - Settings/Raids: difficulty randomly reverts to Normal on tab switch/reload: Changed changeMasterDifficulty from Promise.all to sequential await and rewrote optimistic updates for immutability; removed redundant double-save in changeGateDifficulty."
         },
         {
           "type": "Improved",
-          "description": "Reduced post-scrape delays from ~10s to ~1s"
+          "description": "Startup behavior: will attempt to start LOA Logs on app startup when configured; Lost Ark monitoring can be enabled at startup.",
+          "details": "On app bootstrap the settings are checked and LOA Logs/monitoring behaviours are started according to saved settings to give a smoother out-of-box experience."
         }
       ]
     }

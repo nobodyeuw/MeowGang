@@ -257,3 +257,7 @@ pub async fn update_raid_gate_config(
     
     Ok(())
 }
+
+// NOTE: update_raid_gate_config above still uses the old read-modify-write pattern.
+// The frontend now calls gates sequentially (not concurrently) which eliminates
+// the race condition. A future refactor should add a proper upsert here.

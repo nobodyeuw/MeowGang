@@ -9,13 +9,16 @@
   let error = '';
   let successMessage = '';
   let showSuccessMessage = false;
-  
+
   // System settings
   let encountersDbPath = '';
   let lostArkExePath = '';
+  let loaLogsExePath = '';
   let startWithWindows = false;
   let startWithLostArk = false;
+  let startWithLoaLogs = false;
   let isRunning = false;
+  let isLoaLogsRunning = false;
 
   // Logging
   let logContent: string | null = null;
@@ -26,7 +29,7 @@
   onMount(async () => {
     await loadSystemSettings();
     await checkLostArkStatus();
-    
+
     // Check Lost Ark status periodically
     const statusInterval = setInterval(async () => {
       await checkLostArkStatus();
@@ -41,16 +44,18 @@
     try {
       isLoading = true;
       error = '';
-      
+
       const settings: any = await invoke('get_system_settings');
       systemSettings = settings;
-      
+
       // Update local state (use camelCase from backend serialization)
       encountersDbPath = settings.encountersDbPath || settings.encounters_db_path || '';
       lostArkExePath = settings.lostArkExePath || settings.lost_ark_exe_path || '';
+      loaLogsExePath = settings.loaLogsExePath || settings.loa_logs_exe_path || '';
       startWithWindows = settings.startWithWindows || settings.start_with_windows || false;
       startWithLostArk = settings.startWithLostArk || settings.start_with_lost_ark || false;
-      
+      startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
+
     } catch (err) {
       error = `Failed to load system settings: ${err}`;
       console.error(error);
@@ -69,7 +74,7 @@
         }],
         multiple: false,
       });
-      
+
       if (selected && typeof selected === 'string') {
         await setEncountersDbPath(selected);
       }
@@ -99,12 +104,39 @@
         }],
         multiple: false,
       });
-      
+
       if (selected && typeof selected === 'string') {
         await setLostArkExePath(selected);
       }
     } catch (err) {
       showError(`Failed to browse for LostArk.exe: ${err}`);
+    }
+  }
+
+  // Browse for LOA Logs exe
+  async function browseLoaLogsExe() {
+    try {
+      const selected = await open({
+        title: 'Select LOA Logs executable',
+        filters: [{ name: 'Executable Files', extensions: ['exe'] }],
+        multiple: false,
+      });
+
+      if (selected && typeof selected === 'string') {
+        await setLoaLogsExePath(selected);
+      }
+    } catch (err) {
+      showError(`Failed to browse for LOA Logs exe: ${err}`);
+    }
+  }
+
+  async function setLoaLogsExePath(path: string) {
+    try {
+      await invoke('set_loa_logs_exe_path', { path });
+      loaLogsExePath = path;
+      showSuccess('LOA Logs executable path updated successfully!');
+    } catch (err) {
+      showError(`Failed to set LOA Logs executable path: ${err}`);
     }
   }
 
@@ -141,10 +173,26 @@
     }
   }
 
+  async function toggleStartWithLoaLogs() {
+    try {
+      const newValue = !startWithLoaLogs;
+      await invoke('set_start_with_loa_logs', { enabled: newValue });
+      startWithLoaLogs = newValue;
+      showSuccess(`Start with LOA Logs ${newValue ? 'enabled' : 'disabled'}!`);
+    } catch (err) {
+      showError(`Failed to toggle start with LOA Logs: ${err}`);
+    }
+  }
+
   // Check if Lost Ark is running
   async function checkLostArkStatus() {
     try {
       isRunning = await invoke('is_lost_ark_running');
+      try {
+        isLoaLogsRunning = await invoke('is_loa_logs_running');
+      } catch (_) {
+        isLoaLogsRunning = false;
+      }
     } catch (err) {
       console.warn('Failed to check Lost Ark status:', err);
     }
@@ -289,7 +337,7 @@
                 <p>LOA Logs combat database for auto-completion</p>
               </div>
             </div>
-            
+
             <div class="path-input-group">
               <div class="path-display" class:valid={isPathValid(encountersDbPath)} class:invalid={!isPathValid(encountersDbPath)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -306,7 +354,7 @@
                 Browse
               </button>
             </div>
-            
+
             {#if isPathValid(encountersDbPath)}
               <div class="status-indicator success">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -342,7 +390,7 @@
                 <p>Lost Ark game executable for auto-launch</p>
               </div>
             </div>
-            
+
             <div class="path-input-group">
               <div class="path-display" class:valid={isPathValid(lostArkExePath)} class:invalid={!isPathValid(lostArkExePath)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -359,8 +407,59 @@
                 Browse
               </button>
             </div>
-            
+
             {#if isPathValid(lostArkExePath)}
+              <div class="status-indicator success">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Executable found
+              </div>
+            {:else}
+              <div class="status-indicator warning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                No executable selected
+              </div>
+            {/if}
+          </div>
+
+          <!-- LOA Logs.exe Path -->
+          <div class="setting-card">
+            <div class="setting-header">
+              <div class="setting-icon executable">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+              </div>
+              <div>
+                <h4>LOA Logs.exe</h4>
+                <p>LOA Logs executable to auto-launch when LOA Tracker starts</p>
+              </div>
+            </div>
+
+            <div class="path-input-group">
+              <div class="path-display" class:valid={isPathValid(loaLogsExePath)} class:invalid={!isPathValid(loaLogsExePath)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <span class="path-text">{formatPath(loaLogsExePath)}</span>
+              </div>
+              <button class="browse-button" on:click={browseLoaLogsExe}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                Browse
+              </button>
+            </div>
+
+            {#if isPathValid(loaLogsExePath)}
               <div class="status-indicator success">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"/>
@@ -411,8 +510,8 @@
                 <p>Launch LOA Tracker automatically when Windows starts</p>
               </div>
               <label class="toggle-switch">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={startWithWindows}
                   on:change={toggleStartWithWindows}
                 />
@@ -438,10 +537,37 @@
                 </div>
               </div>
               <label class="toggle-switch">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={startWithLostArk}
                   on:change={toggleStartWithLostArk}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Start with LOA Logs -->
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon game">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Start with LOA Logs</h4>
+                <p>Ensure LOA Logs is running when LOA Tracker starts</p>
+                <div class="lost-ark-status">
+                  <span class="status-dot" class:running={isLoaLogsRunning}></span>
+                  <span class="status-text">{isLoaLogsRunning ? 'LOA Logs is running' : 'LOA Logs is not running'}</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={startWithLoaLogs}
+                  on:change={toggleStartWithLoaLogs}
                 />
                 <span class="toggle-slider"></span>
               </label>
@@ -480,7 +606,7 @@
               </svg>
               View Logs
             </button>
-            
+
             <button class="log-button report" on:click={sendLogReport}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -489,7 +615,7 @@
               </svg>
               Send Report
             </button>
-            
+
             <button class="log-button clear" on:click={clearLog}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
@@ -498,7 +624,7 @@
               Clear Logs
             </button>
           </div>
-          
+
           <div class="logging-info">
             <p>Logs are stored in: %LOCALAPPDATA%\LOAtracker\logs\loatracker.log</p>
             <p>Use "Send Report" to create a diagnostic file for support requests.</p>
@@ -521,7 +647,7 @@
             </svg>
           </button>
         </div>
-        
+
         <div class="dialog-content">
           {#if isLogLoading}
             <div class="loading-logs">
@@ -538,7 +664,7 @@
             </div>
           {/if}
         </div>
-        
+
         <div class="dialog-actions">
           <button class="dialog-button secondary" on:click={() => showLogDialog = false}>
             Close
