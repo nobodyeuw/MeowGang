@@ -6,6 +6,7 @@
   import type { GoldStatsResponse } from '$lib/types/gold';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { RAIDS } from '$lib/data/raids';
+  import { getCurrentAvailabilityStatus } from '$lib/utils/availability';
   import CharacterCard from './dashboard/CharacterCard.svelte';
 
   // Props for header communication
@@ -21,8 +22,11 @@
   let totalRaidsPossible = 0;
   let totalDailiesPossible = 0;
   let totalWeekliesPossible = 0;
+  let totalCalendarEventsCompleted = 0;
+  let totalCalendarEventsPossible = 0;
   let progressPercentage = 0;
   let estimatedGoldDisplay = 0;
+  let dashboardView: 'cards' | 'compact' = 'cards';
 
   let mismatchGoldLost = 0;
 
@@ -118,6 +122,9 @@
       let raidsPossible = 0;
       let dailiesPossible = 0;
       let weekliesPossible = 0;
+      let calendarEventsCompleted = 0;
+      let calendarEventsPossible = 0;
+      const currentCalendarEventIds = getCurrentCalendarEventIds();
       
       // Collect raid configs for all rosters
       let allRaidConfigsByCharacter: Record<string, RaidConfigEntry[]> = {};
@@ -129,6 +136,23 @@
           rosterId: roster.id
         });
         rosterDataMap[roster.id] = snapshot;
+
+        if (currentCalendarEventIds.length > 0) {
+          const firstRosterCharacter = snapshot.characters?.[0];
+
+          if (firstRosterCharacter) {
+            const rosterCompletionStatus =
+              snapshot.completion_by_character?.[String(firstRosterCharacter.char_id)] || [];
+
+            for (const eventId of currentCalendarEventIds) {
+              calendarEventsPossible++;
+
+              if (rosterCompletionStatus.some((c: any) => c.content_id === eventId && c.is_completed === 1)) {
+                calendarEventsCompleted++;
+              }
+            }
+          }
+        }
       }
       
       for (const character of characters) {
@@ -206,6 +230,8 @@
       totalRaidsPossible = raidsPossible;
       totalDailiesPossible = dailiesPossible;
       totalWeekliesPossible = weekliesPossible;
+      totalCalendarEventsCompleted = calendarEventsCompleted;
+      totalCalendarEventsPossible = calendarEventsPossible;
       
       // Update progress percentage and maximum gold display
       const maxGold = calculateTotalEstimatedGold(characters, allRaidConfigsByCharacter);
@@ -227,6 +253,11 @@
 
   // Initialize app and load all data
   onMount(() => {
+    const savedDashboardView = localStorage.getItem('dashboardView');
+    if (savedDashboardView === 'cards' || savedDashboardView === 'compact') {
+      dashboardView = savedDashboardView;
+    }
+
     (async () => {
       await loadAllCharacters();
     })();
@@ -391,6 +422,58 @@
     return classInfo ? classInfo.displayName : classId;
   }
 
+  function setDashboardView(view: 'cards' | 'compact') {
+    dashboardView = view;
+    localStorage.setItem('dashboardView', view);
+  }
+
+  function getCurrentCalendarEventLabel(): string {
+    const availability = getCurrentAvailabilityStatus();
+
+    if (availability.gate && availability.boss) {
+      return 'Chaos Gate + Field Boss';
+    }
+
+    if (availability.gate) {
+      return 'Chaos Gate';
+    }
+
+    if (availability.boss) {
+      return 'Field Boss';
+    }
+
+    return 'No Event';
+  }
+
+  function getCurrentCalendarEventIds(): string[] {
+    const availability = getCurrentAvailabilityStatus();
+    const eventIds: string[] = [];
+
+    if (availability.gate) {
+      eventIds.push('gate');
+    }
+
+    if (availability.boss) {
+      eventIds.push('boss');
+    }
+
+    return eventIds;
+  }
+
+  function getCurrentCalendarEventIcon(): string {
+    const availability = getCurrentAvailabilityStatus();
+
+    if (availability.gate) {
+      return '/images/chaos_gate.png';
+    }
+
+    if (availability.boss) {
+      return '/images/boss.png';
+    }
+
+    return 'images/calendar_7743808.png';
+  }
+
   // Calculate progress percentage
   async function getGoldProgressPercentage(): Promise<number> {
     if (!goldStats) return 0;
@@ -406,7 +489,7 @@
   }
 </script>
 
-<div class="dashboard-container">
+<div class="dashboard-container" data-guide="dashboard">
   {#if loading}
     <div class="loading-state">
       <div class="loading-spinner"></div>
@@ -470,7 +553,7 @@
     </div>
 
     <!-- Header Stats -->
-    {#if totalRaidsPossible > 0 || totalDailiesPossible > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold)}
+    {#if totalRaidsPossible > 0 || totalDailiesPossible > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold) || visibleCharacters.length > 0}
     <div class="header-stats">
       {#if totalRaidsPossible > 0}
       <div class="stat-card">
@@ -505,6 +588,15 @@
         </div>
       </div>
       {/if}
+      <div class="stat-card">
+        <div class="stat-icon">
+          <img src={getCurrentCalendarEventIcon()} alt="Calendar Event" />
+        </div>
+        <div class="stat-content">
+          <div class="stat-value">{totalCalendarEventsCompleted}/{totalCalendarEventsPossible}</div>
+          <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
+        </div>
+      </div>
       {#if visibleCharacters.some(c => c.earns_gold)}
       <div class="stat-card">
         <div class="stat-icon">
@@ -518,6 +610,28 @@
       {/if}
     </div>
     {/if}
+
+    <div class="dashboard-view-toolbar">
+      <div>
+        <h3>Roster View</h3>
+      </div>
+      <div class="view-switch" aria-label="Dashboard view mode">
+        <button
+          type="button"
+          class:active={dashboardView === 'cards'}
+          on:click={() => setDashboardView('cards')}
+        >
+          Cards
+        </button>
+        <button
+          type="button"
+          class:active={dashboardView === 'compact'}
+          on:click={() => setDashboardView('compact')}
+        >
+          List
+        </button>
+      </div>
+    </div>
 
     <!-- Character Cards Grid -->
     <div class="characters-grid">
@@ -535,10 +649,11 @@
             <span class="character-count">({rosterCharacters.length})</span>
           </h3>
           
-          <div class="characters-list">
+          <div class="characters-list" class:compact-list={dashboardView === 'compact'}>
             {#each rosterCharacters as character}
               <CharacterCard 
                 {character}
+                viewMode={dashboardView}
                 classIcon={getClassIcon(character.class_id)}
                 className={getClassName(character.class_id)}
                 restedValues={characterDataMap[String(character.char_id)]?.restedValues || []}
@@ -569,6 +684,7 @@
     max-width: min(calc(100vw - 320px), 1920px);
     margin: 0 auto;
     background: var(--background);
+    --dashboard-frame-width: 100%;
   }
 
   .loading-state {
@@ -598,6 +714,8 @@
   /* Progress Banner */
   .gold-card-modern {
     position: relative;
+    width: var(--dashboard-frame-width);
+    box-sizing: border-box;
     background: #1a1a1d;
     border: 1px solid rgba(255, 215, 0, 0.15);
     border-radius: 20px;
@@ -831,18 +949,23 @@
   /* Header Stats */
   .header-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    width: var(--dashboard-frame-width);
+    box-sizing: border-box;
     margin-bottom: 2rem;
   }
 
   .stat-card {
+    min-width: 0;
+    box-sizing: border-box;
     background: var(--surface-variant);
     border-radius: 12px;
-    padding: 1.25rem;
+    padding: 0.9rem 0.85rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    justify-content: center;
+    gap: 0.65rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
@@ -853,9 +976,8 @@
   }
 
   .stat-icon {
-    font-size: 2rem;
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -864,33 +986,107 @@
   }
 
   .stat-icon img {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     object-fit: contain;
   }
 
   .stat-content {
     flex: 1;
+    min-width: 0;
+    text-align: center;
   }
 
   .stat-value {
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 1.4vw, 1.25rem);
     font-weight: 700;
     color: var(--on-surface);
     line-height: 1;
+    white-space: nowrap;
   }
 
   .stat-label {
-    font-size: 0.875rem;
+    font-size: 0.72rem;
     color: var(--on-surface-variant);
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .stat-label.event-name {
+    font-size: clamp(0.82rem, 1.15vw, 1.05rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Characters Grid */
+  .dashboard-view-toolbar {
+    width: var(--dashboard-frame-width);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .dashboard-view-toolbar h3 {
+    margin: 0;
+    color: var(--on-surface);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .view-switch {
+    display: inline-flex;
+    padding: 0.25rem;
+    border-radius: 10px;
+    background: var(--surface-variant);
+    border: 1px solid rgba(255, 140, 0, 0.25);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  }
+
+  .view-switch button {
+    position: relative;
+    border: 0;
+    background: transparent;
+    color: var(--on-surface-variant);
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .view-switch button.active {
+    background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, #ffd700));
+    color: var(--on-primary);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 2px 10px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  .view-switch button.active::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 0.2rem;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    transform: translateX(-50%);
+    opacity: 0.9;
+  }
+
   .characters-grid {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    width: var(--dashboard-frame-width);
+    box-sizing: border-box;
   }
 
   .characters-list {
@@ -901,7 +1097,13 @@
     width: 100%;
   }
 
+  .characters-list.compact-list {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
   .roster-section {
+    box-sizing: border-box;
     background: var(--surface-variant);
     border-radius: 12px;
     padding: 1rem;
@@ -1005,6 +1207,19 @@
 
     .characters-list {
       grid-template-columns: 1fr;
+    }
+
+    .dashboard-view-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .view-switch {
+      width: 100%;
+    }
+
+    .view-switch button {
+      flex: 1;
     }
   }
 

@@ -1,6 +1,72 @@
 {
   "versions": [
     {
+      "version": "1.1.5",
+      "date": "2026-05-18",
+      "changes": [
+        {
+          "type": "Added",
+          "description": "First-run Set-Up Guide for new users.",
+          "details": "Added a guided onboarding flow that starts after app initialization when no characters are configured. The guide walks users through adding a roster, selecting gold earners, ordering characters, configuring tracking, setting raid gold/difficulties, reviewing system startup options, and returning to the dashboard. Users can skip or finish the guide, and it can be restarted from the header."
+        },
+        {
+          "type": "Added",
+          "description": "Guide highlights for the main setup controls.",
+          "details": "Added targeted guide hooks and highlight styling for Add Roster, gold-earner toggles, roster drag handles, the tracking matrix, rested value inputs, raid configuration matrix, system startup settings, and dashboard overview."
+        },
+        {
+          "type": "Added",
+          "description": "Dashboard Roster View switch with Cards and List modes.",
+          "details": "Added a persistent dashboard view selector. Cards mode keeps the existing character-card layout, while List mode shows a more compact roster view with character identity, item level, combat power, raid progress, gold indicators, and difficulty labels in one row."
+        },
+        {
+          "type": "Added",
+          "description": "Dashboard calendar event status card.",
+          "details": "Dashboard now shows the current calendar event state for Chaos Gate and Field Boss, including completed/possible counts and the matching event icon."
+        },
+        {
+          "type": "Improved",
+          "description": "Character cards now support a compact list presentation.",
+          "details": "CharacterCard supports a new compact mode with responsive grid/container behavior, truncated long raid names, stable icon sizing, and compact raid progress badges for users who prefer dense dashboard information."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard stat cards and roster layout scale better across window sizes.",
+          "details": "Adjusted stat-card sizing, spacing, text overflow, dashboard frame widths, and mobile behavior so the dashboard remains readable in both card and compact list views."
+        },
+        {
+          "type": "Improved",
+          "description": "Update detail modal can handle longer release notes.",
+          "details": "The update modal now has a viewport-bounded max height, fixed header/actions, and scrollable details so longer changelogs remain usable without overflowing the window."
+        },
+        {
+          "type": "Improved",
+          "description": "LOA Logs companion startup and monitoring behavior.",
+          "details": "The 'Combined Start with LOA Logs' option now refreshes startup registration, attempts to launch LOA Logs when enabled and configured, and monitors LOA Logs so LOA Tracker can be shown when LOA Logs starts."
+        },
+        {
+          "type": "Improved",
+          "description": "Lost Ark and LOA Logs startup registration now uses a background monitor mode when needed.",
+          "details": "Startup registration now enables LOA Tracker when any startup-related option requires it. If the app should only monitor Lost Ark or LOA Logs, it registers with a startup monitor argument instead of the normal foreground startup command."
+        },
+        {
+          "type": "Improved",
+          "description": "Lost Ark monitoring now reveals the existing main window instead of spawning a new app instance.",
+          "details": "When Lost Ark is detected, LOA Tracker now shows, unminimizes, and focuses the existing main window. Process matching remains tolerant of common Lost Ark process-name variants."
+        },
+        {
+          "type": "Changed",
+          "description": "Updated app metadata and release references to v1.1.5.",
+          "details": "Bumped package, Tauri config, README badge, and latest release metadata to version 1.1.5."
+        },
+        {
+          "type": "Changed",
+          "description": "Known bugs list was refreshed for the current release.",
+          "details": "Removed resolved critical entries for auto-start, raid completion tracking, and raid difficulty saving. Current known issues now focus on low-priority dashboard resize glitches, possible system boot auto-start issues, and release asset propagation timing."
+        }
+      ]
+    },
+    {
       "version": "1.1.4",
       "date": "2026-05-17",
       "changes": [

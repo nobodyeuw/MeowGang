@@ -1,15 +1,15 @@
 {
-  "version": "1.1.4",
-  "notes": "### v1.1.4\n\n#### Added\n- Auto-detect LOA Logs executable and 'Start with LOA Logs' option (UI + backend + startup auto-launch).\n\n#### Fixed\n- Immutable raid settings updates and sequential backend saves to prevent cross-row mutations and race conditions in raid settings UI.\n- Bugfix: changing one raid's difficulty no longer affects other raids for the same character (deep-clone raid_configs and scoped updates).\n- Lost Ark monitoring improvements: broader process name matching and added debug logging to diagnose monitoring/startup behavior.\n- Backend: session tracking and raid gate progress fixes (Bugs 1-5 resolved).\n\n#### Improved\n- Startup behavior: will attempt to start LOA Logs on app startup when configured; Lost Ark monitoring can be enabled at startup.\n\n## Installation\nDownload `loatracker_1.1.4_x64-setup.exe` below.",
+  "version": "1.1.5",
+  "notes": "### v1.1.5\n\n#### Added\n- First-run Set-Up Guide for new users. The guide walks through adding a roster, selecting gold earners, ordering characters, choosing tracking, configuring raid gold/difficulties, checking system options, and returning to the dashboard.\n- Header button to restart the Set-Up Guide at any time.\n- Guide highlights for Add Roster, gold-earner toggles, drag handles, tracking, rested inputs, raid settings, startup options, and dashboard overview.\n- Dashboard Roster View switch with Cards and List modes.\n- Calendar event dashboard status for Chaos Gate and Field Boss.\n\n#### Improved\n- Compact character list view with raid progress, difficulty labels, gold indicators, item level, and combat power in a denser layout.\n- Dashboard stat cards and roster layout scale better across different window sizes.\n- Update details modal now supports longer release notes with scrollable content.\n- Combined Start with LOA Logs now attempts to launch LOA Logs when configured and monitors it so LOA Tracker can be shown when LOA Logs starts.\n- Lost Ark monitoring now reveals the existing LOA Tracker window instead of spawning a new app instance.\n- Startup registration now supports background monitor mode for Lost Ark and LOA Logs companion behavior.\n\n#### Changed\n- Updated app metadata and release references to v1.1.5.\n- Refreshed known bugs list and removed resolved critical entries for raid completion tracking and raid difficulty saving.",
   "pub_date": "2026-05-17T20:50:17.362Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2phaE5wVHVvUWJKRWdRR1hrRFlqVTVQRmlvRjVVVU9JTHhHbFdGRUtDcS9kaDBNNzVIZjQrV0hqSSttT0ZXMmVta3NPMW15UUtKTlQ0eEp2bUxySHdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MDUxMDE0CWZpbGU6TE9BIFRyYWNrZXJfMS4xLjRfeDY0LXNldHVwLmV4ZQpQV2lkaHBmL1FVOHBSQVh4dGhqL2RIY1g1M0hQQm8rMEFIc2ZoM0sxTWpEdXYzTE83b2N1WW5DKzVRckZwUHh1MjVwYlZOYkRBb2NZMDIxeU50K2pDdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.4/LOA.Tracker_1.1.4_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.5/LOA.Tracker_1.1.5_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2phaE5wVHVvUWJKRWdRR1hrRFlqVTVQRmlvRjVVVU9JTHhHbFdGRUtDcS9kaDBNNzVIZjQrV0hqSSttT0ZXMmVta3NPMW15UUtKTlQ0eEp2bUxySHdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MDUxMDE0CWZpbGU6TE9BIFRyYWNrZXJfMS4xLjRfeDY0LXNldHVwLmV4ZQpQV2lkaHBmL1FVOHBSQVh4dGhqL2RIY1g1M0hQQm8rMEFIc2ZoM0sxTWpEdXYzTE83b2N1WW5DKzVRckZwUHh1MjVwYlZOYkRBb2NZMDIxeU50K2pDdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.4/LOA.Tracker_1.1.4_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.1.5/LOA.Tracker_1.1.5_x64-setup.exe"
     }
   }
 }

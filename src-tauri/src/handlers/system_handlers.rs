@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use tauri::State;
-use std::path::PathBuf;
 use crate::database::DatabaseManager;
-use winreg::RegKey;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use sysinfo::System;
+use tauri::State;
+use winreg::RegKey;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemSettings {
@@ -14,7 +14,6 @@ pub struct SystemSettings {
     pub start_with_lost_ark: bool,
 }
 
-
 #[tauri::command]
 pub async fn get_app_version() -> Result<String, String> {
     Ok(crate::version::APP_VERSION.to_string())
@@ -22,9 +21,10 @@ pub async fn get_app_version() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_system_settings(
-    settings_manager: State<'_, crate::settings::SettingsManager>
+    settings_manager: State<'_, crate::settings::SettingsManager>,
 ) -> Result<crate::settings::SystemSettings, String> {
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
@@ -69,13 +69,17 @@ pub async fn get_system_settings(
 
     let start_with_loa_logs = settings.system.start_with_loa_logs;
 
+    if let Err(e) = refresh_startup_registration(&settings) {
+        crate::log_error!("Failed to refresh startup registration while loading settings: {}", e);
+    }
+
     Ok(crate::settings::SystemSettings {
         encounters_db_path,
         lost_ark_exe_path,
         loa_logs_exe_path,
         start_with_windows: settings.system.start_with_windows,
         start_with_lost_ark: settings.system.start_with_lost_ark,
-        start_with_loa_logs: start_with_loa_logs,
+        start_with_loa_logs,
         extra: settings.system.extra,
     })
 }
@@ -124,29 +128,31 @@ fn detect_lost_ark_exe_path() -> Option<String> {
     // Try common Steam installation paths
     let steam_paths = vec![
         // D:\steam\steamapps\common\Lost Ark\Binaries\Win64
-        Some(PathBuf::from("D:\\steam\\steamapps\\common\\Lost Ark\\Binaries\\Win64\\LOSTARK.exe")),
-
+        Some(PathBuf::from(
+            "D:\\steam\\steamapps\\common\\Lost Ark\\Binaries\\Win64\\LOSTARK.exe",
+        )),
         // Program Files (x86)
-        std::env::var("PROGRAMFILES(X86)").ok()
-            .map(|p| PathBuf::from(&p)
+        std::env::var("PROGRAMFILES(X86)").ok().map(|p| {
+            PathBuf::from(&p)
                 .join("Steam")
                 .join("steamapps")
                 .join("common")
                 .join("Lost Ark")
                 .join("Binaries")
                 .join("Win64")
-                .join("LOSTARK.exe")),
-
+                .join("LOSTARK.exe")
+        }),
         // Program Files
-        std::env::var("PROGRAMFILES").ok()
-            .map(|p| PathBuf::from(&p)
+        std::env::var("PROGRAMFILES").ok().map(|p| {
+            PathBuf::from(&p)
                 .join("Steam")
                 .join("steamapps")
                 .join("common")
                 .join("Lost Ark")
                 .join("Binaries")
                 .join("Win64")
-                .join("LOSTARK.exe")),
+                .join("LOSTARK.exe")
+        }),
     ];
 
     for path_option in steam_paths {
@@ -232,12 +238,15 @@ pub async fn set_encounters_db_path(
         return Err("Invalid file extension. Expected .db file".to_string());
     }
 
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.encounters_db_path = Some(path);
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))
 }
 
 #[tauri::command]
@@ -255,12 +264,15 @@ pub async fn set_lost_ark_exe_path(
         return Err("Invalid file extension. Expected .exe file".to_string());
     }
 
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.lost_ark_exe_path = Some(path);
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))
 }
 
 #[tauri::command]
@@ -278,25 +290,41 @@ pub async fn set_loa_logs_exe_path(
         return Err("Invalid file extension. Expected .exe file".to_string());
     }
 
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.loa_logs_exe_path = Some(path);
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))
 }
 
 #[tauri::command]
 pub async fn set_start_with_loa_logs(
     settings_manager: State<'_, crate::settings::SettingsManager>,
+    app: AppHandle,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.start_with_loa_logs = enabled;
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+    refresh_startup_registration(&settings).map_err(|e| format!("Failed to update startup registration: {}", e))?;
+
+    if enabled {
+        if let Err(e) = ensure_loa_logs_running(settings.system.loa_logs_exe_path.as_deref()) {
+            crate::log_warn!("{}", e);
+        }
+    }
+
+    set_loa_logs_monitoring(enabled, app)?;
 
     crate::log_info!("Successfully set start with LOA Logs to: {}", enabled);
     Ok(())
@@ -322,15 +350,17 @@ pub async fn set_start_with_windows(
     settings_manager: State<'_, crate::settings::SettingsManager>,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.start_with_windows = enabled;
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
 
-    // Windows Registry Integration
-    match set_autostart_registry(enabled) {
+    match refresh_startup_registration(&settings) {
         Ok(_) => {
             crate::log_info!("Successfully set start with Windows to: {}", enabled);
         }
@@ -343,10 +373,31 @@ pub async fn set_start_with_windows(
     Ok(())
 }
 
+pub(crate) fn refresh_startup_registration(
+    settings: &crate::settings::Settings,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let enabled = settings.system.start_with_windows
+        || settings.system.start_with_lost_ark
+        || settings.system.start_with_loa_logs;
+    let background_monitor = !settings.system.start_with_windows
+        && (settings.system.start_with_lost_ark || settings.system.start_with_loa_logs);
+
+    set_autostart_registry(enabled, background_monitor)
+}
+
+pub(crate) fn should_keep_background_monitor(settings: &crate::settings::Settings) -> bool {
+    settings.system.start_with_lost_ark || settings.system.start_with_loa_logs
+}
+
 // Helper function for Windows Registry autostart
-fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn set_autostart_registry(enabled: bool, background_monitor: bool) -> Result<(), Box<dyn std::error::Error>> {
     let exe_path = std::env::current_exe()?;
-    let exe_path_str = exe_path.to_string_lossy().to_string();
+    let exe_path_str = exe_path.to_string_lossy();
+    let startup_command = if background_monitor {
+        format!("\"{}\" --startup-monitor", exe_path_str)
+    } else {
+        format!("\"{}\"", exe_path_str)
+    };
 
     let hkcu = RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let path = hkcu.open_subkey_with_flags(
@@ -355,8 +406,8 @@ fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error
     )?;
 
     if enabled {
-        path.set_value("LOA Tracker", &exe_path_str)?;
-        crate::log_info!("Added LOA Tracker to Windows startup registry");
+        path.set_value("LOA Tracker", &startup_command)?;
+        crate::log_info!("Added LOA Tracker to Windows startup registry: {}", startup_command);
     } else {
         match path.delete_value("LOA Tracker") {
             Ok(_) => crate::log_info!("Removed LOA Tracker from Windows startup registry"),
@@ -373,17 +424,22 @@ fn set_autostart_registry(enabled: bool) -> Result<(), Box<dyn std::error::Error
 #[tauri::command]
 pub async fn set_start_with_lost_ark(
     settings_manager: State<'_, crate::settings::SettingsManager>,
+    app: AppHandle,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut settings = settings_manager.read()
+    let mut settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
     settings.system.start_with_lost_ark = enabled;
-    settings_manager.save(&settings).map_err(|e| format!("Failed to save settings: {}", e))?;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+    refresh_startup_registration(&settings).map_err(|e| format!("Failed to update startup registration: {}", e))?;
 
     // Lost Ark Process Monitoring
-    match set_lost_ark_monitoring(enabled) {
+    match set_lost_ark_monitoring(enabled, app) {
         Ok(_) => {
             crate::log_info!("Successfully set start with Lost Ark to: {}", enabled);
         }
@@ -412,7 +468,7 @@ pub async fn is_lost_ark_running() -> Result<bool, String> {
 }
 
 // Helper function for Lost Ark monitoring setup
-pub(crate) fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn set_lost_ark_monitoring(enabled: bool, app: AppHandle) -> Result<(), String> {
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
@@ -433,6 +489,7 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::
         }
 
         let state_clone = Arc::clone(state);
+        let app_clone = app.clone();
         thread::spawn(move || {
             crate::log_info!("Started Lost Ark process monitoring thread");
 
@@ -453,27 +510,22 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::
                 system.refresh_processes();
 
                 // Collect some process names for debug
-                let process_names: Vec<String> = system.processes().values()
+                let process_names: Vec<String> = system
+                    .processes()
+                    .values()
                     .map(|p| p.name().to_lowercase())
                     .take(50)
                     .collect();
                 crate::log_debug!("Sample processes: {:?}", process_names);
 
-                let is_running = process_names.iter()
-                    .any(|name| name == "lostark.exe" || name.contains("lostark"));
+                let is_running = system
+                    .processes()
+                    .values()
+                    .any(|process| is_lost_ark_process_name(&process.name().to_lowercase()));
 
-                // Launch LOA Tracker when Lost Ark starts (if it wasn't running before)
                 if is_running && !was_running {
-                    crate::log_info!("Lost Ark detected starting up - launching LOA Tracker");
-
-                    // Get current executable path
-                    if let Ok(exe_path) = std::env::current_exe() {
-                        // Launch new instance if not already running
-                        match std::process::Command::new(&exe_path).spawn() {
-                            Ok(_) => crate::log_info!("Successfully launched LOA Tracker"),
-                            Err(e) => crate::log_error!("Failed to launch LOA Tracker: {}", e),
-                        }
-                    }
+                    crate::log_info!("Lost Ark detected starting up - showing LOA Tracker");
+                    reveal_main_window(&app_clone);
                 }
 
                 was_running = is_running;
@@ -496,8 +548,123 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+pub(crate) fn set_loa_logs_monitoring(enabled: bool, app: AppHandle) -> Result<(), String> {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::Duration;
+
+    static MONITOR_STATE: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
+
+    let state = MONITOR_STATE.get_or_init(|| Arc::new(Mutex::new(false)));
+
+    if enabled {
+        {
+            let mut is_monitoring = state.lock().unwrap();
+            if *is_monitoring {
+                crate::log_debug!("LOA Logs companion monitoring is already running");
+                return Ok(());
+            }
+            *is_monitoring = true;
+        }
+
+        let state_clone = Arc::clone(state);
+        let app_clone = app.clone();
+        thread::spawn(move || {
+            crate::log_info!("Started LOA Logs companion monitoring thread");
+
+            let mut system = System::new_all();
+            let mut loa_logs_was_running = false;
+
+            loop {
+                {
+                    let is_monitoring = state_clone.lock().unwrap();
+                    if !*is_monitoring {
+                        crate::log_debug!("LOA Logs companion monitoring thread stopping");
+                        break;
+                    }
+                }
+
+                system.refresh_processes();
+
+                let loa_logs_is_running = system
+                    .processes()
+                    .values()
+                    .any(|process| is_loa_logs_process_name(&process.name().to_lowercase()));
+
+                if loa_logs_is_running && !loa_logs_was_running {
+                    crate::log_info!("LOA Logs detected starting up - showing LOA Tracker");
+                    reveal_main_window(&app_clone);
+                }
+
+                loa_logs_was_running = loa_logs_is_running;
+                thread::sleep(Duration::from_secs(5));
+            }
+        });
+
+        crate::log_info!("LOA Logs companion monitoring enabled");
+    } else {
+        {
+            let mut is_monitoring = state.lock().unwrap();
+            *is_monitoring = false;
+        }
+        crate::log_info!("LOA Logs companion monitoring disabled");
+    }
+
+    Ok(())
+}
+
+pub(crate) fn ensure_loa_logs_running(path: Option<&str>) -> Result<(), String> {
+    let mut system = System::new_all();
+    system.refresh_processes();
+
+    if system
+        .processes()
+        .values()
+        .any(|process| is_loa_logs_process_name(&process.name().to_lowercase()))
+    {
+        return Ok(());
+    }
+
+    let Some(path_str) = path else {
+        return Err("No LOA Logs executable path configured".to_string());
+    };
+
+    if !std::path::Path::new(path_str).exists() {
+        return Err(format!("Configured LOA Logs path does not exist: {}", path_str));
+    }
+
+    std::process::Command::new(path_str)
+        .spawn()
+        .map(|_| crate::log_info!("Launched LOA Logs from settings: {}", path_str))
+        .map_err(|e| format!("Failed to launch LOA Logs: {}", e))
+}
+
+pub(crate) fn reveal_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(e) = window.show() {
+            crate::log_error!("Failed to show LOA Tracker window: {}", e);
+        }
+        if let Err(e) = window.unminimize() {
+            crate::log_debug!("Failed to unminimize LOA Tracker window: {}", e);
+        }
+        if let Err(e) = window.set_focus() {
+            crate::log_debug!("Failed to focus LOA Tracker window: {}", e);
+        }
+    } else {
+        crate::log_warn!("Main LOA Tracker window was not found");
+    }
+}
+
+fn is_lost_ark_process_name(name: &str) -> bool {
+    name == "lostark.exe" || name.contains("lostark")
+}
+
+fn is_loa_logs_process_name(name: &str) -> bool {
+    name == "loa logs.exe" || name == "loa_logs.exe" || (name.contains("loa") && name.contains("logs"))
+}
+
 use crate::services::logging_service;
-use tauri::{Manager, AppHandle};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -515,32 +682,30 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
 
     match app.updater() {
-        Ok(updater) => {
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    logging_service::info(&format!("Update available: {}", update.version));
-                    Ok(UpdateInfo {
-                        current_version,
-                        latest_version: Some(update.version),
-                        update_available: true,
-                        body: update.body,
-                    })
-                }
-                Ok(None) => {
-                    logging_service::info("No update available");
-                    Ok(UpdateInfo {
-                        current_version,
-                        latest_version: None,
-                        update_available: false,
-                        body: None,
-                    })
-                }
-                Err(e) => {
-                    logging_service::error(&format!("Update check failed: {}", e));
-                    Err(e.to_string())
-                }
+        Ok(updater) => match updater.check().await {
+            Ok(Some(update)) => {
+                logging_service::info(&format!("Update available: {}", update.version));
+                Ok(UpdateInfo {
+                    current_version,
+                    latest_version: Some(update.version),
+                    update_available: true,
+                    body: update.body,
+                })
             }
-        }
+            Ok(None) => {
+                logging_service::info("No update available");
+                Ok(UpdateInfo {
+                    current_version,
+                    latest_version: None,
+                    update_available: false,
+                    body: None,
+                })
+            }
+            Err(e) => {
+                logging_service::error(&format!("Update check failed: {}", e));
+                Err(e.to_string())
+            }
+        },
         Err(e) => {
             logging_service::error(&format!("Failed to get updater: {}", e));
             Err(e.to_string())
@@ -570,9 +735,7 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
                         }
                     }
                 }
-                Ok(None) => {
-                    Err("No update available".to_string())
-                }
+                Ok(None) => Err("No update available".to_string()),
                 Err(e) => {
                     logging_service::error(&format!("Failed to check for updates: {}", e));
                     Err(format!("Failed to check for updates: {}", e))
@@ -589,8 +752,7 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn get_log_content() -> Result<String, String> {
     if let Some(logger) = logging_service::get_logger() {
-        logger.get_log_content()
-            .map_err(|e| e.to_string())
+        logger.get_log_content().map_err(|e| e.to_string())
     } else {
         Err("Logging system not initialized".to_string())
     }
@@ -599,8 +761,7 @@ pub async fn get_log_content() -> Result<String, String> {
 #[tauri::command]
 pub async fn clear_log() -> Result<(), String> {
     if let Some(logger) = logging_service::get_logger() {
-        logger.clear_log()
-            .map_err(|e| e.to_string())
+        logger.clear_log().map_err(|e| e.to_string())
     } else {
         Err("Logging system not initialized".to_string())
     }
@@ -625,7 +786,8 @@ pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, 
             exe_dir.join("../resources/changelogs.json")
         },
         // In production: app resource directory (Tauri's standard resource dir)
-        app.path().resource_dir()
+        app.path()
+            .resource_dir()
             .map_err(|e| format!("Failed to get resource directory: {}", e))?
             .join("changelogs.json"),
         // Fallback: src-tauri/resources/ (might work in some setups)
@@ -638,15 +800,18 @@ pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, 
     let path = path.ok_or_else(|| {
         format!(
             "Changelogs file not found. Tried: {}",
-            possible_paths.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>().join(", ")
+            possible_paths
+                .iter()
+                .map(|p| format!("{:?}", p))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     })?;
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read changelogs file from {:?}: {}", path, e))?;
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read changelogs file from {:?}: {}", path, e))?;
 
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse changelogs JSON: {}", e))
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse changelogs JSON: {}", e))
 }
 
 #[tauri::command]
@@ -669,7 +834,8 @@ pub async fn get_known_bugs(app: tauri::AppHandle) -> Result<serde_json::Value, 
             exe_dir.join("../resources/known_bugs.json")
         },
         // In production: app resource directory (Tauri's standard resource dir)
-        app.path().resource_dir()
+        app.path()
+            .resource_dir()
             .map_err(|e| format!("Failed to get resource directory: {}", e))?
             .join("known_bugs.json"),
         // Fallback: src-tauri/resources/ (might work in some setups)
@@ -682,22 +848,24 @@ pub async fn get_known_bugs(app: tauri::AppHandle) -> Result<serde_json::Value, 
     let path = path.ok_or_else(|| {
         format!(
             "Known bugs file not found. Tried: {}",
-            possible_paths.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>().join(", ")
+            possible_paths
+                .iter()
+                .map(|p| format!("{:?}", p))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     })?;
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read known bugs file from {:?}: {}", path, e))?;
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read known bugs file from {:?}: {}", path, e))?;
 
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse known bugs JSON: {}", e))
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse known bugs JSON: {}", e))
 }
 
 #[tauri::command]
 pub async fn send_log_report() -> Result<String, String> {
     if let Some(logger) = logging_service::get_logger() {
-        let log_content = logger.get_log_content()
-            .map_err(|e| e.to_string())?;
+        let log_content = logger.get_log_content().map_err(|e| e.to_string())?;
 
         // Create a timestamp for the report
         let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
@@ -707,8 +875,7 @@ pub async fn send_log_report() -> Result<String, String> {
         let temp_dir = std::env::temp_dir();
         let report_path = temp_dir.join(&report_filename);
 
-        std::fs::write(&report_path, &log_content)
-            .map_err(|e| e.to_string())?;
+        std::fs::write(&report_path, &log_content).map_err(|e| e.to_string())?;
 
         logging_service::info(&format!("Log report created: {}", report_path.display()));
 
@@ -764,7 +931,11 @@ pub async fn add_gold_log(
     raid_name: Option<String>,
 ) -> Result<(), String> {
     // Add gold log entry - placeholder
-    crate::log_debug!("Adding gold log: {} gold for character {} from {}", gold_amount, character_id, source);
+    crate::log_debug!(
+        "Adding gold log: {} gold for character {} from {}",
+        gold_amount,
+        character_id,
+        source
+    );
     Ok(())
 }
-

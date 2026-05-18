@@ -456,6 +456,7 @@
   <!-- Roster Management -->
       <button 
         class="add-button"
+        data-guide="add-roster"
         on:click={() => { showAddRosterDialog = true; console.log('Add Roster clicked, isLoading:', isLoading); }}
         disabled={isLoading}
       >
@@ -522,7 +523,7 @@
         {#each dndItems as char (char.id)}
           <div class="character-item" animate:flip={{duration: 200}}>
             
-            <div class="drag-handle" style="cursor: grab; padding: 10px; color: #555; display: flex; align-items: center;">
+            <div class="drag-handle" data-guide="character-drag" style="cursor: grab; padding: 10px; color: #555; display: flex; align-items: center;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
                 <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
@@ -544,6 +545,7 @@
             <div class="actions">
               <button 
                 class="toggle-btn gold" 
+                data-guide="gold-toggle"
                 class:active={char.earns_gold}
                 on:click|stopPropagation={() => toggleGold(char)}
               >

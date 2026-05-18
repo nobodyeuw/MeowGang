@@ -375,7 +375,7 @@
       <button on:click={loadMatrixData}>Retry</button>
     </div>
   {:else if matrixData}
-    <div class="matrix-container">
+    <div class="matrix-container" data-guide="tracking-matrix">
       <div class="tracking-matrix-wrapper">
         <table class="tracking-matrix">
           <thead>
@@ -409,6 +409,7 @@
                   <span class="task-name">{task.content_name}</span>
                   <button 
                     class="toggle-all-btn"
+                    data-guide="tracking-row-toggle"
                     on:click={() => {
                       const currentState = areAllCharactersTrackedForTask(task.content_id);
                       toggleAllCharactersForTask(task.content_id, !currentState);
@@ -435,6 +436,7 @@
                       <div class="rested-input">
                         <input 
                           type="number" 
+                          data-guide="rested-input"
                           placeholder="0" 
                           min="0" 
                           max={task.max_rest_value}
@@ -465,6 +467,7 @@
                   <span class="task-name">{task.content_name}</span>
                   <button 
                     class="toggle-all-btn"
+                    data-guide="tracking-row-toggle"
                     on:click={() => {
                       const currentState = areAllCharactersTrackedForTask(task.content_id);
                       toggleAllCharactersForTask(task.content_id, !currentState);

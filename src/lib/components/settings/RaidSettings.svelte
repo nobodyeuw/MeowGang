@@ -1232,7 +1232,7 @@
       </div>
     {/if}
     
-    <div class="matrix-container">
+    <div class="matrix-container" data-guide="raid-matrix">
       <div class="matrix-wrapper">
         <table class="raid-matrix">
           <thead>
@@ -1317,7 +1317,7 @@
                             {@const isRaidActive = isRaidAlreadyActive(char, raid.content_id)}
                             {@const shouldDisableGold = hasGoldLimit && !isRaidActive}
                             
-                            <label class="option-toggle gold-option" title={`Tradable: ${raidGoldValues.tradableGold}g | Bound: ${raidGoldValues.boundGold}g (Total: ${raidGoldValues.totalGold}g)`}>
+                            <label class="option-toggle gold-option" data-guide="raid-gold-toggle" title={`Tradable: ${raidGoldValues.tradableGold}g | Bound: ${raidGoldValues.boundGold}g (Total: ${raidGoldValues.totalGold}g)`}>
                               <input 
                                 type="checkbox" 
                                 checked={masterTakeGold}

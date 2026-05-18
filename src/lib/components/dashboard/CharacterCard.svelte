@@ -8,6 +8,7 @@
   export let character: Character;
   export let classIcon: string = '';
   export let className: string = '';
+  export let viewMode: 'cards' | 'compact' = 'cards';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
   export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
   export let raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number; is_tracked?: number }> = [];
@@ -172,99 +173,153 @@
   }
 </script>
 
-<div class="character-card" 
+<div class="character-card"
+     class:compact={viewMode === 'compact'}
      class:gold-earner={character.earns_gold}
      role="button" 
      tabindex="0" 
      on:click={handleCharacterClick} 
      on:keydown={(e) => e.key === 'Enter' && handleCharacterClick()} 
      aria-label={`Select character ${character.char_name}`}>
-  
-  <!-- Interactive Header -->
-  <div class="card-header">
-    <div class="character-info">
-      <div class="class-section">
-        <img 
-          src={getClassIconUrl(iconId)} 
+
+  {#if viewMode === 'compact'}
+    <div class="compact-main-row" class:no-raids={displayRaids.length === 0}>
+      <div class="compact-identity">
+        <img
+          src={getClassIconUrl(iconId)}
           alt={displayName}
-          class="class-icon"
+          class="class-icon compact-class-icon"
           on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <div class="character-details">
-          <h4 class="character-name">{character.char_name}</h4>
-          <div class="character-stats">
-            <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
-            <span class="combat-power">CP {character.combat_power.toLocaleString('de-DE', { useGrouping: false })}</span>
-          </div>
-        </div>
+        <h4 class="character-name compact-name">{character.char_name}</h4>
       </div>
-          </div>
-  </div>
 
-  <!-- Activity Section (Dailies & Events) -->
-  <div class="activity-section">
-    {#if chaosTracked}
-      <div class="activity-item {chaosCompleted ? 'completed' : ''}">
-        <div class="activity-icon">
-          <img src={getTaskIcon('chaos')} alt="Chaos" class="task-icon" />
-        </div>
-        <div class="rested-progress">
-          <div class="rested-bar">
-            <div class="rested-fill" style="width: {chaosRested}%"></div>
-          </div>
-          <span class="rested-value">{chaosRested}%</span>
-        </div>
+      <div class="compact-stats">
+        <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
+        <span class="combat-power">CP {character.combat_power.toLocaleString('de-DE', { useGrouping: false })}</span>
       </div>
-    {/if}
-    {#if guardianTracked}
-      <div class="activity-item {guardianCompleted ? 'completed' : ''}">
-        <div class="activity-icon">
-          <img src={getTaskIcon('guardian')} alt="Guardian" class="task-icon" />
-        </div>
-        <div class="rested-progress">
-          <div class="rested-bar">
-            <div class="rested-fill" style="width: {guardianRested}%"></div>
-          </div>
-          <span class="rested-value">{guardianRested}%</span>
-        </div>
-      </div>
-    {/if}
-  </div>
 
-  <!-- Gold Raid Section -->
-  {#if displayRaids.length > 0}
-    <div class="raid-section">
-      <div class="raid-list">
-        {#each displayRaids as raid}
-          <div
-            class="raid-item"
-            class:completed={raid.completed}
-            class:gold-raid={raid.isGoldRaid}
-            class:mismatch={raid.completionMismatch}
-            title={raid.completionTooltip ?? ''}
-          >
-            <div class="raid-content">
-              <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
-              <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
-              {#if raid.gateProgress.total > 0}
-                <span
-                  class="gate-progress"
-                  class:gate-progress-done={raid.completed}
-                  class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
-                >
-                  {raid.gateProgress.completed}/{raid.gateProgress.total}
+      {#if displayRaids.length > 0}
+        <div class="compact-raid-row">
+          {#each displayRaids as raid}
+            <div
+              class="raid-item compact-raid"
+              class:completed={raid.completed}
+              class:gold-raid={raid.isGoldRaid}
+              class:mismatch={raid.completionMismatch}
+              title={raid.completionTooltip ?? ''}
+            >
+              <div class="raid-content">
+                <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
+                <span class="raid-name compact-raid-name">
+                  <span>{getRaidName(raid.content_id, raid.difficulty)}</span>
+                  <span class="compact-raid-difficulty">{normalizeDifficulty(raid.difficulty)}</span>
                 </span>
-              {/if}
-              {#if raid.isGoldRaid}
-                <img src="/images/gold.png" alt="Gold" class="gold-icon">
-              {/if}
+                {#if raid.gateProgress.total > 0}
+                  <span
+                    class="gate-progress"
+                    class:gate-progress-done={raid.completed}
+                    class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
+                  >
+                    {raid.gateProgress.completed}/{raid.gateProgress.total}
+                  </span>
+                {/if}
+                {#if raid.isGoldRaid}
+                  <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {:else}
+    <!-- Interactive Header -->
+    <div class="card-header">
+      <div class="character-info">
+        <div class="class-section">
+          <img
+            src={getClassIconUrl(iconId)}
+            alt={displayName}
+            class="class-icon"
+            on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+          <div class="character-details">
+            <h4 class="character-name">{character.char_name}</h4>
+            <div class="character-stats">
+              <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
+              <span class="combat-power">CP {character.combat_power.toLocaleString('de-DE', { useGrouping: false })}</span>
             </div>
           </div>
-        {/each}
-      </div>
+        </div>
+            </div>
     </div>
+
+    <!-- Activity Section (Dailies & Events) -->
+    <div class="activity-section">
+      {#if chaosTracked}
+        <div class="activity-item {chaosCompleted ? 'completed' : ''}">
+          <div class="activity-icon">
+            <img src={getTaskIcon('chaos')} alt="Chaos" class="task-icon" />
+          </div>
+          <div class="rested-progress">
+            <div class="rested-bar">
+              <div class="rested-fill" style="width: {chaosRested}%"></div>
+            </div>
+            <span class="rested-value">{chaosRested}%</span>
+          </div>
+        </div>
+      {/if}
+      {#if guardianTracked}
+        <div class="activity-item {guardianCompleted ? 'completed' : ''}">
+          <div class="activity-icon">
+            <img src={getTaskIcon('guardian')} alt="Guardian" class="task-icon" />
+          </div>
+          <div class="rested-progress">
+            <div class="rested-bar">
+              <div class="rested-fill" style="width: {guardianRested}%"></div>
+            </div>
+            <span class="rested-value">{guardianRested}%</span>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Gold Raid Section -->
+    {#if displayRaids.length > 0}
+      <div class="raid-section">
+        <div class="raid-list">
+          {#each displayRaids as raid}
+            <div
+              class="raid-item"
+              class:completed={raid.completed}
+              class:gold-raid={raid.isGoldRaid}
+              class:mismatch={raid.completionMismatch}
+              title={raid.completionTooltip ?? ''}
+            >
+              <div class="raid-content">
+                <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
+                <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
+                {#if raid.gateProgress.total > 0}
+                  <span
+                    class="gate-progress"
+                    class:gate-progress-done={raid.completed}
+                    class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
+                  >
+                    {raid.gateProgress.completed}/{raid.gateProgress.total}
+                  </span>
+                {/if}
+                {#if raid.isGoldRaid}
+                  <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   {/if}
-  </div>
+</div>
 
   
   
@@ -289,6 +344,14 @@
     box-shadow: 0 4px 20px rgba(255, 215, 0, 0.2);
   }
 
+  .character-card.compact {
+    min-height: 0;
+    padding: 0.75rem 0.9rem;
+    gap: 0.55rem;
+    border-width: 1px;
+    container-type: inline-size;
+  }
+
   .character-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -296,6 +359,73 @@
 
   .character-card.gold-earner:hover {
     box-shadow: 0 8px 24px rgba(255, 215, 0, 0.3);
+  }
+
+  .compact-main-row {
+    display: grid;
+    grid-template-columns: minmax(32px, 0.7fr) max-content minmax(0, 2.4fr);
+    gap: clamp(0.25rem, 0.7vw, 0.55rem);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .compact-main-row.no-raids {
+    grid-template-columns: minmax(32px, 1fr) max-content;
+  }
+
+  .compact-identity,
+  .compact-stats,
+  .compact-raid-row {
+    min-width: 0;
+  }
+
+  .compact-identity {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.35rem, 0.8vw, 0.65rem);
+  }
+
+  .compact-class-icon {
+    flex-shrink: 0;
+  }
+
+  .compact-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .compact-stats {
+    display: flex;
+    gap: clamp(0.35rem, 0.8vw, 0.75rem);
+    align-items: center;
+    justify-self: end;
+    white-space: nowrap;
+  }
+
+  .compact-raid-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(0.25rem, 0.6vw, 0.4rem);
+    min-width: 0;
+  }
+
+  .compact-raid {
+    min-width: 0;
+  }
+
+  .compact-raid-name {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .compact-raid-difficulty {
+    color: currentColor;
+    opacity: 0.72;
+    flex-shrink: 0;
   }
 
   .card-header {
@@ -478,6 +608,7 @@
     align-items: center;
     gap: 0.25rem;
     flex: 1;
+    min-width: 0;
   }
 
   .gate-progress {
@@ -497,16 +628,111 @@
     width: 14px;
     height: 14px;
     border-radius: 2px;
+    flex-shrink: 0;
   }
 
   .raid-name {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .gold-icon {
     width: 12px;
     height: 12px;
     border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .compact-raid-name > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1360px) {
+    .compact-main-row {
+      grid-template-columns: minmax(32px, 0.55fr) max-content minmax(0, 2.2fr);
+    }
+
+    .compact-main-row.no-raids {
+      grid-template-columns: minmax(32px, 1fr) max-content;
+    }
+
+    .compact-raid-difficulty {
+      display: none;
+    }
+
+    .compact-raid-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1120px) {
+    .compact-main-row {
+      grid-template-columns: minmax(32px, 0.4fr) max-content minmax(0, 1.8fr);
+    }
+
+    .compact-main-row.no-raids {
+      grid-template-columns: minmax(32px, 1fr) max-content;
+    }
+
+    .compact-raid-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .character-card.compact {
+      padding: 0.65rem 0.75rem;
+    }
+
+    .compact .raid-item {
+      font-size: 0.7rem;
+      padding-inline: 0.4rem;
+    }
+
+    .compact .character-name {
+      font-size: 0.85rem;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .compact-main-row,
+    .compact-main-row.no-raids {
+      grid-template-columns: minmax(32px, 0.35fr) max-content minmax(0, 1.65fr);
+    }
+
+    .compact-main-row.no-raids {
+      grid-template-columns: minmax(32px, 1fr) max-content;
+    }
+  }
+
+  @container (max-width: 560px) {
+    .compact-main-row,
+    .compact-main-row.no-raids {
+      grid-template-columns: minmax(0, 1fr) max-content;
+    }
+
+    .compact-raid-row {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @container (max-width: 460px) {
+    .compact-main-row,
+    .compact-main-row.no-raids {
+      grid-template-columns: 1fr;
+    }
+
+    .compact-stats {
+      justify-self: start;
+    }
+
+    .compact-raid-row {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 768px) {
@@ -527,6 +753,10 @@
     .raid-item {
       font-size: 0.7rem;
       padding: 0.2rem 0.4rem;
+    }
+
+    .compact-raid-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 </style>

@@ -481,7 +481,7 @@
       </div>
 
       <!-- Startup Settings Section -->
-      <div class="settings-section">
+      <div class="settings-section" data-guide="system-startup">
         <div class="section-header">
           <div class="section-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -556,8 +556,8 @@
                 </svg>
               </div>
               <div class="toggle-content">
-                <h4>Start with LOA Logs</h4>
-                <p>Ensure LOA Logs is running when LOA Tracker starts</p>
+                <h4>Combined Start with LOA Logs</h4>
+                <p>Start LOA Logs with LOA Tracker and reveal LOA Tracker when LOA Logs starts</p>
                 <div class="lost-ark-status">
                   <span class="status-dot" class:running={isLoaLogsRunning}></span>
                   <span class="status-text">{isLoaLogsRunning ? 'LOA Logs is running' : 'LOA Logs is not running'}</span>

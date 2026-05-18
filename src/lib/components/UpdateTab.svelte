@@ -679,14 +679,19 @@
 
   .modal-card {
     width: min(560px, 100%);
+    max-height: min(720px, calc(100vh - 2rem));
     background: var(--md-sys-color-surface);
     border-radius: 20px;
     padding: 1.5rem;
     border: 1px solid var(--md-sys-color-outline);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .modal-card h3 {
+    flex-shrink: 0;
     margin: 0 0 0.75rem;
   }
 
@@ -701,12 +706,20 @@
     border-radius: 14px;
     background: var(--md-sys-color-surface-container-highest);
     border: 1px solid var(--md-sys-color-outline);
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .modal-details p {
+    margin: 0;
   }
 
   .modal-actions {
     display: flex;
     gap: 0.75rem;
     flex-wrap: wrap;
+    flex-shrink: 0;
   }
 
   .install-message {

@@ -9,7 +9,8 @@
   import EncounterSyncStatus from '$lib/components/EncounterSyncStatus.svelte';
   import ProgressionPlanner from '$lib/components/ProgressionPlanner.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
-  import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates } from '$lib/store';
+  import SetupGuide from '$lib/components/SetupGuide.svelte';
+  import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
   import { GAME_TASKS } from '$lib/data/tasks';
   import { RAIDS } from '$lib/data/raids';
@@ -26,6 +27,7 @@
   let activeProgressionTab = 'market_prices';
   let nextResetTime = '';
   let resetCountdown = '';
+  let appReady = false;
 
   // Handle URL parameters
   $: urlParams = new URLSearchParams($page.url.search);
@@ -58,6 +60,7 @@
 
     (async () => {
       await initializeApp();
+      appReady = true;
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
 
       // Initialize gold logging system
@@ -154,6 +157,14 @@
     goto(`/?${searchParams.toString()}`);
   }
 
+  function switchSettingsTab(tab: string) {
+    activeSettingsTab = tab;
+  }
+
+  function startSetupGuide() {
+    window.dispatchEvent(new CustomEvent('setup-guide:start'));
+  }
+
   function setHeaderContent(content: string) {
     headerContent = content;
   }
@@ -225,6 +236,7 @@
           {#if resetCountdown}
             <div class="reset-countdown">{resetCountdown}</div>
           {/if}
+          <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>
         </div>
         {#if headerContent}
           <div class="header-info">{headerContent}</div>
@@ -320,6 +332,15 @@
       {/if}
     </main>
   </div>
+
+  <SetupGuide
+    {activeTab}
+    {activeSettingsTab}
+    {appReady}
+    characterCount={$characters.length}
+    {switchTab}
+    setSettingsTab={switchSettingsTab}
+  />
 </div>
 
 <style>
@@ -478,6 +499,23 @@
     margin: 0;
     letter-spacing: 0.3px;
     text-transform: uppercase;
+  }
+
+  .setup-guide-button {
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 8px;
+    padding: 0.45rem 0.7rem;
+    background: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .setup-guide-button:hover {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
   }
 
   .header-info {
