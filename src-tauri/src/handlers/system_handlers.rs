@@ -700,15 +700,6 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool, app: AppHandle) -> Result<(
                 // Refresh process list
                 system.refresh_processes();
 
-                // Collect some process names for debug
-                let process_names: Vec<String> = system
-                    .processes()
-                    .values()
-                    .map(|p| p.name().to_lowercase())
-                    .take(50)
-                    .collect();
-                crate::log_debug!("Sample processes: {:?}", process_names);
-
                 let is_running = system
                     .processes()
                     .values()
@@ -831,10 +822,57 @@ pub(crate) fn ensure_loa_logs_running(path: Option<&str>) -> Result<(), String> 
         command.current_dir(parent);
     }
 
-    command
+    match command.spawn() {
+        Ok(_) => {
+            crate::log_info!("Launched LOA Logs from settings: {}", path_str);
+            Ok(())
+        }
+        Err(e) if e.raw_os_error() == Some(740) => launch_loa_logs_elevated(exe_path),
+        Err(e) => Err(format!("Failed to launch LOA Logs: {}", e)),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn launch_loa_logs_elevated(exe_path: &std::path::Path) -> Result<(), String> {
+    let working_directory = exe_path
+        .parent()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let exe_path_arg = escape_powershell_single_quoted_string(&exe_path.to_string_lossy());
+    let working_directory_arg = escape_powershell_single_quoted_string(&working_directory);
+    let command = format!(
+        "Start-Process -FilePath '{}' -WorkingDirectory '{}' -Verb RunAs",
+        exe_path_arg, working_directory_arg
+    );
+
+    std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &command,
+        ])
         .spawn()
-        .map(|_| crate::log_info!("Launched LOA Logs from settings: {}", path_str))
-        .map_err(|e| format!("Failed to launch LOA Logs: {}", e))
+        .map(|_| {
+            crate::log_info!("Requested elevated LOA Logs launch through UAC: {}", exe_path.display());
+        })
+        .map_err(|e| format!("Failed to request elevated LOA Logs launch: {}", e))
+}
+
+#[cfg(target_os = "windows")]
+fn escape_powershell_single_quoted_string(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn launch_loa_logs_elevated(exe_path: &std::path::Path) -> Result<(), String> {
+    Err(format!(
+        "LOA Logs requires elevated launch, which is only supported on Windows: {}",
+        exe_path.display()
+    ))
 }
 
 pub(crate) fn reveal_main_window(app: &AppHandle) {

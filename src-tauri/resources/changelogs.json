@@ -1,104 +1,48 @@
 {
   "versions": [
     {
-      "version": "1.1.5",
+      "version": "1.1.6",
       "date": "2026-05-18",
       "changes": [
         {
           "type": "Added",
-          "description": "First-run Set-Up Guide for new users.",
-          "details": "Added a guided onboarding flow that starts after app initialization when no characters are configured. The guide walks users through adding a roster, selecting gold earners, ordering characters, configuring tracking, setting raid gold/difficulties, reviewing system startup options, and returning to the dashboard. Users can skip or finish the guide, and it can be restarted from the header."
+          "description": "System settings now include general app controls.",
+          "details": "Added a General section to System settings with a toggle for showing or hiding the Set-Up Guide button in the header."
         },
         {
           "type": "Added",
-          "description": "Guide highlights for the main setup controls.",
-          "details": "Added targeted guide hooks and highlight styling for Add Roster, gold-earner toggles, roster drag handles, the tracking matrix, rested value inputs, raid configuration matrix, system startup settings, and dashboard overview."
+          "description": "Clear user data option with confirmation.",
+          "details": "Added a destructive Clear User Data action that removes configured characters and connected character data from the local user database. The action now requires an explicit confirmation dialog before anything is deleted."
         },
         {
           "type": "Added",
-          "description": "Dashboard Roster View switch with Cards and List modes.",
-          "details": "Added a persistent dashboard view selector. Cards mode keeps the existing character-card layout, while List mode shows a more compact roster view with character identity, item level, combat power, raid progress, gold indicators, and difficulty labels in one row."
-        },
-        {
-          "type": "Added",
-          "description": "Dashboard calendar event status card.",
-          "details": "Dashboard now shows the current calendar event state for Chaos Gate and Field Boss, including completed/possible counts and the matching event icon."
+          "description": "Tray background behavior for LOA Tracker.",
+          "details": "Closing the main window now hides LOA Tracker to the system tray instead of fully exiting. The tray menu provides Show and Quit actions, and the tray icon can restore the main window."
         },
         {
           "type": "Improved",
-          "description": "Character cards now support a compact list presentation.",
-          "details": "CharacterCard supports a new compact mode with responsive grid/container behavior, truncated long raid names, stable icon sizing, and compact raid progress badges for users who prefer dense dashboard information."
+          "description": "Startup registration is more reliable on Windows.",
+          "details": "LOA Tracker now tries Task Scheduler startup registration first and falls back to the current-user Windows registry startup entry when Task Scheduler access is denied. This keeps Start with Lost Ark and Start with LOA Logs usable on systems where the scheduled task cannot be updated."
         },
         {
           "type": "Improved",
-          "description": "Dashboard stat cards and roster layout scale better across window sizes.",
-          "details": "Adjusted stat-card sizing, spacing, text overflow, dashboard frame widths, and mobile behavior so the dashboard remains readable in both card and compact list views."
+          "description": "LOA Logs companion launch handles elevated installs better.",
+          "details": "When LOA Logs requires admin rights, LOA Tracker now requests an elevated launch through Windows UAC instead of failing with the standard 'requires elevated rights' error."
         },
         {
           "type": "Improved",
-          "description": "Update detail modal can handle longer release notes.",
-          "details": "The update modal now has a viewport-bounded max height, fixed header/actions, and scrollable details so longer changelogs remain usable without overflowing the window."
+          "description": "Installer and updater behavior for Windows releases.",
+          "details": "Windows builds now use an NSIS per-machine installer configuration and passive updater install mode so installation and update permissions better match the Program Files installation path."
         },
         {
-          "type": "Improved",
-          "description": "LOA Logs companion startup and monitoring behavior.",
-          "details": "The 'Combined Start with LOA Logs' option now refreshes startup registration, attempts to launch LOA Logs when enabled and configured, and monitors LOA Logs so LOA Tracker can be shown when LOA Logs starts."
-        },
-        {
-          "type": "Improved",
-          "description": "Lost Ark and LOA Logs startup registration now uses a background monitor mode when needed.",
-          "details": "Startup registration now enables LOA Tracker when any startup-related option requires it. If the app should only monitor Lost Ark or LOA Logs, it registers with a startup monitor argument instead of the normal foreground startup command."
-        },
-        {
-          "type": "Improved",
-          "description": "Lost Ark monitoring now reveals the existing main window instead of spawning a new app instance.",
-          "details": "When Lost Ark is detected, LOA Tracker now shows, unminimizes, and focuses the existing main window. Process matching remains tolerant of common Lost Ark process-name variants."
+          "type": "Fixed",
+          "description": "Removed repeated process-list debug spam from logs.",
+          "details": "The Lost Ark monitor no longer logs a sample list of running processes every few seconds. This keeps long-running tray sessions from filling the log with repeated debug output."
         },
         {
           "type": "Changed",
-          "description": "Updated app metadata and release references to v1.1.5.",
-          "details": "Bumped package, Tauri config, README badge, and latest release metadata to version 1.1.5."
-        },
-        {
-          "type": "Changed",
-          "description": "Known bugs list was refreshed for the current release.",
-          "details": "Removed resolved critical entries for auto-start, raid completion tracking, and raid difficulty saving. Current known issues now focus on low-priority dashboard resize glitches, possible system boot auto-start issues, and release asset propagation timing."
-        }
-      ]
-    },
-    {
-      "version": "1.1.4",
-      "date": "2026-05-17",
-      "changes": [
-        {
-          "type": "Added",
-          "description": "Auto-detect LOA Logs executable and 'Start with LOA Logs' option (UI + backend + startup auto-launch).",
-          "details": "Added LOA Logs exe path setting, a 'Start with LOA Logs' toggle in System settings, detection helper, and startup auto-launch when enabled."
-        },
-        {
-          "type": "Fixed",
-          "description": "Immutable raid settings updates and sequential backend saves to prevent cross-row mutations and race conditions in raid settings UI.",
-          "details": "Rewrote changeMasterDifficulty and changeGateDifficulty to produce immutable copies via .map() and perform sequential saves to backend, preventing shared reference mutations that previously caused difficulty to revert or bleed between rows."
-        },
-        {
-          "type": "Fixed",
-          "description": "Bugfix: changing one raid's difficulty no longer affects other raids for the same character (deep-clone raid_configs and scoped updates).",
-          "details": "Fixed root cause where raid_configs were reused across rows. Now deep-clone raid_configs for each row and scope updates to specific raid.content_id and char_id."
-        },
-        {
-          "type": "Fixed",
-          "description": "Lost Ark monitoring improvements: broader process name matching and added debug logging to diagnose monitoring/startup behavior.",
-          "details": "Monitoring thread now logs sample process names and matches 'lostark' substring; added startup hook to enable monitoring if 'Start with Lost Ark' is configured. This aids diagnosing why LOA Tracker wasn't launching."
-        },
-        {
-          "type": "Fixed",
-          "description": "Backend: session tracking and raid gate progress fixes.",
-          "details": "Bug 1 - Backend: session_id missing from completion data: Added `session_id: Option<String>` to CompletionStatus struct and updated both SELECT queries to include session_id so getRaidGateProgress can match gate rows.\n\nBug 2 - CharacterCard: gate progress matching: Replaced strict regex with `startsWith(raidId + '_') && includes('_Gate ')` to handle diverse session_id formats.\n\nBug 3 - Dashboard gold: estimate reduced by mismatches: `calculateTotalEstimatedGold` now always uses the full planned max as denominator; mismatch gold is shown as plannedGold - actualGold and rendered as a grey hatched segment with a red warning label.\n\nBug 4 - Todo tab: Echidna/Serca not showing as completed & resets on reload: Removed encounterMap lookups for gate IDs and use canonical 'Gate N' strings; fixed handleRaidGateToggle to avoid parseInt on 'Gate 1'.\n\nBug 5 - Settings/Raids: difficulty randomly reverts to Normal on tab switch/reload: Changed changeMasterDifficulty from Promise.all to sequential await and rewrote optimistic updates for immutability; removed redundant double-save in changeGateDifficulty."
-        },
-        {
-          "type": "Improved",
-          "description": "Startup behavior: will attempt to start LOA Logs on app startup when configured; Lost Ark monitoring can be enabled at startup.",
-          "details": "On app bootstrap the settings are checked and LOA Logs/monitoring behaviours are started according to saved settings to give a smoother out-of-box experience."
+          "description": "Startup monitoring now supports tray-first background use.",
+          "details": "Startup monitor mode, Lost Ark monitoring, LOA Logs companion monitoring, and tray behavior now work together so LOA Tracker can run in the background and reveal the existing window when needed."
         }
       ]
     }
