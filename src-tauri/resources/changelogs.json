@@ -32,7 +32,7 @@
         {
           "type": "Improved",
           "description": "Installer and updater behavior for Windows releases.",
-          "details": "Windows builds now use an NSIS per-machine installer configuration and passive updater install mode so installation and update permissions better match the Program Files installation path."
+          "details": "Windows builds now keep the NSIS installer in current-user mode so updates continue to target the existing LocalAppData installation path, while updater installs can still run passively."
         },
         {
           "type": "Fixed",
