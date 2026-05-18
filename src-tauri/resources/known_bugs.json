@@ -4,7 +4,7 @@
     {
       "severity": "Low Priority",
       "description": "UI glitches may occur in the Dashboard when resizing the app window. This is due to the use of a custom title bar and may be more noticeable on certain platforms or with specific display settings. The workaround is to avoid resizing the window frequently or to use the app in a maximized state."
-    }
+    },
 
     {
       "severity": "Low Priority",
