@@ -1,18 +1,18 @@
 use anyhow::Result;
+use chrono::Datelike;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::Datelike;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameTask {
     pub id: String,
     pub name: String,
-    pub category: String, // "roster" | "character"
+    pub category: String,       // "roster" | "character"
     pub reset_schedule: String, // "daily" | "weekly"
-    pub logic_type: String, // "normal" | "calendar" | "rested"
+    pub logic_type: String,     // "normal" | "calendar" | "rested"
     pub max_rest_value: Option<i32>,
 }
 
@@ -46,14 +46,18 @@ impl From<Raid> for crate::models::Raid {
             difficulty: dm_raid.difficulty,
             min_ilvl: dm_raid.gates.first().map(|g| g.min_ilvl as i64).unwrap_or(0),
             max_players: 4, // Default to 4 players
-            gates: dm_raid.gates.into_iter().map(|g| crate::models::RaidGate {
-                gate: g.gate.clone(),
-                name: g.gate,
-                min_ilvl: g.min_ilvl as i64,
-                tradable_gold: Some(g.tradable_gold),
-                bound_gold: Some(g.bound_gold),
-                box_price: Some(g.box_price),
-            }).collect(),
+            gates: dm_raid
+                .gates
+                .into_iter()
+                .map(|g| crate::models::RaidGate {
+                    gate: g.gate.clone(),
+                    name: g.gate,
+                    min_ilvl: g.min_ilvl as i64,
+                    tradable_gold: Some(g.tradable_gold),
+                    bound_gold: Some(g.bound_gold),
+                    box_price: Some(g.box_price),
+                })
+                .collect(),
         }
     }
 }
@@ -78,8 +82,11 @@ impl DataManager {
             [],
             |row| {
                 let value_str: String = row.get(0)?;
-                value_str.parse::<i32>().map_err(|_| rusqlite::Error::InvalidColumnType(0, "value".to_string(), rusqlite::types::Type::Text))
-            }) {
+                value_str.parse::<i32>().map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(0, "value".to_string(), rusqlite::types::Type::Text)
+                })
+            },
+        ) {
             Ok(version) => Ok(version),
             Err(_) => Ok(1), // Default version 1
         }
@@ -98,10 +105,7 @@ impl DataManager {
     /// Check whether a column exists on a table (uses the same connection/transaction).
     fn column_exists(conn: &rusqlite::Connection, table: &str, column: &str) -> bool {
         conn.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = ?1",
-                table
-            ),
+            &format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = ?1", table),
             [column],
             |row| row.get::<_, i64>(0),
         )
@@ -110,7 +114,11 @@ impl DataManager {
     }
 
     /// Migrate database schema from current to target version
-    pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i32, target_version: i32) -> Result<()> {
+    pub fn migrate_database(
+        pool: &Pool<SqliteConnectionManager>,
+        current_version: i32,
+        target_version: i32,
+    ) -> Result<()> {
         if current_version >= target_version {
             return Ok(());
         }
@@ -121,7 +129,10 @@ impl DataManager {
         if current_version < 2 {
             // Column already exists on fresh installs (CREATE TABLE includes it)
             if !Self::column_exists(&tx, "conf_character", "hide_from_dashboard") {
-                tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard BOOLEAN DEFAULT 0", [])?;
+                tx.execute(
+                    "ALTER TABLE conf_character ADD COLUMN hide_from_dashboard BOOLEAN DEFAULT 0",
+                    [],
+                )?;
             }
         }
 
@@ -130,10 +141,16 @@ impl DataManager {
             if !Self::column_exists(&tx, "conf_character", "hide_from_dashboard_temp") {
                 let needs_fix = Self::column_exists(&tx, "conf_character", "hide_from_dashboard");
                 if needs_fix {
-                    tx.execute("ALTER TABLE conf_character ADD COLUMN hide_from_dashboard_temp BOOLEAN DEFAULT 0", [])?;
+                    tx.execute(
+                        "ALTER TABLE conf_character ADD COLUMN hide_from_dashboard_temp BOOLEAN DEFAULT 0",
+                        [],
+                    )?;
                     tx.execute("UPDATE conf_character SET hide_from_dashboard_temp = CASE WHEN hide_from_dashboard = 'false' THEN 0 ELSE 1 END", [])?;
                     tx.execute("ALTER TABLE conf_character DROP COLUMN hide_from_dashboard", [])?;
-                    tx.execute("ALTER TABLE conf_character RENAME COLUMN hide_from_dashboard_temp TO hide_from_dashboard", [])?;
+                    tx.execute(
+                        "ALTER TABLE conf_character RENAME COLUMN hide_from_dashboard_temp TO hide_from_dashboard",
+                        [],
+                    )?;
                 }
             }
         }
@@ -226,7 +243,10 @@ impl DataManager {
 
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;
-        println!("Database migrated from version {} to {}", current_version, target_version);
+        println!(
+            "Database migrated from version {} to {}",
+            current_version, target_version
+        );
         Ok(())
     }
 
@@ -248,7 +268,6 @@ impl DataManager {
                 params![0, 0],
             )?;
         }
-
 
         // Initialize app_metadata
         tx.execute(
@@ -275,88 +294,77 @@ impl DataManager {
         tasks: HashMap<String, GameTask>,
         raids: Vec<Raid>,
     ) -> Result<()> {
-        
         // Get all characters first, then process in separate transaction
         let mut conn = pool.get()?;
         let mut stmt = conn.prepare("SELECT char_id, roster_id FROM conf_character")?;
-        let character_rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-        
+        let character_rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+
         let mut characters = Vec::new();
         for char_result in character_rows {
             characters.push(char_result?);
         }
-        
-        for (char_id, roster_id) in &characters {
-        }
-        
+
+        for (char_id, roster_id) in &characters {}
+
         drop(stmt);
         drop(conn);
-        
+
         // Now create a new transaction for the inserts
         let mut conn = pool.get()?;
         let tx = conn.transaction()?;
-        
+
         // Initialize conf_raid entries for all characters
         let _total_raid_entries = 0;
-        
+
         for (character_id, roster_id) in &characters {
-            
             for raid in &raids {
-                for gate in &raid.gates {                    
+                for gate in &raid.gates {
                     tx.execute(
                         "INSERT OR IGNORE INTO conf_raid (roster_id, char_id, content_id, gate, difficulty, take_gold, buy_box) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                         params![roster_id, character_id, raid.id, gate.gate, raid.difficulty, 0, 0],
                     )?;
-                    
+
                     let _total_raid_entries = 1; // Suppress unused warning
                 }
             }
         }
-        
+
         // Initialize conf_tracking entries for all characters
-        
+
         let _total_task_entries = 0;
-        
+
         for (character_id, roster_id) in &characters {
-            
-            
             // Process ALL tasks (both character and roster tasks)
             for (task_id, task) in tasks.iter() {
-                
-                
                 tx.execute(
                     "INSERT OR IGNORE INTO conf_tracking (roster_id, char_id, content_id, is_tracked) VALUES (?1, ?2, ?3, ?4)",
                     params![roster_id, character_id, task_id, 1],
                 )?;
-                
+
                 let _total_task_entries = 1; // Suppress unused warning
-                
+
                 // Initialize rested_values only for rested character tasks
                 if task.category == "character" && task.logic_type == "rested" {
                     let max_value = task.max_rest_value.unwrap_or(100);
-                    
-                    
+
                     tx.execute(
                         "INSERT OR IGNORE INTO rested_values (roster_id, char_id, content_id, current_value, last_updated, max_value) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                         params![roster_id, character_id, task_id, max_value, chrono::Utc::now().timestamp_millis(), max_value],
                     )?;
                 }
             }
-            
+
             // Also insert raid IDs into conf_tracking
             for raid in &raids {
-                
                 tx.execute(
                     "INSERT OR IGNORE INTO conf_tracking (roster_id, char_id, content_id, is_tracked) VALUES (?1, ?2, ?3, ?4)",
                     params![roster_id, character_id, raid.id, 1],
                 )?;
-                
+
                 let _total_task_entries = 1; // Suppress unused warning
             }
         }
-        
+
         tx.commit()?;
         Ok(())
     }
@@ -392,7 +400,7 @@ impl DataManager {
         }
 
         // Initialize conf_raid entries
-        
+
         for raid in &raids {
             for gate in &raid.gates {
                 tx.execute(
@@ -411,81 +419,105 @@ impl DataManager {
     /// Get all game tasks configuration
     pub fn get_game_tasks() -> Result<HashMap<String, GameTask>> {
         let mut tasks = HashMap::new();
-        
+
         // Daily tasks
-        tasks.insert("gate".to_string(), GameTask {
-            id: "gate".to_string(),
-            name: "Chaos Gate".to_string(),
-            category: "character".to_string(),
-            reset_schedule: "daily".to_string(),
-            logic_type: "calendar".to_string(),
-            max_rest_value: None,
-        });
-        
-        tasks.insert("boss".to_string(), GameTask {
-            id: "boss".to_string(),
-            name: "World Boss".to_string(),
-            category: "character".to_string(),
-            reset_schedule: "daily".to_string(),
-            logic_type: "calendar".to_string(),
-            max_rest_value: None,
-        });
-        
-        tasks.insert("chaos".to_string(), GameTask {
-            id: "chaos".to_string(),
-            name: "Chaos Dungeon".to_string(),
-            category: "character".to_string(),
-            reset_schedule: "daily".to_string(),
-            logic_type: "rested".to_string(),
-            max_rest_value: Some(100),
-        });
-        
-        tasks.insert("guardian".to_string(), GameTask {
-            id: "guardian".to_string(),
-            name: "Guardian Raid".to_string(),
-            category: "character".to_string(),
-            reset_schedule: "daily".to_string(),
-            logic_type: "rested".to_string(),
-            max_rest_value: Some(100),
-        });
-        
+        tasks.insert(
+            "gate".to_string(),
+            GameTask {
+                id: "gate".to_string(),
+                name: "Chaos Gate".to_string(),
+                category: "character".to_string(),
+                reset_schedule: "daily".to_string(),
+                logic_type: "calendar".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "boss".to_string(),
+            GameTask {
+                id: "boss".to_string(),
+                name: "World Boss".to_string(),
+                category: "character".to_string(),
+                reset_schedule: "daily".to_string(),
+                logic_type: "calendar".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "chaos".to_string(),
+            GameTask {
+                id: "chaos".to_string(),
+                name: "Chaos Dungeon".to_string(),
+                category: "character".to_string(),
+                reset_schedule: "daily".to_string(),
+                logic_type: "rested".to_string(),
+                max_rest_value: Some(100),
+            },
+        );
+
+        tasks.insert(
+            "guardian".to_string(),
+            GameTask {
+                id: "guardian".to_string(),
+                name: "Guardian Raid".to_string(),
+                category: "character".to_string(),
+                reset_schedule: "daily".to_string(),
+                logic_type: "rested".to_string(),
+                max_rest_value: Some(100),
+            },
+        );
+
         // Weekly tasks
-        tasks.insert("cube".to_string(), GameTask {
-            id: "cube".to_string(),
-            name: "Cube".to_string(),
-            category: "roster".to_string(),
-            reset_schedule: "weekly".to_string(),
-            logic_type: "normal".to_string(),
-            max_rest_value: None,
-        });
-        
-        tasks.insert("paradise".to_string(), GameTask {
-            id: "paradise".to_string(),
-            name: "Paradise".to_string(),
-            category: "roster".to_string(),
-            reset_schedule: "weekly".to_string(),
-            logic_type: "normal".to_string(),
-            max_rest_value: None,
-        });
-        
-        tasks.insert("shop".to_string(), GameTask {
-            id: "shop".to_string(),
-            name: "Weekly Shop".to_string(),
-            category: "roster".to_string(),
-            reset_schedule: "weekly".to_string(),
-            logic_type: "normal".to_string(),
-            max_rest_value: None,
-        });
-        
-        tasks.insert("guild".to_string(), GameTask {
-            id: "guild".to_string(),
-            name: "Guild Shop".to_string(),
-            category: "roster".to_string(),
-            reset_schedule: "weekly".to_string(),
-            logic_type: "normal".to_string(),
-            max_rest_value: None,
-        });
-        
+        tasks.insert(
+            "cube".to_string(),
+            GameTask {
+                id: "cube".to_string(),
+                name: "Cube".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "paradise".to_string(),
+            GameTask {
+                id: "paradise".to_string(),
+                name: "Paradise".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "shop".to_string(),
+            GameTask {
+                id: "shop".to_string(),
+                name: "Weekly Shop".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "guild".to_string(),
+            GameTask {
+                id: "guild".to_string(),
+                name: "Guild Shop".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
+                max_rest_value: None,
+            },
+        );
+
         Ok(tasks)
     }
 }

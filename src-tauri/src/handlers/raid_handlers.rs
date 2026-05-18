@@ -1,6 +1,6 @@
+use crate::database::repositories::{CharacterRepository, RaidRepository};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::database::repositories::{RaidRepository, CharacterRepository};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Raid {
@@ -80,40 +80,44 @@ pub struct CharacterRaidConfigs {
 }
 
 #[tauri::command]
-pub async fn get_game_raids(
-    raids: Vec<Raid>
-) -> Result<Vec<crate::models::Raid>, String> {
+pub async fn get_game_raids(raids: Vec<Raid>) -> Result<Vec<crate::models::Raid>, String> {
     // Convert frontend raids to backend model
-    let backend_raids = raids.into_iter().map(|raid| {
-        crate::models::Raid {
+    let backend_raids = raids
+        .into_iter()
+        .map(|raid| crate::models::Raid {
             id: raid.id,
             name: raid.name,
             difficulty: raid.difficulty,
             min_ilvl: raid.gates.first().map(|g| g.min_ilvl as i64).unwrap_or(0),
             max_players: 4,
-            gates: raid.gates.into_iter().map(|g| {
-                let gate_name = g.gate.clone();
-                crate::models::RaidGate {
-                    gate: g.gate,
-                    name: gate_name,
-                    min_ilvl: g.min_ilvl as i64,
-                    tradable_gold: Some(g.tradable_gold),
-                    bound_gold: Some(g.bound_gold),
-                    box_price: Some(g.box_price),
-                }
-            }).collect(),
-        }
-    }).collect();
-    
+            gates: raid
+                .gates
+                .into_iter()
+                .map(|g| {
+                    let gate_name = g.gate.clone();
+                    crate::models::RaidGate {
+                        gate: g.gate,
+                        name: gate_name,
+                        min_ilvl: g.min_ilvl as i64,
+                        tradable_gold: Some(g.tradable_gold),
+                        bound_gold: Some(g.bound_gold),
+                        box_price: Some(g.box_price),
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+
     Ok(backend_raids)
 }
 
 #[tauri::command]
 pub async fn get_character_raid_config(
     character_id: i64,
-    raid_repo: State<'_, RaidRepository>
+    raid_repo: State<'_, RaidRepository>,
 ) -> Result<Vec<crate::models::CharacterRaidState>, String> {
-    raid_repo.get_character_raid_config(character_id)
+    raid_repo
+        .get_character_raid_config(character_id)
         .map_err(|e| format!("Failed to get character raid config: {}", e))
 }
 
@@ -122,9 +126,10 @@ pub async fn update_raid_config(
     character_id: i64,
     raid_id: String,
     tracked: bool,
-    raid_repo: State<'_, RaidRepository>
+    raid_repo: State<'_, RaidRepository>,
 ) -> Result<(), String> {
-    raid_repo.update_raid_config(character_id, &raid_id, tracked)
+    raid_repo
+        .update_raid_config(character_id, &raid_id, tracked)
         .map_err(|e| format!("Failed to update raid config: {}", e))
 }
 
@@ -132,7 +137,7 @@ pub async fn update_raid_config(
 pub async fn get_raid_gate_matrix(
     _roster_id: String,
     _raid_repo: State<'_, RaidRepository>,
-    _character_repo: State<'_, CharacterRepository>
+    _character_repo: State<'_, CharacterRepository>,
 ) -> Result<Vec<crate::models::RaidMatrixItem>, String> {
     // Placeholder implementation
     Ok(vec![])
@@ -142,18 +147,20 @@ pub async fn get_raid_gate_matrix(
 pub async fn get_raid_matrix_data(
     rosterId: String,
     raid_repo: State<'_, RaidRepository>,
-    character_repo: State<'_, CharacterRepository>
+    character_repo: State<'_, CharacterRepository>,
 ) -> Result<RaidMatrixResponse, String> {
     // Get characters for the roster
-    let characters = character_repo.get_characters_by_roster(&rosterId)
+    let characters = character_repo
+        .get_characters_by_roster(&rosterId)
         .map_err(|e| format!("Failed to get characters: {}", e))?;
-    
+
     // Get all raid configurations for these characters
     let mut raid_configs = Vec::new();
     for character in &characters {
-        let char_raid_configs = raid_repo.get_character_raid_configs(character.char_id)
+        let char_raid_configs = raid_repo
+            .get_character_raid_configs(character.char_id)
             .map_err(|e| format!("Failed to get raid configs: {}", e))?;
-        
+
         raid_configs.push(CharacterRaidConfigs {
             char_id: character.char_id,
             char_name: character.char_name.clone(),
@@ -163,19 +170,20 @@ pub async fn get_raid_matrix_data(
             raid_configs: char_raid_configs,
         });
     }
-    
+
     // Convert characters to CharacterInfo
-    let character_infos: Vec<CharacterInfo> = characters.into_iter().map(|char| {
-        CharacterInfo {
+    let character_infos: Vec<CharacterInfo> = characters
+        .into_iter()
+        .map(|char| CharacterInfo {
             char_id: char.char_id,
             char_name: char.char_name,
             item_level: char.item_level,
             combat_power: char.combat_power,
             class_id: char.class_id,
             earns_gold: char.earns_gold,
-        }
-    }).collect();
-    
+        })
+        .collect();
+
     Ok(RaidMatrixResponse {
         characters: character_infos,
         raid_configs,
@@ -188,12 +196,13 @@ pub async fn update_raid_master_config(
     contentId: String,
     takeGold: Option<bool>,
     buyBox: Option<bool>,
-    raid_repo: State<'_, RaidRepository>
+    raid_repo: State<'_, RaidRepository>,
 ) -> Result<(), String> {
     // Get current configuration for this character and raid
-    let mut configs = raid_repo.get_character_raid_configs(charId)
+    let mut configs = raid_repo
+        .get_character_raid_configs(charId)
         .map_err(|e| format!("Failed to get current raid config: {}", e))?;
-    
+
     // Find the raid config
     if let Some(raid_config) = configs.iter_mut().find(|c| c.content_id == contentId) {
         // Update master settings
@@ -203,7 +212,7 @@ pub async fn update_raid_master_config(
         if let Some(buy_box) = buyBox {
             raid_config.buy_box = buy_box;
         }
-        
+
         // Save the updated configuration
         for gate_config in &mut raid_config.gates {
             if let Some(take_gold) = takeGold {
@@ -213,11 +222,12 @@ pub async fn update_raid_master_config(
                 gate_config.buy_box = buy_box;
             }
         }
-        
-        raid_repo.save_character_raid_configs(charId, &configs)
+
+        raid_repo
+            .save_character_raid_configs(charId, &configs)
             .map_err(|e| format!("Failed to save raid config: {}", e))?;
     }
-    
+
     Ok(())
 }
 
@@ -230,12 +240,13 @@ pub async fn update_raid_gate_config(
     difficulty: String,
     takeGold: Option<bool>,
     buyBox: Option<bool>,
-    raid_repo: State<'_, RaidRepository>
+    raid_repo: State<'_, RaidRepository>,
 ) -> Result<(), String> {
     // Get current configuration for this character and raid
-    let mut configs = raid_repo.get_character_raid_configs(charId)
+    let mut configs = raid_repo
+        .get_character_raid_configs(charId)
         .map_err(|e| format!("Failed to get current raid config: {}", e))?;
-    
+
     // Find the raid config
     if let Some(raid_config) = configs.iter_mut().find(|c| c.content_id == contentId) {
         // Find the specific gate
@@ -248,13 +259,14 @@ pub async fn update_raid_gate_config(
             if let Some(buy_box) = buyBox {
                 gate_config.buy_box = buy_box;
             }
-            
+
             // Save the updated configuration with roster_id
-            raid_repo.save_character_raid_configs_with_roster_id(rosterId, charId, &configs)
+            raid_repo
+                .save_character_raid_configs_with_roster_id(rosterId, charId, &configs)
                 .map_err(|e| format!("Failed to save raid config: {}", e))?;
         }
     }
-    
+
     Ok(())
 }
 

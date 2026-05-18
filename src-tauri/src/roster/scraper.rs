@@ -1,3 +1,5 @@
+use super::item_mapping::{get_engraving_name, get_gem_name};
+use json5;
 use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
@@ -7,8 +9,6 @@ use std::time::{Duration, SystemTime};
 use thiserror::Error;
 use tokio::time::sleep;
 use urlencoding;
-use json5;
-use super::item_mapping::{get_engraving_name, get_gem_name};
 
 #[derive(Debug, Error)]
 pub enum ScraperError {
@@ -553,7 +553,10 @@ impl HumanizedScraper {
         Err(last_error)
     }
 
-    async fn setup_character_session(&self, character_name: &str) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
+    async fn setup_character_session(
+        &self,
+        character_name: &str,
+    ) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
         crate::log_debug!("Setting up HTTP session for character detail scraping");
 
         let (user_agent, referer) = {
@@ -597,44 +600,51 @@ impl HumanizedScraper {
 
         // Find the loadouts data by looking for the array that contains loadout objects
         // Loadout objects have a "classification" field
-        let loadouts_start = html.find("loadouts:[")
+        let loadouts_start = html
+            .find("loadouts:[")
             .ok_or_else(|| ScraperError::RosterDataNotFound)?;
 
         // Extract from the loadouts:[ position onwards
         let html_slice = &html[loadouts_start..];
-        
+
         // Find the opening bracket after loadouts:[
-        let bracket_pos = html_slice.find('[')
-            .ok_or_else(|| ScraperError::RosterDataNotFound)?;
-        
+        let bracket_pos = html_slice.find('[').ok_or_else(|| ScraperError::RosterDataNotFound)?;
+
         let array_start = loadouts_start + bracket_pos;
-        
+
         // Use bracket counting to extract the entire array
-        let loadouts_js = self.extract_array_by_bracket_counting_from_position(html, array_start)
+        let loadouts_js = self
+            .extract_array_by_bracket_counting_from_position(html, array_start)
             .ok_or_else(|| ScraperError::RosterDataNotFound)?;
 
         crate::log_info!("Found loadouts data using bracket counting");
         crate::log_debug!("Extracted loadouts length: {}", loadouts_js.len());
-        crate::log_debug!("Extracted loadouts (first 1000 chars): {}", &loadouts_js.chars().take(1000).collect::<String>());
-        crate::log_debug!("Extracted loadouts (last 1000 chars): {}", &loadouts_js.chars().rev().take(1000).collect::<String>());
+        crate::log_debug!(
+            "Extracted loadouts (first 1000 chars): {}",
+            &loadouts_js.chars().take(1000).collect::<String>()
+        );
+        crate::log_debug!(
+            "Extracted loadouts (last 1000 chars): {}",
+            &loadouts_js.chars().rev().take(1000).collect::<String>()
+        );
 
         self.parse_loadouts_json(&loadouts_js)
     }
 
     fn extract_array_by_bracket_counting_from_position(&self, html: &str, start_pos: usize) -> Option<String> {
         crate::log_debug!("Extracting array from position: {}", start_pos);
-        
+
         // Count brackets to find the matching closing bracket
         let mut bracket_count = 0;
         let mut in_string = false;
         let mut escape_next = false;
-        
+
         for (i, c) in html[start_pos..].char_indices() {
             if escape_next {
                 escape_next = false;
                 continue;
             }
-            
+
             match c {
                 '\\' => escape_next = true,
                 '"' => in_string = !in_string,
@@ -652,8 +662,11 @@ impl HumanizedScraper {
                 _ => {}
             }
         }
-        
-        crate::log_debug!("Failed to find matching closing bracket, final bracket_count: {}", bracket_count);
+
+        crate::log_debug!(
+            "Failed to find matching closing bracket, final bracket_count: {}",
+            bracket_count
+        );
         None
     }
 
@@ -661,9 +674,9 @@ impl HumanizedScraper {
         // Find the key (with or without colon)
         let key_with_colon = format!("{}:", key);
         let key_without_colon = key;
-        
+
         crate::log_debug!("Looking for key pattern: {}", key_with_colon);
-        
+
         // Try with colon first
         let (start_pos, key_len) = if let Some(pos) = html.find(&key_with_colon) {
             crate::log_debug!("Found key pattern with colon at position: {}", pos);
@@ -675,24 +688,24 @@ impl HumanizedScraper {
             crate::log_debug!("Could not find key pattern in HTML");
             return None;
         };
-        
+
         // Find the opening bracket after the key
         let after_key = &html[start_pos + key_len..];
         if let Some(bracket_pos) = after_key.find('[') {
             let array_start = start_pos + key_len + bracket_pos;
             crate::log_debug!("Found opening bracket at position: {}", array_start);
-            
+
             // Count brackets to find the matching closing bracket
             let mut bracket_count = 0;
             let mut in_string = false;
             let mut escape_next = false;
-            
+
             for (i, c) in html[array_start..].char_indices() {
                 if escape_next {
                     escape_next = false;
                     continue;
                 }
-                
+
                 match c {
                     '\\' => escape_next = true,
                     '"' => in_string = !in_string,
@@ -710,8 +723,11 @@ impl HumanizedScraper {
                     _ => {}
                 }
             }
-            
-            crate::log_debug!("Failed to find matching closing bracket, final bracket_count: {}", bracket_count);
+
+            crate::log_debug!(
+                "Failed to find matching closing bracket, final bracket_count: {}",
+                bracket_count
+            );
         } else {
             crate::log_debug!("Could not find opening bracket after key");
         }
@@ -723,18 +739,18 @@ impl HumanizedScraper {
 
         // lostark.bible embeds JavaScript literals that are invalid in JSON5:
         //   `void 0` and `void(0)` mean `undefined` in JS — replace with `null`.
-        let sanitized = loadouts_js
-            .replace("void 0", "null")
-            .replace("void(0)", "null");
+        let sanitized = loadouts_js.replace("void 0", "null").replace("void(0)", "null");
 
         // Use json5 to parse JavaScript-style JSON directly.
         // json5 handles unquoted property names, trailing commas, etc.
-        let parsed: Vec<serde_json::Value> = json5::from_str(&sanitized)
-            .map_err(|e| {
-                crate::log_error!("JSON5 parsing error: {}", e);
-                crate::log_error!("Sanitized JSON (first 500 chars): {}", &sanitized.chars().take(500).collect::<String>());
-                ScraperError::Generic(format!("JSON5 parsing error: {}", e))
-            })?;
+        let parsed: Vec<serde_json::Value> = json5::from_str(&sanitized).map_err(|e| {
+            crate::log_error!("JSON5 parsing error: {}", e);
+            crate::log_error!(
+                "Sanitized JSON (first 500 chars): {}",
+                &sanitized.chars().take(500).collect::<String>()
+            );
+            ScraperError::Generic(format!("JSON5 parsing error: {}", e))
+        })?;
 
         crate::log_debug!("Successfully parsed {} loadouts using json5", parsed.len());
         Ok(parsed)
@@ -742,17 +758,17 @@ impl HumanizedScraper {
 
     fn extract_engravings_from_html(&self, html: &str) -> Vec<CharacterEngraving> {
         let mut engravings = Vec::new();
-        
+
         // Try to find engraving data in the HTML
         // Look for patterns like engraving names and levels
         // This is a simplified approach - in production, you'd want more robust parsing
-        
+
         // For now, return empty since we don't have the exact HTML structure
         // The actual implementation would need to inspect the HTML structure
         crate::log_debug!("Attempting to extract engravings from HTML");
-        
+
         // Try to find engraving data in HTML structure
-        
+
         // Pattern 1: Look for engraving data in script tags or JSON data
         if let Some(script_start) = html.find("engravings") {
             let section = &html[script_start..];
@@ -760,14 +776,14 @@ impl HumanizedScraper {
             let json_pattern = Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*"points"\s*:\s*(\d+)[^}]*"max"\s*:\s*(\d+)[^}]*"stoneBonus"\s*:\s*(\d+)[^}]*\}"#).unwrap_or_else(|_| {
                 Regex::new(r#"\{[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}"#).unwrap()
             });
-            
+
             for cap in json_pattern.captures_iter(section) {
                 if let (Some(name), Some(points)) = (cap.get(1), cap.get(2)) {
                     let engraving_name = name.as_str().trim().to_string();
                     let books_read: f64 = points.as_str().parse().unwrap_or(0.0);
                     let max_books: f64 = cap.get(3).map(|m| m.as_str().parse().unwrap_or(20.0)).unwrap_or(20.0);
                     let stone_bonus: f64 = cap.get(4).map(|m| m.as_str().parse().unwrap_or(0.0)).unwrap_or(0.0);
-                    
+
                     engravings.push(CharacterEngraving {
                         engraving_name,
                         books_read,
@@ -777,18 +793,25 @@ impl HumanizedScraper {
                 }
             }
         }
-        
+
         // Pattern 2: Look for text-based patterns in the HTML
         // Search for common engraving names followed by numbers
-        let engraving_pattern = Regex::new(r"(\d+)/(\d+)\s*\+*(\d*)").unwrap_or_else(|_| {
-            Regex::new(r"(\d+)/(\d+)").unwrap()
-        });
-        
+        let engraving_pattern =
+            Regex::new(r"(\d+)/(\d+)\s*\+*(\d*)").unwrap_or_else(|_| Regex::new(r"(\d+)/(\d+)").unwrap());
+
         let common_engravings = vec![
-            "Adrenaline", "Grudge", "Keen Blunt Weapon", "Raid Captain", "Cursed Doll",
-            "Spirit Absorption", "Hit Master", "Awakening", "Heavy Armor", "Drops of Ether"
+            "Adrenaline",
+            "Grudge",
+            "Keen Blunt Weapon",
+            "Raid Captain",
+            "Cursed Doll",
+            "Spirit Absorption",
+            "Hit Master",
+            "Awakening",
+            "Heavy Armor",
+            "Drops of Ether",
         ];
-        
+
         for engraving_name in &common_engravings {
             if let Some(pos) = html.find(engraving_name) {
                 let after_name = &html[pos + engraving_name.len()..pos + engraving_name.len() + 50];
@@ -796,7 +819,7 @@ impl HumanizedScraper {
                     let books_read: f64 = cap.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
                     let max_books: f64 = cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(20.0);
                     let stone_bonus: f64 = cap.get(3).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
-                    
+
                     engravings.push(CharacterEngraving {
                         engraving_name: engraving_name.to_string(),
                         books_read,
@@ -806,7 +829,7 @@ impl HumanizedScraper {
                 }
             }
         }
-        
+
         crate::log_debug!("Extracted {} engravings from HTML", engravings.len());
         engravings
     }
@@ -867,7 +890,10 @@ impl HumanizedScraper {
                 let books_read = engraving.get("progress").and_then(|p| p.as_i64()).unwrap_or(0);
                 let stone_bonus = *stone_bonus_map.get(&id).unwrap_or(&0);
                 let engraving_name = get_engraving_name(id)
-                    .unwrap_or_else(|| { crate::log_debug!("Unknown engraving id: {}", id); "Unknown Engraving" })
+                    .unwrap_or_else(|| {
+                        crate::log_debug!("Unknown engraving id: {}", id);
+                        "Unknown Engraving"
+                    })
                     .to_string();
                 engravings.push(CharacterEngraving {
                     engraving_name,
@@ -890,20 +916,23 @@ impl HumanizedScraper {
         let mut equipment = Vec::new();
 
         let slot_map: std::collections::HashMap<&str, &str> = [
-            ("weapon",        "weapon"),
-            ("head",          "head"),
-            ("upper_body",    "chest"),
-            ("lower_body",    "pants"),
-            ("hand",          "gloves"),
-            ("shoulder",      "shoulder"),
-            ("neck",          "neck"),
-            ("ear1",          "earring1"),
-            ("ear2",          "earring2"),
-            ("finger1",       "ring1"),
-            ("finger2",       "ring2"),
-            ("bracelet",      "bracelet"),
+            ("weapon", "weapon"),
+            ("head", "head"),
+            ("upper_body", "chest"),
+            ("lower_body", "pants"),
+            ("hand", "gloves"),
+            ("shoulder", "shoulder"),
+            ("neck", "neck"),
+            ("ear1", "earring1"),
+            ("ear2", "earring2"),
+            ("finger1", "ring1"),
+            ("finger2", "ring2"),
+            ("bracelet", "bracelet"),
             ("ability_stone", "ability_stone"),
-        ].iter().cloned().collect();
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         let armor_slots = ["weapon", "head", "upper_body", "lower_body", "hand", "shoulder"];
 
@@ -923,22 +952,37 @@ impl HumanizedScraper {
                     .and_then(|h| h.as_i64().or_else(|| h.as_f64().map(|f| f as i64)));
                 // Quality: stats array entry with type=57, index=1
                 let quality = data
-                    .and_then(|d| d.get("stats")).and_then(|s| s.as_array())
-                    .and_then(|stats| stats.iter().find(|s| {
-                        s.get("type").and_then(|t| t.as_i64()) == Some(57)
-                        && s.get("index").and_then(|i| i.as_i64()) == Some(1)
-                    }))
+                    .and_then(|d| d.get("stats"))
+                    .and_then(|s| s.as_array())
+                    .and_then(|stats| {
+                        stats.iter().find(|s| {
+                            s.get("type").and_then(|t| t.as_i64()) == Some(57)
+                                && s.get("index").and_then(|i| i.as_i64()) == Some(1)
+                        })
+                    })
                     .and_then(|s| s.get("value").and_then(|v| v.as_i64()));
                 let item_level = if armor_slots.contains(&raw_slot) {
                     loadout.get("itemLevel").and_then(|v| v.as_f64())
-                } else { None };
-                let tier = item_level.map(|ilvl| {
-                    if ilvl >= 1600.0 { "T4".to_string() } else { "T3".to_string() }
-                }).or_else(|| {
-                    data.and_then(|d| d.get("type")).and_then(|t| t.as_str()).map(|t| {
-                        if t.contains("tier4") { "T4".to_string() } else { "T3".to_string() }
+                } else {
+                    None
+                };
+                let tier = item_level
+                    .map(|ilvl| {
+                        if ilvl >= 1600.0 {
+                            "T4".to_string()
+                        } else {
+                            "T3".to_string()
+                        }
                     })
-                });
+                    .or_else(|| {
+                        data.and_then(|d| d.get("type")).and_then(|t| t.as_str()).map(|t| {
+                            if t.contains("tier4") {
+                                "T4".to_string()
+                            } else {
+                                "T3".to_string()
+                            }
+                        })
+                    });
                 equipment.push(CharacterEquipment {
                     slot,
                     enhancement_level: enhancement_level.map(|v| v as f64),
@@ -971,25 +1015,44 @@ impl HumanizedScraper {
                 };
                 let slot_index = gem.get("slot").and_then(|s| s.as_i64()).unwrap_or(0);
                 let last3 = gem_item_id % 1000;
-                let gem_level = { let lv = last3 / 10; if lv == 0 { 10 } else { lv } };
+                let gem_level = {
+                    let lv = last3 / 10;
+                    if lv == 0 {
+                        10
+                    } else {
+                        lv
+                    }
+                };
                 let gem_name = get_gem_name(gem_item_id)
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| format!("Gem (id {})", gem_item_id));
                 let is_bound = gem.get("bound").and_then(|b| b.as_bool()).unwrap_or(false);
                 let effects = gem.get("effects").and_then(|e| e.as_array());
-                let primary = effects.and_then(|effs| effs.iter().find(|e| {
-                    e.get("type").and_then(|t| t.as_i64()).map(|t| t != 2).unwrap_or(false)
-                }));
+                let primary = effects.and_then(|effs| {
+                    effs.iter()
+                        .find(|e| e.get("type").and_then(|t| t.as_i64()).map(|t| t != 2).unwrap_or(false))
+                });
                 let gem_type = primary
                     .and_then(|e| e.get("type").and_then(|t| t.as_i64()))
-                    .map(|t| match t { 5 | 34 => "attack".to_string(), 27 => "cooldown".to_string(), o => format!("type_{}", o) })
+                    .map(|t| match t {
+                        5 | 34 => "attack".to_string(),
+                        27 => "cooldown".to_string(),
+                        o => format!("type_{}", o),
+                    })
                     .unwrap_or_else(|| "unknown".to_string());
                 let skill_name = primary
                     .and_then(|e| e.get("id").and_then(|i| i.as_i64()))
                     .and_then(|sid| get_gem_name(sid))
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| gem_name.clone());
-                gems.push(CharacterGem { slot_index, gem_name, skill_name, gem_type, gem_level, is_bound });
+                gems.push(CharacterGem {
+                    slot_index,
+                    gem_name,
+                    skill_name,
+                    gem_type,
+                    gem_level,
+                    is_bound,
+                });
             }
         }
 
@@ -1001,7 +1064,10 @@ impl HumanizedScraper {
         gems
     }
 
-    pub async fn scrape_character_details(&mut self, character_name: String) -> Result<CharacterDetailData, ScraperError> {
+    pub async fn scrape_character_details(
+        &mut self,
+        character_name: String,
+    ) -> Result<CharacterDetailData, ScraperError> {
         crate::log_info!("Starting character detail scrape for '{}'", character_name);
 
         // Humanized delay before request
@@ -1012,7 +1078,9 @@ impl HumanizedScraper {
             .await
             .map_err(|e| ScraperError::Generic(e.to_string()))?;
 
-        let response = request.send().await
+        let response = request
+            .send()
+            .await
             .map_err(|e| ScraperError::Generic(format!("Request error: {}", e)))?;
         let status = response.status().as_u16();
 
@@ -1020,7 +1088,9 @@ impl HumanizedScraper {
             return Err(ScraperError::PrivateProfile);
         }
 
-        let content = response.text().await
+        let content = response
+            .text()
+            .await
             .map_err(|e| ScraperError::Generic(format!("Failed to read response body: {}", e)))?;
 
         if Self::is_cloudflare_challenge(status, &content) {
@@ -1048,8 +1118,10 @@ impl HumanizedScraper {
         let preferred_loadout = crate::roster::pick_preferred_raid_loadout(&loadouts)
             .ok_or_else(|| ScraperError::Generic("No suitable raid loadout found".to_string()))?;
 
-        crate::log_info!("Selected loadout with classification: {:?}", 
-            preferred_loadout.get("classification").and_then(|c| c.as_str()));
+        crate::log_info!(
+            "Selected loadout with classification: {:?}",
+            preferred_loadout.get("classification").and_then(|c| c.as_str())
+        );
 
         // Debug: log the structure of engravings and gems fields
         if let Some(engravings_val) = preferred_loadout.get("engravings") {
@@ -1282,8 +1354,11 @@ mod tests {
                 }
 
                 // Basic validation
-                assert!(!detail_data.equipment.is_empty(), "Expected at least one equipment piece");
-                
+                assert!(
+                    !detail_data.equipment.is_empty(),
+                    "Expected at least one equipment piece"
+                );
+
                 println!("🎉 Character detail scraping test passed!");
             }
             Err(e) => {

@@ -1,5 +1,5 @@
-use std::sync::RwLock;
 use crate::database::data_manager::{Raid, RaidGate};
+use std::sync::RwLock;
 
 /// State for storing raid data in RAM (frontend-driven)
 /// This allows the backend to access raid gold values without hardcoding
@@ -40,7 +40,6 @@ impl RaidDataState {
     /// Find a specific gate within a raid
     pub fn find_gate(&self, raid_id: &str, difficulty: &str, gate: &str) -> Option<RaidGate> {
         let raid = self.find_raid(raid_id, difficulty)?;
-        raid.gates.into_iter()
-            .find(|g| g.gate == gate)
+        raid.gates.into_iter().find(|g| g.gate == gate)
     }
 }

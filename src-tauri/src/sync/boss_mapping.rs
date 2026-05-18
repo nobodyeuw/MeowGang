@@ -25,10 +25,7 @@ impl BossMapper {
         self.add_mapping(
             "overture_echidna",
             1,
-            vec![
-                "Red Doom Narkiel".to_string(),
-                "Agris".to_string(),
-            ],
+            vec!["Red Doom Narkiel".to_string(), "Agris".to_string()],
         );
         self.add_mapping(
             "overture_echidna",
@@ -43,27 +40,14 @@ impl BossMapper {
         );
 
         // behemoth
-        self.add_mapping(
-            "behemoth",
-            1,
-            vec![
-                "Behemoth, the Storm Commander".to_string()
-            ],
-        );
-        self.add_mapping(
-            "behemoth",
-            2,
-            vec!["Behemoth, Cruel Storm Slayer".to_string()],
-        );
+        self.add_mapping("behemoth", 1, vec!["Behemoth, the Storm Commander".to_string()]);
+        self.add_mapping("behemoth", 2, vec!["Behemoth, Cruel Storm Slayer".to_string()]);
 
         // act_1_aegir
         self.add_mapping(
             "act_1_aegir",
             1,
-            vec![
-                "Akkan, Lord of Death".to_string(),
-                "Abyss Monarch Aegir".to_string(),
-            ],
+            vec!["Akkan, Lord of Death".to_string(), "Abyss Monarch Aegir".to_string()],
         );
         self.add_mapping(
             "act_1_aegir",
@@ -75,11 +59,7 @@ impl BossMapper {
         );
 
         // act_2_brelshaza
-        self.add_mapping(
-            "act_2_brelshaza",
-            1,
-            vec!["Narok the Butcher".to_string()],
-        );
+        self.add_mapping("act_2_brelshaza", 1, vec!["Narok the Butcher".to_string()]);
         self.add_mapping(
             "act_2_brelshaza",
             2,
@@ -93,16 +73,9 @@ impl BossMapper {
         self.add_mapping(
             "act_3_mordum",
             1,
-            vec![
-                "Thaemine, Master of Darkness".to_string(),
-                "Infernas".to_string(),
-            ],
+            vec!["Thaemine, Master of Darkness".to_string(), "Infernas".to_string()],
         );
-        self.add_mapping(
-            "act_3_mordum",
-            2,
-            vec!["Blossoming Fear, Naitreya".to_string()],
-        );
+        self.add_mapping("act_3_mordum", 2, vec!["Blossoming Fear, Naitreya".to_string()]);
         self.add_mapping(
             "act_3_mordum",
             3,
@@ -122,41 +95,23 @@ impl BossMapper {
                 "Brelshaza, Ember in the Ashes".to_string(),
             ],
         );
-        self.add_mapping(
-            "act_4_armoche",
-            2,
-            vec!["Armoche, Sentinel of the Abyss".to_string()],
-        );
+        self.add_mapping("act_4_armoche", 2, vec!["Armoche, Sentinel of the Abyss".to_string()]);
 
         // denouement_final_day
         self.add_mapping(
             "denouement_final_day",
             1,
-            vec![
-                "Abyss Lord Kazeros".to_string(),
-                "Abyssal Afterimage".to_string(),
-            ],
+            vec!["Abyss Lord Kazeros".to_string(), "Abyssal Afterimage".to_string()],
         );
         self.add_mapping(
             "denouement_final_day",
             2,
-            vec![
-                "Archdemon Kazeros".to_string(),
-                "Death Incarnate Kazeros".to_string(),
-            ],
+            vec!["Archdemon Kazeros".to_string(), "Death Incarnate Kazeros".to_string()],
         );
 
         // Serca
-        self.add_mapping(
-            "shadow_serca",
-            1,
-            vec!["Witch of Agony, Serca".to_string()],
-        );
-        self.add_mapping(
-            "shadow_serca",
-            2,
-            vec!["Corvus Tul Rak".to_string()],
-        );
+        self.add_mapping("shadow_serca", 1, vec!["Witch of Agony, Serca".to_string()]);
+        self.add_mapping("shadow_serca", 2, vec!["Corvus Tul Rak".to_string()]);
     }
 
     fn add_mapping(&mut self, content_id: &str, gate: u8, boss_names: Vec<String>) {
@@ -209,7 +164,7 @@ mod tests {
     #[test]
     fn test_boss_mapping() {
         let mapper = BossMapper::new();
-        
+
         // Test direct matches
         let echidna = mapper.map_boss_to_encounter("Echidna");
         assert!(echidna.is_some());
@@ -225,7 +180,7 @@ mod tests {
     #[test]
     fn test_difficulty_normalization() {
         let mapper = BossMapper::new();
-        
+
         assert_eq!(mapper.normalize_difficulty(""), "normal");
         assert_eq!(mapper.normalize_difficulty("Normal"), "normal");
         assert_eq!(mapper.normalize_difficulty("Hard"), "hard");

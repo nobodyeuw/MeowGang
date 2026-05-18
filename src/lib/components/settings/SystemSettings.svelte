@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
+  import { activeRosterId, characters, loadCharacters, loadRosters, rosters } from '$lib/store';
 
   // State
   let systemSettings: any = null;
@@ -17,6 +18,9 @@
   let startWithWindows = false;
   let startWithLostArk = false;
   let startWithLoaLogs = false;
+  let showSetupGuideButton = true;
+  let isClearingUserData = false;
+  let showClearUserDataDialog = false;
   let isRunning = false;
   let isLoaLogsRunning = false;
 
@@ -55,6 +59,7 @@
       startWithWindows = settings.startWithWindows || settings.start_with_windows || false;
       startWithLostArk = settings.startWithLostArk || settings.start_with_lost_ark || false;
       startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
+      showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
 
     } catch (err) {
       error = `Failed to load system settings: ${err}`;
@@ -184,6 +189,41 @@
     }
   }
 
+  async function toggleSetupGuideButton() {
+    try {
+      const newValue = !showSetupGuideButton;
+      await invoke('set_show_setup_guide_button', { enabled: newValue });
+      showSetupGuideButton = newValue;
+      window.dispatchEvent(new CustomEvent('setup-guide-button:changed', { detail: newValue }));
+      showSuccess(`Set-Up Guide button ${newValue ? 'shown' : 'hidden'}!`);
+    } catch (err) {
+      showError(`Failed to update Set-Up Guide button: ${err}`);
+    }
+  }
+
+  function requestClearUserData() {
+    showClearUserDataDialog = true;
+  }
+
+  async function confirmClearUserData() {
+    try {
+      isClearingUserData = true;
+      const result: string = await invoke('clear_user_data');
+      showClearUserDataDialog = false;
+      localStorage.removeItem('activeRosterId');
+      activeRosterId.set('');
+      rosters.set([]);
+      characters.set([]);
+      await loadRosters();
+      await loadCharacters('');
+      showSuccess(result);
+    } catch (err) {
+      showError(`Failed to clear user data: ${err}`);
+    } finally {
+      isClearingUserData = false;
+    }
+  }
+
   // Check if Lost Ark is running
   async function checkLostArkStatus() {
     try {
@@ -307,6 +347,66 @@
     </div>
   {:else}
     <div class="settings-content">
+      <!-- General Section -->
+      <div class="settings-section">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+          </div>
+          <div>
+            <h3>General</h3>
+            <p>Manage global app behavior and local user data</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Show Set-Up Guide</h4>
+                <p>Show the Set-Up Guide button in the main header</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={showSetupGuideButton}
+                  on:change={toggleSetupGuideButton}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card danger-card">
+            <div class="setting-header">
+              <div class="setting-icon danger">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Clear User Data</h4>
+                <p>Delete all characters and connected tracking data from userlogs.db</p>
+              </div>
+              <button class="danger-button" on:click={requestClearUserData} disabled={isClearingUserData}>
+                {isClearingUserData ? 'Clearing...' : 'Clear Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- File Paths Section -->
       <div class="settings-section">
         <div class="section-header">
@@ -634,6 +734,71 @@
     </div>
   {/if}
 
+  <!-- Clear User Data Dialog -->
+  {#if showClearUserDataDialog}
+    <div
+      class="dialog-overlay"
+      role="presentation"
+      on:click={() => !isClearingUserData && (showClearUserDataDialog = false)}
+      on:keydown={(event) => event.key === 'Escape' && !isClearingUserData && (showClearUserDataDialog = false)}
+    >
+      <div
+        class="confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clear-user-data-title"
+        tabindex="-1"
+        on:click|stopPropagation
+        on:keydown={(event) => event.key === 'Escape' && !isClearingUserData && (showClearUserDataDialog = false)}
+      >
+        <div class="dialog-header">
+          <h3 id="clear-user-data-title">Clear User Data</h3>
+          <button
+            class="dialog-close"
+            aria-label="Close clear user data dialog"
+            disabled={isClearingUserData}
+            on:click={() => showClearUserDataDialog = false}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="dialog-content confirm-content">
+          <div class="warning-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <p class="confirm-title">You are about to delete all character information.</p>
+            <p>
+              This removes every character from userlogs.db together with tracking, raid, rested,
+              gold, and progression data connected to those characters. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button
+            class="dialog-button secondary"
+            disabled={isClearingUserData}
+            on:click={() => showClearUserDataDialog = false}
+          >
+            Cancel
+          </button>
+          <button class="dialog-button danger" disabled={isClearingUserData} on:click={confirmClearUserData}>
+            {isClearingUserData ? 'Deleting...' : 'Delete All Character Data'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Log Dialog -->
   {#if showLogDialog}
     <div class="dialog-overlay" on:click={() => showLogDialog = false}>
@@ -892,6 +1057,38 @@
   .setting-icon.game {
     background: color-mix(in srgb, var(--md-sys-color-tertiary) 20%, transparent);
     color: var(--md-sys-color-tertiary);
+  }
+
+  .setting-icon.danger {
+    background: color-mix(in srgb, var(--md-sys-color-error) 16%, transparent);
+    color: var(--md-sys-color-error);
+  }
+
+  .danger-card {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 35%, var(--md-sys-color-outline-variant));
+  }
+
+  .danger-button {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+    border: 1px solid var(--md-sys-color-error);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .danger-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--md-sys-color-error) 90%, black);
+  }
+
+  .danger-button:disabled {
+    cursor: wait;
+    opacity: 0.65;
   }
 
   .setting-header h4 {
@@ -1255,6 +1452,15 @@
     border: 1px solid var(--md-sys-color-outline);
   }
 
+  .confirm-dialog {
+    background: var(--md-sys-color-surface);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 560px;
+    width: 90%;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 40%, var(--md-sys-color-outline));
+  }
+
   .dialog-header {
     display: flex;
     align-items: center;
@@ -1351,6 +1557,15 @@
     background: color-mix(in srgb, var(--md-sys-color-primary) 90%, black);
   }
 
+  .dialog-button.danger {
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+  }
+
+  .dialog-button.danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--md-sys-color-error) 90%, black);
+  }
+
   .dialog-button.secondary {
     background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface);
@@ -1359,6 +1574,37 @@
 
   .dialog-button.secondary:hover {
     background: var(--md-sys-color-surface-variant);
+  }
+
+  .dialog-button:disabled,
+  .dialog-close:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
+  .confirm-content {
+    display: flex;
+    gap: 14px;
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .warning-icon {
+    flex-shrink: 0;
+    color: var(--md-sys-color-error);
+  }
+
+  .confirm-content p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .confirm-content .confirm-title {
+    margin-bottom: 8px;
+    color: var(--md-sys-color-on-surface);
+    font-size: 15px;
+    font-weight: 700;
   }
 
   /* Responsive Design */

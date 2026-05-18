@@ -1,10 +1,10 @@
+use crate::database::data_manager::GameTask;
 use anyhow::Result;
+use chrono::{Datelike, TimeZone};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use std::collections::HashMap;
-use chrono::{Datelike, TimeZone};
-use crate::database::data_manager::GameTask;
 
 #[derive(Debug, Clone)]
 pub struct ResetRepository {
@@ -27,11 +27,13 @@ impl ResetRepository {
         let now = chrono::Utc::now();
 
         // Get current reset times from app_state
-        let (last_daily, last_weekly): (i64, i64) = tx.query_row(
-            "SELECT last_daily_reset, last_weekly_reset FROM app_state LIMIT 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?))
-        ).unwrap_or((0, 0));
+        let (last_daily, last_weekly): (i64, i64) = tx
+            .query_row(
+                "SELECT last_daily_reset, last_weekly_reset FROM app_state LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap_or((0, 0));
 
         // Calculate current reset times - use UTC consistently
         // Tasks completed before this time should be reset
@@ -49,7 +51,8 @@ impl ResetRepository {
         let weekly_reset_time = {
             // Most recent Wednesday reset at 10:00 UTC
             let mut reset_date = now.date_naive();
-            while reset_date.weekday().num_days_from_monday() != 2 { // Wednesday (0=Monday, 2=Wednesday)
+            while reset_date.weekday().num_days_from_monday() != 2 {
+                // Wednesday (0=Monday, 2=Wednesday)
                 reset_date = reset_date - chrono::Duration::days(1);
             }
             let reset_time = reset_date.and_hms_opt(10, 0, 0).unwrap().and_utc();
@@ -62,45 +65,57 @@ impl ResetRepository {
         };
 
         // Update rested values for chaos and guardian (runs daily regardless of reset condition)
-        println!("Updating rested values - last: {}, current: {}", last_daily, daily_reset_time);
+        println!(
+            "Updating rested values - last: {}, current: {}",
+            last_daily, daily_reset_time
+        );
         self.update_rested_values(&tx, "chaos")?;
         self.update_rested_values(&tx, "guardian")?;
-        
+
         // Check if daily reset is needed
         if last_daily < daily_reset_time {
-            println!("Daily reset needed - last: {}, current: {}", last_daily, daily_reset_time);
-            
+            println!(
+                "Daily reset needed - last: {}, current: {}",
+                last_daily, daily_reset_time
+            );
+
             // Reset all daily tasks to false
             self.reset_daily_tasks(&tx, tasks, daily_reset_time)?;
-            
+
             // Update app_state
-            tx.execute(
-                "UPDATE app_state SET last_daily_reset = ?1",
-                params![daily_reset_time],
-            )?;
+            tx.execute("UPDATE app_state SET last_daily_reset = ?1", params![daily_reset_time])?;
         } else {
-            println!("No daily reset needed - last: {}, current: {}", last_daily, daily_reset_time);
+            println!(
+                "No daily reset needed - last: {}, current: {}",
+                last_daily, daily_reset_time
+            );
         }
 
         // Check if weekly reset is needed
-        if last_weekly < weekly_reset_time { 
-            println!("Performing weekly reset - last: {}, new: {}", last_weekly, weekly_reset_time);
-            
+        if last_weekly < weekly_reset_time {
+            println!(
+                "Performing weekly reset - last: {}, new: {}",
+                last_weekly, weekly_reset_time
+            );
+
             // Reset all weekly tasks to false
             self.reset_weekly_tasks(&tx, tasks)?;
-            
+
             // Reset all raid gates to false
             self.reset_raid_gates(&tx)?;
-            
+
             // Update app_state
             tx.execute(
                 "UPDATE app_state SET last_weekly_reset = ?1",
                 params![weekly_reset_time],
             )?;
-            
+
             println!("Weekly reset completed successfully");
         } else {
-            println!("No weekly reset needed - last: {}, threshold: {}", last_weekly, weekly_reset_time);
+            println!(
+                "No weekly reset needed - last: {}, threshold: {}",
+                last_weekly, weekly_reset_time
+            );
         }
 
         tx.commit()?;
@@ -108,7 +123,12 @@ impl ResetRepository {
     }
 
     /// Reset all daily tasks (reset_schedule = 'daily') to false
-    fn reset_daily_tasks(&self, tx: &rusqlite::Transaction, tasks: &HashMap<String, GameTask>, daily_reset_time: i64) -> Result<()> {
+    fn reset_daily_tasks(
+        &self,
+        tx: &rusqlite::Transaction,
+        tasks: &HashMap<String, GameTask>,
+        daily_reset_time: i64,
+    ) -> Result<()> {
         let daily_tasks: Vec<String> = tasks
             .iter()
             .filter(|(_, task)| task.reset_schedule == "daily")
@@ -152,7 +172,7 @@ impl ResetRepository {
             "UPDATE completion_status SET is_completed = 0 WHERE session_id IS NOT NULL",
             [],
         )?;
-        
+
         Ok(())
     }
 
@@ -161,9 +181,7 @@ impl ResetRepository {
     /// two daily resets (10:00 UTC) produces the same result as calling once.
     pub fn update_rested_values(&self, tx: &rusqlite::Transaction, task_id: &str) -> Result<()> {
         let mut stmt = tx.prepare("SELECT char_id FROM conf_character")?;
-        let char_iter = stmt.query_map([], |row| {
-            Ok(row.get::<_, i64>(0)?)
-        })?;
+        let char_iter = stmt.query_map([], |row| Ok(row.get::<_, i64>(0)?))?;
 
         let now = chrono::Utc::now();
 
@@ -183,11 +201,13 @@ impl ResetRepository {
             let char_id = char_result?;
 
             // Get current rested value and last updated timestamp
-            let (current_rested, last_updated) = tx.query_row(
-                "SELECT current_value, last_updated FROM rested_values WHERE char_id = ?1 AND content_id = ?2",
-                (char_id, task_id),
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
-            ).unwrap_or((0, 0));
+            let (current_rested, last_updated) = tx
+                .query_row(
+                    "SELECT current_value, last_updated FROM rested_values WHERE char_id = ?1 AND content_id = ?2",
+                    (char_id, task_id),
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                )
+                .unwrap_or((0, 0));
 
             // Already updated during this reset cycle — skip
             if last_updated >= current_reset_ms {
@@ -203,23 +223,27 @@ impl ResetRepository {
                 |row| Ok(row.get::<_, Option<i64>>(0)?.unwrap_or(0) == 1)
             ).unwrap_or(false);
 
-            let roster_id: String = tx.query_row(
-                "SELECT roster_id FROM conf_character WHERE char_id = ?1",
-                [char_id],
-                |row| row.get(0)
-            ).unwrap_or_else(|_| "unknown".to_string());
+            let roster_id: String = tx
+                .query_row(
+                    "SELECT roster_id FROM conf_character WHERE char_id = ?1",
+                    [char_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or_else(|_| "unknown".to_string());
 
             let new_rested = if was_completed {
                 current_rested
             } else {
                 // Count how many reset cycles passed since last update
                 let cycles_missed = if last_updated > 0 {
-                    let last_updated_dt = chrono::Utc.timestamp_millis_opt(last_updated)
-                        .single()
-                        .unwrap_or(now);
+                    let last_updated_dt = chrono::Utc.timestamp_millis_opt(last_updated).single().unwrap_or(now);
                     let last_reset_at_update = {
                         let reset = last_updated_dt.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
-                        if last_updated_dt >= reset { reset } else { reset - chrono::Duration::days(1) }
+                        if last_updated_dt >= reset {
+                            reset
+                        } else {
+                            reset - chrono::Duration::days(1)
+                        }
                     };
                     let days = (current_reset - last_reset_at_update).num_days();
                     std::cmp::max(days, 1) as i64

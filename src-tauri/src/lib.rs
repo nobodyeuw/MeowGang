@@ -24,7 +24,11 @@ use database::repositories::{
     CharacterRepository, GoldRepository, ProgressionRepository, RaidRepository, RosterRepository, TrackingRepository,
 };
 use dirs;
-use tauri::Manager;
+use tauri::{
+    menu::MenuBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,28 +46,11 @@ pub fn run() {
             }
 
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let should_hide = window
-                    .app_handle()
-                    .try_state::<settings::SettingsManager>()
-                    .and_then(|settings_manager| match settings_manager.read() {
-                        Ok(Some(settings)) => Some(crate::handlers::system_handlers::should_keep_background_monitor(
-                            &settings,
-                        )),
-                        Ok(None) => Some(false),
-                        Err(e) => {
-                            crate::log_error!("Failed to read settings on close request: {}", e);
-                            Some(false)
-                        }
-                    })
-                    .unwrap_or(false);
-
-                if should_hide {
-                    api.prevent_close();
-                    if let Err(e) = window.hide() {
-                        crate::log_error!("Failed to hide LOA Tracker for background monitoring: {}", e);
-                    } else {
-                        crate::log_info!("LOA Tracker hidden for background startup monitoring");
-                    }
+                api.prevent_close();
+                if let Err(e) = window.hide() {
+                    crate::log_error!("Failed to hide LOA Tracker to tray: {}", e);
+                } else {
+                    crate::log_info!("LOA Tracker hidden to tray");
                 }
             }
         })
@@ -128,6 +115,8 @@ pub fn run() {
             })?;
             crate::log_info!("Settings manager initialized successfully");
 
+            setup_tray_icon(app.handle())?;
+
             let is_startup_monitor = std::env::args().any(|arg| arg == "--startup-monitor");
 
             // If configured, ensure companion startup behavior is active.
@@ -154,9 +143,19 @@ pub fn run() {
                         }
                     }
                     if s.system.start_with_loa_logs {
+                        let mut startup_settings = s.clone();
+                        if startup_settings.system.loa_logs_exe_path.is_none() {
+                            if let Some(path) = crate::handlers::system_handlers::detect_loa_logs_exe_path() {
+                                startup_settings.system.loa_logs_exe_path = Some(path);
+                                if let Err(e) = settings_manager.save(&startup_settings) {
+                                    crate::log_warn!("Failed to save auto-detected LOA Logs path: {}", e);
+                                }
+                            }
+                        }
+
                         if !is_startup_monitor {
                             if let Err(e) = crate::handlers::system_handlers::ensure_loa_logs_running(
-                                s.system.loa_logs_exe_path.as_deref(),
+                                startup_settings.system.loa_logs_exe_path.as_deref(),
                             ) {
                                 crate::log_warn!("{}", e);
                             }
@@ -407,6 +406,8 @@ pub fn run() {
             // System handlers
             handlers::system_handlers::get_app_version,
             handlers::system_handlers::get_system_settings,
+            handlers::system_handlers::set_show_setup_guide_button,
+            handlers::system_handlers::clear_user_data,
             handlers::system_handlers::set_encounters_db_path,
             handlers::system_handlers::set_lost_ark_exe_path,
             handlers::system_handlers::set_start_with_windows,
@@ -524,4 +525,55 @@ pub fn run() {
             eprintln!("Fatal error while running LOA Tracker: {}", e);
             std::panic::panic_any(format!("Failed to start application: {}", e));
         });
+}
+
+fn setup_tray_icon(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let menu = MenuBuilder::new(app)
+        .text("show", "Show LOA Tracker")
+        .separator()
+        .text("quit", "Quit")
+        .build()?;
+
+    let mut tray_builder = TrayIconBuilder::new()
+        .menu(&menu)
+        .tooltip("LOA Tracker")
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().0.as_str() {
+            "show" => reveal_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                reveal_main_window(&tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        tray_builder = tray_builder.icon(icon.clone());
+    }
+
+    tray_builder.build(app)?;
+    Ok(())
+}
+
+fn reveal_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(e) = window.show() {
+            crate::log_error!("Failed to show LOA Tracker window from tray: {}", e);
+        }
+        if let Err(e) = window.unminimize() {
+            crate::log_debug!("Failed to unminimize LOA Tracker window from tray: {}", e);
+        }
+        if let Err(e) = window.set_focus() {
+            crate::log_debug!("Failed to focus LOA Tracker window from tray: {}", e);
+        }
+    } else {
+        crate::log_warn!("Main LOA Tracker window was not found from tray");
+    }
 }

@@ -28,6 +28,7 @@
   let nextResetTime = '';
   let resetCountdown = '';
   let appReady = false;
+  let showSetupGuideButton = true;
 
   // Handle URL parameters
   $: urlParams = new URLSearchParams($page.url.search);
@@ -51,6 +52,13 @@
 
   // Initialize app on mount
   onMount(() => {
+    const handleSetupGuideButtonChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<boolean>;
+      showSetupGuideButton = customEvent.detail;
+    };
+
+    window.addEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
+
     const updateCountdownFromKnownReset = async () => {
       if (!nextResetTime) {
         await refreshNextResetTimeFromBackend();
@@ -60,6 +68,7 @@
 
     (async () => {
       await initializeApp();
+      await loadSystemPreferences();
       appReady = true;
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
 
@@ -120,6 +129,7 @@
 
     // Cleanup on unmount
     return () => {
+      window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
       clearInterval(countdownInterval);
       clearInterval(resetRefreshInterval);
     };
@@ -163,6 +173,15 @@
 
   function startSetupGuide() {
     window.dispatchEvent(new CustomEvent('setup-guide:start'));
+  }
+
+  async function loadSystemPreferences() {
+    try {
+      const settings: any = await invoke('get_system_settings');
+      showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
+    } catch (error) {
+      console.warn('Failed to load system preferences:', error);
+    }
   }
 
   function setHeaderContent(content: string) {
@@ -236,7 +255,9 @@
           {#if resetCountdown}
             <div class="reset-countdown">{resetCountdown}</div>
           {/if}
-          <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>
+          {#if showSetupGuideButton}
+            <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>
+          {/if}
         </div>
         {#if headerContent}
           <div class="header-info">{headerContent}</div>

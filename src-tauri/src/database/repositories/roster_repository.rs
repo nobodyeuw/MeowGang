@@ -1,8 +1,8 @@
+use crate::roster::{Character, ScraperData};
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
-use crate::roster::{Character, ScraperData};
 
 pub struct RosterRepository {
     pool: Pool<SqliteConnectionManager>,
@@ -19,9 +19,9 @@ impl RosterRepository {
             "SELECT DISTINCT roster_id as id, roster_name as roster_name, NULL as last_updated
              FROM conf_character 
              GROUP BY roster_id, roster_name
-             ORDER BY roster_name"
+             ORDER BY roster_name",
         )?;
-        
+
         let roster_iter = stmt.query_map([], |row| {
             Ok(crate::models::Roster {
                 id: row.get(0)?,
@@ -29,7 +29,7 @@ impl RosterRepository {
                 last_updated: row.get(2)?,
             })
         })?;
-        
+
         let mut rosters = Vec::new();
         for roster in roster_iter {
             rosters.push(roster?);
@@ -44,9 +44,9 @@ impl RosterRepository {
                     combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard
              FROM conf_character 
              WHERE roster_id = ?1 
-             ORDER BY CAST(display_order AS INTEGER), char_name"
+             ORDER BY CAST(display_order AS INTEGER), char_name",
         )?;
-        
+
         let character_iter = stmt.query_map([roster_id], |row| {
             Ok(Character {
                 char_id: row.get(0)?,
@@ -62,7 +62,7 @@ impl RosterRepository {
                 class_display_name: None,
             })
         })?;
-        
+
         let mut characters = Vec::new();
         for character in character_iter {
             characters.push(character?);
@@ -73,7 +73,7 @@ impl RosterRepository {
     pub fn save_roster_from_scraper(&self, scraper_data: &ScraperData) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
-        
+
         // Insert characters from scraper data
         for character in &scraper_data.characters {
             tx.execute(
@@ -104,21 +104,17 @@ impl RosterRepository {
                 ],
             )?;
         }
-        
+
         tx.commit()?;
         Ok(())
     }
 
     pub fn should_update_roster(&self, roster_name: &str) -> Result<bool> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare(
-            "SELECT MAX(created_timestamp) FROM conf_character WHERE roster_id = ?1"
-        )?;
-        
-        let last_updated = stmt.query_row([roster_name], |row| {
-            Ok::<Option<i64>, rusqlite::Error>(row.get(0)?)
-        })?;
-        
+        let mut stmt = conn.prepare("SELECT MAX(created_timestamp) FROM conf_character WHERE roster_id = ?1")?;
+
+        let last_updated = stmt.query_row([roster_name], |row| Ok::<Option<i64>, rusqlite::Error>(row.get(0)?))?;
+
         match last_updated {
             Some(timestamp) => {
                 if timestamp > 0 {
@@ -154,17 +150,32 @@ impl RosterRepository {
     pub fn delete_roster(&self, roster_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
-        
+
         // Delete from related tables first
-        tx.execute("DELETE FROM conf_tracking WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)", params![roster_id])?;
-        tx.execute("DELETE FROM conf_raid WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)", params![roster_id])?;
-        tx.execute("DELETE FROM completion_status WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)", params![roster_id])?;
-        tx.execute("DELETE FROM rested_values WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)", params![roster_id])?;
-        tx.execute("DELETE FROM gold_logs WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)", params![roster_id])?;
-        
+        tx.execute(
+            "DELETE FROM conf_tracking WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
+            params![roster_id],
+        )?;
+        tx.execute(
+            "DELETE FROM conf_raid WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
+            params![roster_id],
+        )?;
+        tx.execute(
+            "DELETE FROM completion_status WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
+            params![roster_id],
+        )?;
+        tx.execute(
+            "DELETE FROM rested_values WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
+            params![roster_id],
+        )?;
+        tx.execute(
+            "DELETE FROM gold_logs WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
+            params![roster_id],
+        )?;
+
         // Delete characters
         tx.execute("DELETE FROM conf_character WHERE roster_id = ?1", params![roster_id])?;
-        
+
         tx.commit()?;
         Ok(())
     }
@@ -176,9 +187,9 @@ impl RosterRepository {
              FROM roster_resources 
              WHERE roster_id = ?1 
              ORDER BY timestamp DESC 
-             LIMIT 1"
+             LIMIT 1",
         )?;
-        
+
         let resource_iter = stmt.query_map([roster_id], |row| {
             Ok(crate::models::RosterResources {
                 bound_gold: row.get(0)?,
@@ -187,7 +198,7 @@ impl RosterRepository {
                 timestamp: row.get(3)?,
             })
         })?;
-        
+
         for resource in resource_iter {
             return Ok(Some(resource?));
         }

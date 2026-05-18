@@ -17,7 +17,7 @@ pub fn get_gem_name(id: i64) -> Option<&'static str> {
 // Note: Some IDs have duplicates with different values, we use the most common ones
 static ENGRAVINGS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
-    
+
     // Core engravings
     m.insert(107, "Disrespect");
     m.insert(109, "Spirit Absorption");
@@ -92,7 +92,7 @@ static ENGRAVINGS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(217, "Entomologist");
     m.insert(219, "Butcher");
     m.insert(221, "Delicate Brush");
-    
+
     // Class-specific engravings
     m.insert(276, "Pinnacle");
     m.insert(277, "Control");
@@ -132,13 +132,13 @@ static ENGRAVINGS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(312, "Night's Edge");
     m.insert(314, "Brawl King Storm");
     m.insert(315, "Asura's Path");
-    
+
     // Negative engravings
     m.insert(800, "Atk. Power Reduction");
     m.insert(801, "Defense Reduction");
     m.insert(802, "Atk. Speed Reduction");
     m.insert(803, "Move Speed Reduction");
-    
+
     // Duplicate IDs (alternate versions)
     m.insert(1111, "Stabilized Status");
     m.insert(1118, "Grudge");
@@ -184,7 +184,7 @@ static ENGRAVINGS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(1801, "Defense Reduction");
     m.insert(1802, "Atk. Speed Reduction");
     m.insert(1803, "Move Speed Reduction");
-    
+
     // Life skill engravings
     m.insert(260, "Increase Mining Tools");
     m.insert(261, "Relentless Miner");
@@ -202,18 +202,18 @@ static ENGRAVINGS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(273, "Increase Excavation Tools");
     m.insert(274, "Loot Hunter");
     m.insert(275, "Master Tamer");
-    
+
     m
 });
 
 // Gem mappings (ID -> Name)
 static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
-    
+
     // Apprentice Gems
     m.insert(65001010, "Lv. 1 Apprentice's Gem (Bound)");
     m.insert(65001020, "Lv. 2 Apprentice's Gem (Bound)");
-    
+
     // Azure Gems
     m.insert(65011010, "Level 1 Azure Gem");
     m.insert(65011020, "Level 2 Azure Gem");
@@ -225,7 +225,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65011080, "Level 8 Azure Gem");
     m.insert(65011090, "Level 9 Azure Gem");
     m.insert(65011100, "Level 10 Azure Gem");
-    
+
     // Farsea Gems
     m.insert(65012010, "Level 1 Farsea Gem");
     m.insert(65012020, "Level 2 Farsea Gem");
@@ -237,7 +237,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65012080, "Level 8 Farsea Gem");
     m.insert(65012090, "Level 9 Farsea Gem");
     m.insert(65012100, "Level 10 Farsea Gem");
-    
+
     // Annihilation Gems
     m.insert(65021010, "Lv. 1 Annihilation Gem");
     m.insert(65021020, "Lv. 2 Annihilation Gem");
@@ -249,7 +249,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65021080, "Lv. 8 Annihilation Gem");
     m.insert(65021090, "Lv. 9 Annihilation Gem");
     m.insert(65021100, "Lv. 10 Annihilation Gem");
-    
+
     // Crimson Flame Gems
     m.insert(65022010, "Lv. 1 Crimson Flame Gem");
     m.insert(65022020, "Lv. 2 Crimson Flame Gem");
@@ -261,7 +261,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65022080, "Lv. 8 Crimson Flame Gem");
     m.insert(65022090, "Lv. 9 Crimson Flame Gem");
     m.insert(65022100, "Lv. 10 Crimson Flame Gem");
-    
+
     // Doomfire Gems
     m.insert(65031010, "Lv. 1 Doomfire Gem");
     m.insert(65031020, "Lv. 2 Doomfire Gem");
@@ -274,7 +274,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65031080, "Lv. 8 Doomfire Gem");
     m.insert(65031090, "Lv. 9 Doomfire Gem");
     m.insert(65031100, "Lv. 10 Doomfire Gem");
-    
+
     // Blazing Gems
     m.insert(65032010, "Lv. 1 Blazing Gem");
     m.insert(65032020, "Lv. 2 Blazing Gem");
@@ -287,7 +287,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65032080, "Lv. 8 Blazing Gem");
     m.insert(65032090, "Lv. 9 Blazing Gem");
     m.insert(65032100, "Lv. 10 Blazing Gem");
-    
+
     // Brilliant Gems
     m.insert(65041010, "Lv. 1 Brilliant Gem");
     m.insert(65041020, "Lv. 2 Brilliant Gem");
@@ -305,7 +305,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65041082, "Lv. 8 Brilliant Gem (Bound)");
     m.insert(65041090, "Lv. 9 Brilliant Gem");
     m.insert(65041100, "Lv. 10 Brilliant Gem");
-    
+
     // Brilliant Gems (alternate)
     m.insert(65042010, "Lv. 1 Brilliant Gem");
     m.insert(65042020, "Lv. 2 Brilliant Gem");
@@ -317,7 +317,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65042080, "Lv. 8 Brilliant Gem");
     m.insert(65042090, "Lv. 9 Brilliant Gem");
     m.insert(65042100, "Lv. 10 Brilliant Gem");
-    
+
     // Bound Annihilation Gems (many variants)
     m.insert(65091010, "Lv. 1 Annihilation Gem (Bound)");
     m.insert(65091020, "Lv. 2 Annihilation Gem (Bound)");
@@ -356,7 +356,7 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65091080, "Lv. 8 Annihilation Gem (Bound)");
     m.insert(65091090, "Lv. 9 Annihilation Gem (Bound)");
     m.insert(65091100, "Lv. 10 Annihilation Gem (Bound)");
-    
+
     // Additional bound gem variants (many duplicates with same name)
     // Adding just the unique ones for now
     m.insert(65093021, "Lv. 9 Annihilation Gem (Bound)");
@@ -366,6 +366,6 @@ static GEMS: LazyLock<HashMap<i64, &'static str>> = LazyLock::new(|| {
     m.insert(65093019, "Lv. 7 Brilliant Gem (Bound)");
     m.insert(65093020, "Lv. 7 Brilliant Gem (Bound)");
     m.insert(65093021, "Lv. 8 Brilliant Gem");
-    
+
     m
 });

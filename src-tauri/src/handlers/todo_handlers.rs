@@ -1,7 +1,7 @@
-use tauri::State;
 use crate::database::repositories::TodoRepository;
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tauri::State;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RaidGateCompletionRequest {
@@ -78,7 +78,7 @@ pub async fn update_raid_gate_status(
         Ok(None) => "Normal".to_string(), // Default difficulty
         Err(e) => return Err(e.to_string()),
     };
-    
+
     // Use a custom method that includes difficulty and session_id
     match todo_repo.set_raid_gate_completed(character_id, &content_id, completed, &difficulty, &gate_id) {
         Ok(_) => Ok(()),

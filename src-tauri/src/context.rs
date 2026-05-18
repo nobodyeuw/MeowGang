@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use anyhow::Result;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct AppContext {
@@ -16,7 +16,8 @@ pub struct AppContext {
 impl AppContext {
     pub fn new(version: String) -> Result<Self> {
         let app_path = std::env::current_exe()?;
-        let current_dir = app_path.parent()
+        let current_dir = app_path
+            .parent()
             .ok_or_else(|| anyhow::anyhow!("Could not determine parent directory of executable"))?
             .to_path_buf();
 
@@ -25,7 +26,7 @@ impl AppContext {
         let app_data_dir = dirs::data_dir()
             .unwrap_or_else(|| current_dir.clone())
             .join("LOA Tracker");
-        
+
         #[cfg(not(target_os = "windows"))]
         let app_data_dir = dirs::data_dir()
             .unwrap_or_else(|| current_dir.clone())
@@ -65,20 +66,20 @@ impl AppContext {
     pub fn update_paths_with_tauri(&mut self, app: &tauri::AppHandle) -> Result<()> {
         // Update paths using Tauri's path resolution for consistency
         let roaming_data_dir = crate::app::data_dir(app);
-        
+
         // Keep app_data_dir as Roaming for window state plugin only
         self.app_data_dir = roaming_data_dir.clone();
-        
+
         // But use LocalAppData for all other data
         let local_data_dir = dirs::data_local_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not get local app data directory"))?
             .join("LOA Tracker");
-        
+
         self.database_path = local_data_dir.join("userlogs.db");
         self.settings_path = local_data_dir.join("settings.json");
         self.logs_path = local_data_dir.join("logs");
         self.resources_path = local_data_dir.join("resources");
-        
+
         Ok(())
     }
 

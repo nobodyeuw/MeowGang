@@ -18,14 +18,20 @@ pub async fn perform_manual_reset<'r>(pool: State<'r, Pool<SqliteConnectionManag
 
 /// Tauri command to check if calendar task is available
 #[tauri::command]
-pub async fn check_calendar_task_availability<'r>(task_id: String, pool: State<'r, Pool<SqliteConnectionManager>>) -> Result<bool, String> {
+pub async fn check_calendar_task_availability<'r>(
+    task_id: String,
+    pool: State<'r, Pool<SqliteConnectionManager>>,
+) -> Result<bool, String> {
     let service = crate::services::reset_service::ResetService::new(pool.inner().clone());
     service.is_calendar_task_available(&task_id).map_err(|e| e.to_string())
 }
 
 /// Tauri command to get next reset time for a task
 #[tauri::command]
-pub async fn get_next_reset_time<'r>(task_id: String, pool: State<'r, Pool<SqliteConnectionManager>>) -> Result<String, String> {
+pub async fn get_next_reset_time<'r>(
+    task_id: String,
+    pool: State<'r, Pool<SqliteConnectionManager>>,
+) -> Result<String, String> {
     let service = crate::services::reset_service::ResetService::new(pool.inner().clone());
     let next_reset = service.get_next_reset_time(&task_id).map_err(|e| e.to_string())?;
     Ok(next_reset.format("%Y-%m-%d %H:%M:%S UTC").to_string())

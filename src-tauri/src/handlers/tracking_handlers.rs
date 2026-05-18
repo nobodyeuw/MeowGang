@@ -1,7 +1,7 @@
+use crate::database::repositories::{CharacterRepository, TrackingRepository};
+use crate::models::TaskStatusStruct as TaskStatus;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::database::repositories::{TrackingRepository, CharacterRepository};
-use crate::models::{TaskStatusStruct as TaskStatus};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskMatrixItem {
@@ -27,10 +27,11 @@ pub async fn get_tracking_config_matrix(
     tasks: Vec<serde_json::Value>,
     raids: Vec<serde_json::Value>,
     task_repo: State<'_, TrackingRepository>,
-    character_repo: State<'_, CharacterRepository>
+    character_repo: State<'_, CharacterRepository>,
 ) -> Result<crate::models::TodoConfigMatrix, String> {
     // Get characters for this roster
-    task_repo.get_tracking_config_matrix(roster_id)
+    task_repo
+        .get_tracking_config_matrix(roster_id)
         .map_err(|e| format!("Failed to get tracking config matrix: {}", e))
 }
 
@@ -40,9 +41,10 @@ pub async fn update_tracking_config(
     task_id: String,
     tracked: bool,
     _current_value: Option<i64>,
-    task_repo: State<'_, TrackingRepository>
+    task_repo: State<'_, TrackingRepository>,
 ) -> Result<(), String> {
-    task_repo.update_tracking_config(character_id, &task_id, tracked)
+    task_repo
+        .update_tracking_config(character_id, &task_id, tracked)
         .map_err(|e| format!("Failed to update tracking config: {}", e))
 }
 
@@ -50,9 +52,10 @@ pub async fn update_tracking_config(
 pub async fn save_tracking_config(
     character_id: i64,
     task_updates: Vec<TaskStatus>,
-    task_repo: State<'_, TrackingRepository>
+    task_repo: State<'_, TrackingRepository>,
 ) -> Result<(), String> {
-    task_repo.batch_update_task_status(character_id, task_updates)
+    task_repo
+        .batch_update_task_status(character_id, task_updates)
         .map_err(|e| format!("Failed to save tracking config: {}", e))
 }
 
@@ -61,9 +64,10 @@ pub async fn save_rested_value(
     character_id: i64,
     task_id: String,
     rested_value: i64,
-    task_repo: State<'_, TrackingRepository>
+    task_repo: State<'_, TrackingRepository>,
 ) -> Result<(), String> {
-    task_repo.save_rested_value(character_id, &task_id, rested_value)
+    task_repo
+        .save_rested_value(character_id, &task_id, rested_value)
         .map_err(|e| format!("Failed to save rested value: {}", e))
 }
 
@@ -72,8 +76,9 @@ pub async fn set_todo_tracked(
     character_id: i64,
     task_id: String,
     tracked: bool,
-    task_repo: State<'_, TrackingRepository>
+    task_repo: State<'_, TrackingRepository>,
 ) -> Result<(), String> {
-    task_repo.set_todo_tracked(character_id, &task_id, tracked)
+    task_repo
+        .set_todo_tracked(character_id, &task_id, tracked)
         .map_err(|e| format!("Failed to set todo tracked: {}", e))
 }

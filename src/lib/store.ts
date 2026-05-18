@@ -86,6 +86,13 @@ export interface RaidSettingsEntry {
 
 export interface SystemSettings {
   loa_logs_path?: string;
+  encountersDbPath?: string;
+  lostArkExePath?: string;
+  loaLogsExePath?: string;
+  startWithWindows?: boolean;
+  startWithLostArk?: boolean;
+  startWithLoaLogs?: boolean;
+  showSetupGuideButton?: boolean;
   next_daily_reset: string;
   next_weekly_reset: string;
   current_theme: string;

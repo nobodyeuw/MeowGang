@@ -1,16 +1,16 @@
+use dirs;
 use std::path::PathBuf;
 use tauri::Manager;
-use dirs;
 
 /// Returns the path where we store application data
-/// 
+///
 /// Windows: Resolves to %LOCALAPPDATA%\LOA Tracker
 pub fn data_dir(_app: &tauri::AppHandle) -> PathBuf {
     #[cfg(target_os = "windows")]
     let path = dirs::data_local_dir()
         .expect("could not get local app data dir")
         .join("LOA Tracker");
-    
+
     #[cfg(not(target_os = "windows"))]
     let path = dirs::data_local_dir()
         .expect("could not get local app data dir")
@@ -27,7 +27,7 @@ pub fn log_dir(_app: &tauri::AppHandle) -> PathBuf {
         .expect("could not get local app data dir")
         .join("LOA Tracker")
         .join("logs");
-    
+
     #[cfg(not(target_os = "windows"))]
     let path = dirs::data_local_dir()
         .expect("could not get local app data dir")

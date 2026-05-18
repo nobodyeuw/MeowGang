@@ -1,12 +1,14 @@
+use notify::{recommended_watcher, EventKind, RecursiveMode, Watcher};
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager, command};
-use serde_json::json;
-use notify::{recommended_watcher, EventKind, RecursiveMode, Watcher};
+use tauri::{command, AppHandle, Emitter, Manager};
 
 use crate::database::repositories::todo_repository::TodoRepository;
-use crate::handlers::encounter_sync_handlers::{sync_encounters_to_completions, sync_encounters_to_completions_internal};
+use crate::handlers::encounter_sync_handlers::{
+    sync_encounters_to_completions, sync_encounters_to_completions_internal,
+};
 
 /// File watcher for encounters.db changes that triggers live sync
 pub struct EncountersFileWatcher {
@@ -49,7 +51,10 @@ impl EncountersFileWatcher {
                 match event_res {
                     Ok(event) => {
                         let is_relevant = matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
-                            && event.paths.iter().any(|path| path == &watch_path || path.ends_with(&watch_path));
+                            && event
+                                .paths
+                                .iter()
+                                .any(|path| path == &watch_path || path.ends_with(&watch_path));
 
                         if !is_relevant {
                             continue;
@@ -65,7 +70,10 @@ impl EncountersFileWatcher {
                             continue;
                         }
 
-                        crate::log_info!("Detected encounters.db change, starting auto sync: {}", &encounters_db_path);
+                        crate::log_info!(
+                            "Detected encounters.db change, starting auto sync: {}",
+                            &encounters_db_path
+                        );
                         // Give the external writer a moment to finish updating the file.
                         tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -123,19 +131,19 @@ pub fn force_encounters_sync(
     todo_repo: tauri::State<'_, Arc<TodoRepository>>,
     settings_manager: tauri::State<'_, crate::settings::SettingsManager>,
 ) -> Result<crate::handlers::encounter_sync_handlers::SyncResult, String> {
-    let result = sync_encounters_to_completions(
-        app.clone(),
-        todo_repo,
-        settings_manager,
-    )?;
-    
-    app.emit("encounters-force-sync-complete", json!({
-        "synced_count": result.synced_count,
-        "skipped_count": result.skipped_count,
-        "errors": &result.errors,
-        "duration_ms": result.duration_ms
-    })).map_err(|e| e.to_string())?;
-    
+    let result = sync_encounters_to_completions(app.clone(), todo_repo, settings_manager)?;
+
+    app.emit(
+        "encounters-force-sync-complete",
+        json!({
+            "synced_count": result.synced_count,
+            "skipped_count": result.skipped_count,
+            "errors": &result.errors,
+            "duration_ms": result.duration_ms
+        }),
+    )
+    .map_err(|e| e.to_string())?;
+
     Ok(result)
 }
 
@@ -146,18 +154,20 @@ pub fn start_encounters_file_watcher(
     settings_manager: tauri::State<'_, crate::settings::SettingsManager>,
 ) -> Result<String, String> {
     // Get user-configured encounters.db path from settings
-    let settings = settings_manager.read()
+    let settings = settings_manager
+        .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_default();
-    
-    let encounters_db_path = settings.system.encounters_db_path
+
+    let encounters_db_path = settings
+        .system
+        .encounters_db_path
         .unwrap_or_else(|| "encounters.db".to_string());
-    
+
     let watcher = EncountersFileWatcher::new(app.clone(), todo_repo.inner().clone(), encounters_db_path);
-    
+
     match watcher.start_watching() {
         Ok(()) => Ok("File watcher started successfully".to_string()),
-        Err(e) => Err(format!("Failed to start file watcher: {}", e))
+        Err(e) => Err(format!("Failed to start file watcher: {}", e)),
     }
 }
-

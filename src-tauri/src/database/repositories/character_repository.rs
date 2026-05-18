@@ -1,8 +1,8 @@
+use crate::roster::Character;
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, params_from_iter};
-use crate::roster::Character;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -54,9 +54,9 @@ impl CharacterRepository {
                     combat_power, display_order, earns_gold, hide_from_dashboard
              FROM conf_character 
              WHERE roster_id = ?1
-             ORDER BY CAST(display_order AS INTEGER)"
+             ORDER BY CAST(display_order AS INTEGER)",
         )?;
-        
+
         let character_iter = stmt.query_map([roster_id], |row| {
             Ok(Character {
                 char_id: row.get(0)?,
@@ -72,12 +72,12 @@ impl CharacterRepository {
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
-        
+
         let mut characters = Vec::new();
         for character in character_iter {
             characters.push(character?);
         }
-        
+
         Ok(characters)
     }
 
@@ -87,9 +87,9 @@ impl CharacterRepository {
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
                     combat_power, display_order, earns_gold, hide_from_dashboard, class_display_name
              FROM conf_character 
-             WHERE char_id = ?1"
+             WHERE char_id = ?1",
         )?;
-        
+
         let character_iter = stmt.query_map([character_id], |row| {
             Ok(Character {
                 char_id: row.get(0)?,
@@ -105,7 +105,7 @@ impl CharacterRepository {
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
-        
+
         for character in character_iter {
             return Ok(Some(character?));
         }
@@ -119,9 +119,9 @@ impl CharacterRepository {
                     c.item_level, c.combat_power, c.roster_name, 
                     c.display_order, c.earns_gold, c.hide_from_dashboard
              FROM conf_character c
-             ORDER BY CAST(c.display_order AS INTEGER), c.char_name"
+             ORDER BY CAST(c.display_order AS INTEGER), c.char_name",
         )?;
-        
+
         let character_iter = stmt.query_map([], |row| {
             Ok(crate::models::DashboardCharacter {
                 char_id: row.get(0)?,
@@ -136,7 +136,7 @@ impl CharacterRepository {
                 display_order: row.get(7)?,
             })
         })?;
-        
+
         let mut characters = Vec::new();
         for character in character_iter {
             characters.push(character?);
@@ -144,7 +144,11 @@ impl CharacterRepository {
         Ok(characters)
     }
 
-    pub fn update_character_settings(&self, character_id: i64, settings: &crate::models::CharacterSettings) -> Result<()> {
+    pub fn update_character_settings(
+        &self,
+        character_id: i64,
+        settings: &crate::models::CharacterSettings,
+    ) -> Result<()> {
         let conn = self.pool.get()?;
 
         let mut set_clauses = Vec::new();
@@ -164,10 +168,7 @@ impl CharacterRepository {
             return Ok(());
         }
 
-        let sql = format!(
-            "UPDATE conf_character SET {} WHERE char_id = ?",
-            set_clauses.join(", ")
-        );
+        let sql = format!("UPDATE conf_character SET {} WHERE char_id = ?", set_clauses.join(", "));
 
         params.push(character_id.into());
         conn.execute(&sql, params_from_iter(params.iter()))?;
@@ -189,9 +190,9 @@ impl CharacterRepository {
             "SELECT char_id, char_name, item_level, combat_power, class_id
              FROM conf_character 
              WHERE roster_id = ?1 
-             ORDER BY CAST(display_order AS INTEGER), char_name"
+             ORDER BY CAST(display_order AS INTEGER), char_name",
         )?;
-        
+
         let character_iter = stmt.query_map([roster_id], |row| {
             Ok(crate::models::CharacterMatrixInfo {
                 char_id: row.get(0)?,
@@ -202,7 +203,7 @@ impl CharacterRepository {
                 display_order: row.get(5)?,
             })
         })?;
-        
+
         let mut characters = Vec::new();
         for character in character_iter {
             characters.push(character?);
@@ -258,9 +259,9 @@ impl CharacterRepository {
         let mut stmt = conn.prepare(
             "SELECT char_id, content_id, current_value 
              FROM rested_values 
-             WHERE char_id = ?1"
+             WHERE char_id = ?1",
         )?;
-        
+
         let rested_iter = stmt.query_map([character_id], |row| {
             Ok(RestedValue {
                 char_id: row.get(0)?,
@@ -268,12 +269,12 @@ impl CharacterRepository {
                 current_value: row.get(2)?,
             })
         })?;
-        
+
         let mut rested_values = Vec::new();
         for rested in rested_iter {
             rested_values.push(rested?);
         }
-        
+
         Ok(rested_values)
     }
 
@@ -282,9 +283,9 @@ impl CharacterRepository {
         let mut stmt = conn.prepare(
             "SELECT char_id, content_id, is_completed, details, session_id 
              FROM completion_status 
-             WHERE char_id = ?1"
+             WHERE char_id = ?1",
         )?;
-        
+
         let completion_iter = stmt.query_map([character_id], |row| {
             Ok(CompletionStatus {
                 char_id: row.get(0)?,
@@ -294,24 +295,24 @@ impl CharacterRepository {
                 session_id: row.get::<_, Option<String>>(4)?,
             })
         })?;
-        
+
         let mut completion_status = Vec::new();
         for completion in completion_iter {
             completion_status.push(completion?);
         }
-        
+
         Ok(completion_status)
     }
 
     pub fn get_character_raid_configs(&self, character_id: i64) -> Result<Vec<CharacterRaidConfig>> {
         let mut conn = self.pool.get()?;
-        
+
         let mut stmt = conn.prepare(
             "SELECT char_id, content_id, take_gold, difficulty, buy_box
              FROM conf_raid 
-             WHERE char_id = ?1"
+             WHERE char_id = ?1",
         )?;
-        
+
         let raid_iter = stmt.query_map([character_id], |row| {
             Ok(CharacterRaidConfig {
                 char_id: row.get(0)?,
@@ -321,24 +322,24 @@ impl CharacterRepository {
                 buy_box: row.get(4)?,
             })
         })?;
-        
+
         let mut raid_configs = Vec::new();
         for raid in raid_iter {
             raid_configs.push(raid?);
         }
-        
+
         Ok(raid_configs)
     }
 
     pub fn get_character_tracking_status(&self, character_id: i64) -> Result<Vec<TrackingStatus>> {
         let mut conn = self.pool.get()?;
-        
+
         let mut stmt = conn.prepare(
             "SELECT char_id, content_id, is_tracked 
              FROM conf_tracking 
-             WHERE char_id = ?1"
+             WHERE char_id = ?1",
         )?;
-        
+
         let tracking_iter = stmt.query_map([character_id], |row| {
             Ok(TrackingStatus {
                 char_id: row.get(0)?,
@@ -346,29 +347,32 @@ impl CharacterRepository {
                 is_tracked: row.get(2)?,
             })
         })?;
-        
+
         let mut tracking_status = Vec::new();
         for tracking in tracking_iter {
             tracking_status.push(tracking?);
         }
-        
+
         Ok(tracking_status)
     }
 
     pub fn delete_character(&self, character_id: i64) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
-        
+
         // Delete from related tables first
         tx.execute("DELETE FROM conf_todo WHERE char_id = ?1", params![character_id])?;
         tx.execute("DELETE FROM conf_raid WHERE char_id = ?1", params![character_id])?;
-        tx.execute("DELETE FROM completion_status WHERE char_id = ?1", params![character_id])?;
+        tx.execute(
+            "DELETE FROM completion_status WHERE char_id = ?1",
+            params![character_id],
+        )?;
         tx.execute("DELETE FROM rested_values WHERE char_id = ?1", params![character_id])?;
         tx.execute("DELETE FROM gold_logs WHERE char_id = ?1", params![character_id])?;
-        
+
         // Delete character
         tx.execute("DELETE FROM conf_character WHERE char_id = ?1", params![character_id])?;
-        
+
         tx.commit()?;
         Ok(())
     }

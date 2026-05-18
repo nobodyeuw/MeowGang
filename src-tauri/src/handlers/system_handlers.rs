@@ -1,9 +1,13 @@
-use crate::database::DatabaseManager;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use sysinfo::System;
 use tauri::State;
-use winreg::RegKey;
+
+const STARTUP_TASK_NAME: &str = "LOA_Tracker_Auto_Start";
+const STARTUP_REGISTRY_VALUE_NAME: &str = "LOA Tracker";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemSettings {
@@ -12,6 +16,7 @@ pub struct SystemSettings {
     pub loa_logs_exe_path: Option<String>,
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
+    pub show_setup_guide_button: bool,
 }
 
 #[tauri::command]
@@ -80,8 +85,72 @@ pub async fn get_system_settings(
         start_with_windows: settings.system.start_with_windows,
         start_with_lost_ark: settings.system.start_with_lost_ark,
         start_with_loa_logs,
+        show_setup_guide_button: settings.system.show_setup_guide_button,
         extra: settings.system.extra,
     })
+}
+
+#[tauri::command]
+pub async fn set_show_setup_guide_button(
+    enabled: bool,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<(), String> {
+    let mut settings = settings_manager
+        .read()
+        .map_err(|e| format!("Failed to read settings: {}", e))?
+        .unwrap_or_else(|| settings_manager.get_default());
+
+    settings.system.show_setup_guide_button = enabled;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    crate::log_info!("Set setup guide header button visibility to: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_user_data(pool: State<'_, Pool<SqliteConnectionManager>>) -> Result<String, String> {
+    let mut conn = pool.get().map_err(|e| format!("Failed to open user database: {}", e))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Failed to start clear user data transaction: {}", e))?;
+
+    let deleted_characters = clear_character_data(&tx).map_err(|e| format!("Failed to clear character data: {}", e))?;
+
+    tx.commit()
+        .map_err(|e| format!("Failed to commit clear user data transaction: {}", e))?;
+
+    crate::log_info!("Cleared user data for {} characters", deleted_characters);
+    Ok(format!("Cleared {} characters and related data", deleted_characters))
+}
+
+fn clear_character_data(tx: &Transaction<'_>) -> rusqlite::Result<usize> {
+    let deleted_characters: usize = tx.query_row("SELECT COUNT(*) FROM conf_character", [], |row| row.get(0))?;
+
+    for table in [
+        "conf_tracking",
+        "conf_raid",
+        "completion_status",
+        "rested_values",
+        "gold_logs",
+    ] {
+        tx.execute(&format!("DELETE FROM {}", table), [])?;
+    }
+
+    for table in [
+        "character_engravings",
+        "character_equipment",
+        "character_gems",
+        "progression_goals",
+    ] {
+        tx.execute(&format!("DELETE FROM {}", table), [])?;
+    }
+
+    tx.execute("DELETE FROM sync_metadata WHERE table_name = 'conf_character'", [])?;
+    tx.execute("DELETE FROM conf_character", [])?;
+
+    Ok(deleted_characters)
 }
 
 pub fn detect_encounters_db_path() -> Option<String> {
@@ -187,14 +256,20 @@ fn detect_lost_ark_exe_path() -> Option<String> {
     None
 }
 
-fn detect_loa_logs_exe_path() -> Option<String> {
+pub(crate) fn detect_loa_logs_exe_path() -> Option<String> {
     // Common LOA Logs locations: Local AppData LOA Logs folder, Program Files
     if let Some(local_data_dir) = dirs::data_local_dir() {
-        let loa_logs_exe = local_data_dir.join("LOA Logs").join("LOA Logs.exe");
-        if loa_logs_exe.exists() {
-            if let Some(path_str) = loa_logs_exe.to_str() {
-                crate::log_info!("Auto-detected LOA Logs exe in LocalAppData: {}", path_str);
-                return Some(path_str.to_string());
+        let candidates = [
+            local_data_dir.join("Programs").join("LOA Logs").join("LOA Logs.exe"),
+            local_data_dir.join("LOA Logs").join("LOA Logs.exe"),
+        ];
+
+        for candidate in candidates {
+            if candidate.exists() {
+                if let Some(path_str) = candidate.to_str() {
+                    crate::log_info!("Auto-detected LOA Logs exe in LocalAppData: {}", path_str);
+                    return Some(path_str.to_string());
+                }
             }
         }
     }
@@ -365,7 +440,7 @@ pub async fn set_start_with_windows(
             crate::log_info!("Successfully set start with Windows to: {}", enabled);
         }
         Err(e) => {
-            crate::log_error!("Failed to set registry autostart: {}", e);
+            crate::log_error!("Failed to set Task Scheduler autostart: {}", e);
             return Err(format!("Failed to set Windows autostart: {}", e));
         }
     }
@@ -382,15 +457,61 @@ pub(crate) fn refresh_startup_registration(
     let background_monitor = !settings.system.start_with_windows
         && (settings.system.start_with_lost_ark || settings.system.start_with_loa_logs);
 
-    set_autostart_registry(enabled, background_monitor)
+    refresh_startup_registration_impl(enabled, background_monitor)
 }
 
 pub(crate) fn should_keep_background_monitor(settings: &crate::settings::Settings) -> bool {
     settings.system.start_with_lost_ark || settings.system.start_with_loa_logs
 }
 
-// Helper function for Windows Registry autostart
+#[cfg(target_os = "windows")]
+fn refresh_startup_registration_impl(
+    enabled: bool,
+    background_monitor: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    std::thread::spawn(move || match set_autostart_task(enabled, background_monitor) {
+        Ok(_) => {
+            if enabled {
+                if let Err(e) = set_autostart_registry(false, background_monitor) {
+                    crate::log_debug!("Failed to remove fallback registry autostart: {}", e);
+                }
+            } else if let Err(e) = set_autostart_registry(false, background_monitor) {
+                crate::log_debug!("Failed to remove fallback registry autostart: {}", e);
+            }
+            Ok(())
+        }
+        Err(task_error) if enabled => {
+            crate::log_warn!(
+                "Task Scheduler autostart failed, falling back to current-user registry startup: {}",
+                task_error
+            );
+            set_autostart_registry(true, background_monitor).map_err(|registry_error| {
+                format!(
+                    "Failed to update Task Scheduler startup task: {}; fallback registry startup also failed: {}",
+                    task_error, registry_error
+                )
+            })
+        }
+        Err(task_error) => {
+            crate::log_debug!("Task Scheduler autostart removal failed: {}", task_error);
+            set_autostart_registry(false, background_monitor).map_err(|registry_error| {
+                format!(
+                    "Failed to remove Task Scheduler startup task: {}; fallback registry startup also failed: {}",
+                    task_error, registry_error
+                )
+            })
+        }
+    })
+    .join()
+    .map_err(|_| "Task Scheduler startup registration thread panicked".to_string())??;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
 fn set_autostart_registry(enabled: bool, background_monitor: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use winreg::RegKey;
+
     let exe_path = std::env::current_exe()?;
     let exe_path_str = exe_path.to_string_lossy();
     let startup_command = if background_monitor {
@@ -400,24 +521,94 @@ fn set_autostart_registry(enabled: bool, background_monitor: bool) -> Result<(),
     };
 
     let hkcu = RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let path = hkcu.open_subkey_with_flags(
+    let run_key = hkcu.open_subkey_with_flags(
         r"Software\Microsoft\Windows\CurrentVersion\Run",
         winreg::enums::KEY_WRITE,
     )?;
 
     if enabled {
-        path.set_value("LOA Tracker", &startup_command)?;
-        crate::log_info!("Added LOA Tracker to Windows startup registry: {}", startup_command);
+        run_key.set_value(STARTUP_REGISTRY_VALUE_NAME, &startup_command)?;
+        crate::log_info!(
+            "Registered LOA Tracker current-user registry autostart fallback: {}",
+            startup_command
+        );
     } else {
-        match path.delete_value("LOA Tracker") {
-            Ok(_) => crate::log_info!("Removed LOA Tracker from Windows startup registry"),
+        match run_key.delete_value(STARTUP_REGISTRY_VALUE_NAME) {
+            Ok(_) => crate::log_info!("Removed LOA Tracker current-user registry autostart fallback"),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                crate::log_debug!("LOA Tracker was not in Windows startup registry");
+                crate::log_debug!("LOA Tracker registry autostart fallback was not present");
             }
             Err(e) => return Err(Box::new(e)),
         }
     }
 
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_autostart_task(enabled: bool, background_monitor: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use winsafe::{self as w, co, prelude::*};
+
+    let _scope = w::CoInitializeEx(co::COINIT::MULTITHREADED)?;
+    let service = w::CoCreateInstance::<w::ITaskService>(
+        &co::CLSID::TaskScheduler,
+        None::<&w::IUnknown>,
+        co::CLSCTX::INPROC_SERVER,
+    )?;
+    service.Connect(None, None, None, None)?;
+    let folder = service.GetFolder(r"\")?;
+
+    if !enabled {
+        match folder.DeleteTask(STARTUP_TASK_NAME) {
+            Ok(_) => crate::log_info!("Removed LOA Tracker Task Scheduler autostart task"),
+            Err(e) => crate::log_debug!("LOA Tracker autostart task was not removed: {}", e),
+        }
+        return Ok(());
+    }
+
+    let exe_path = std::env::current_exe()?;
+    let arguments = if background_monitor { "--startup-monitor" } else { "" };
+
+    let task = service.NewTask()?;
+    task.get_Triggers()?.Create(co::TASK_TRIGGER_TYPE2::LOGON)?;
+    task.get_Principal()?.put_RunLevel(co::TASK_RUNLEVEL::LUA)?;
+
+    let action = task
+        .get_Actions()?
+        .Create(co::TASK_ACTION_TYPE::EXEC)?
+        .QueryInterface::<w::IExecAction>()?;
+    action.put_Path(&exe_path.display().to_string())?;
+    if !arguments.is_empty() {
+        action.put_Arguments(arguments)?;
+    }
+    if let Some(working_directory) = exe_path.parent() {
+        action.put_WorkingDirectory(&working_directory.display().to_string())?;
+    }
+
+    folder.RegisterTaskDefinition(
+        Some(STARTUP_TASK_NAME),
+        &task,
+        co::TASK_CREATION::CREATE_OR_UPDATE,
+        None,
+        None,
+        co::TASK_LOGON::INTERACTIVE_TOKEN,
+        None,
+    )?;
+
+    crate::log_info!(
+        "Registered LOA Tracker Task Scheduler autostart task: {} {}",
+        exe_path.display(),
+        arguments
+    );
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn refresh_startup_registration_impl(
+    _enabled: bool,
+    _background_monitor: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
@@ -625,15 +816,22 @@ pub(crate) fn ensure_loa_logs_running(path: Option<&str>) -> Result<(), String> 
         return Ok(());
     }
 
-    let Some(path_str) = path else {
-        return Err("No LOA Logs executable path configured".to_string());
+    let path_str = match path {
+        Some(path) if !path.trim().is_empty() => path.to_string(),
+        _ => detect_loa_logs_exe_path().ok_or_else(|| "No LOA Logs executable path configured".to_string())?,
     };
 
-    if !std::path::Path::new(path_str).exists() {
+    let exe_path = std::path::Path::new(&path_str);
+    if !exe_path.exists() {
         return Err(format!("Configured LOA Logs path does not exist: {}", path_str));
     }
 
-    std::process::Command::new(path_str)
+    let mut command = std::process::Command::new(exe_path);
+    if let Some(parent) = exe_path.parent() {
+        command.current_dir(parent);
+    }
+
+    command
         .spawn()
         .map(|_| crate::log_info!("Launched LOA Logs from settings: {}", path_str))
         .map_err(|e| format!("Failed to launch LOA Logs: {}", e))

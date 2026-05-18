@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use crate::database::data_manager::{GameTask, Raid, GameClass, DataManager};
-use crate::database::repositories::RosterRepository;
+use crate::database::data_manager::{DataManager, GameClass, GameTask, Raid};
 use crate::database::repositories::CharacterRepository;
+use crate::database::repositories::RosterRepository;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InitializationData {
@@ -30,9 +30,11 @@ pub struct BootstrapSnapshot {
 pub struct DashboardSnapshot {
     pub characters: Vec<crate::roster::Character>,
     pub rested_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::RestedValue>>,
-    pub completion_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::CompletionStatus>>,
+    pub completion_by_character:
+        HashMap<i64, Vec<crate::database::repositories::character_repository::CompletionStatus>>,
     pub tracking_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::TrackingStatus>>,
-    pub raid_configs_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::CharacterRaidConfig>>,
+    pub raid_configs_by_character:
+        HashMap<i64, Vec<crate::database::repositories::character_repository::CharacterRaidConfig>>,
 }
 
 #[tauri::command]
@@ -122,12 +124,7 @@ pub async fn initialize_application_data(
     data: InitializationDataWithClasses,
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
 ) -> Result<String, String> {
-    match DataManager::initialize_default_data(
-        &db_manager.pool,
-        data.tasks,
-        data.raids,
-        data.classes,
-    ) {
+    match DataManager::initialize_default_data(&db_manager.pool, data.tasks, data.raids, data.classes) {
         Ok(_) => Ok("Application data initialized successfully".to_string()),
         Err(e) => Err(format!("Failed to initialize application data: {}", e)),
     }
@@ -138,11 +135,7 @@ pub async fn ensure_character_data_complete(
     data: InitializationData,
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
 ) -> Result<String, String> {
-    match DataManager::ensure_character_data_complete(
-        &db_manager.pool,
-        data.tasks,
-        data.raids,
-    ) {
+    match DataManager::ensure_character_data_complete(&db_manager.pool, data.tasks, data.raids) {
         Ok(_) => Ok("Character data consistency check completed".to_string()),
         Err(e) => Err(format!("Failed to ensure character data completeness: {}", e)),
     }
@@ -155,13 +148,7 @@ pub async fn initialize_character_data(
     data: InitializationDataWithClasses,
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
 ) -> Result<String, String> {
-    match DataManager::initialize_character_data(
-        &db_manager.pool,
-        character_id,
-        &roster_id,
-        data.tasks,
-        data.raids,
-    ) {
+    match DataManager::initialize_character_data(&db_manager.pool, character_id, &roster_id, data.tasks, data.raids) {
         Ok(_) => Ok("Character data initialized successfully".to_string()),
         Err(e) => Err(format!("Failed to initialize character data: {}", e)),
     }
@@ -178,9 +165,7 @@ pub async fn update_reset_timestamps(
 }
 
 #[tauri::command]
-pub async fn get_schema_version(
-    db_manager: tauri::State<'_, crate::database::DatabaseManager>,
-) -> Result<i64, String> {
+pub async fn get_schema_version(db_manager: tauri::State<'_, crate::database::DatabaseManager>) -> Result<i64, String> {
     match DataManager::get_schema_version(&db_manager.pool) {
         Ok(version) => Ok(version as i64),
         Err(e) => Err(format!("Failed to get schema version: {}", e)),
@@ -198,7 +183,10 @@ pub async fn migrate_database(
     };
 
     match DataManager::migrate_database(&db_manager.pool, current_version as i32, target_version as i32) {
-        Ok(_) => Ok(format!("Database migrated from version {} to {}", current_version, target_version)),
+        Ok(_) => Ok(format!(
+            "Database migrated from version {} to {}",
+            current_version, target_version
+        )),
         Err(e) => Err(format!("Failed to migrate database: {}", e)),
     }
 }

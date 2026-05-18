@@ -63,7 +63,10 @@ pub fn upsert_progression_goal(
 }
 
 #[tauri::command]
-pub fn delete_progression_goal(goal_id: i64, progression_repo: State<'_, ProgressionRepository>) -> Result<bool, String> {
+pub fn delete_progression_goal(
+    goal_id: i64,
+    progression_repo: State<'_, ProgressionRepository>,
+) -> Result<bool, String> {
     if goal_id <= 0 {
         return Err("Invalid goal id".to_string());
     }
