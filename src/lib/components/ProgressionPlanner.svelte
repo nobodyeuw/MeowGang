@@ -24,26 +24,10 @@
   const DEVELOPMENT_MODE = true;
 </script>
 
-{#if DEVELOPMENT_MODE}
+{#if DEVELOPMENT_MODE && activeTab === 'planner'}
   <div class="under-development-shell">
     <div class="under-development-card">
       <div class="card-header">
-        <div class="progression-sub-tabs">
-          <button
-            class="progression-tab-button"
-            class:active={activeTab === 'market_prices'}
-            on:click={() => switchProgressionTab('market_prices')}
-          >
-            Market Prices
-          </button>
-          <button
-            class="progression-tab-button"
-            class:active={activeTab === 'planner'}
-            on:click={() => switchProgressionTab('planner')}
-          >
-            Planner
-          </button>
-        </div>
         <div class="status-pill">Under Development</div>
       </div>
 

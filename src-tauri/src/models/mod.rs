@@ -185,6 +185,7 @@ pub struct CharacterRaidState {
     pub content_id: String,
     pub tracked: bool,
     pub current_value: Option<i64>,
+    pub lazy_daily: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -287,5 +288,6 @@ pub struct CharacterSettings {
 pub struct Roster {
     pub id: String,
     pub roster_name: String,
+    pub roster_display_order: i64,
     pub last_updated: Option<i64>,
 }

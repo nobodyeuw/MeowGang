@@ -22,6 +22,7 @@
     tier: string | null;
     quality: number | null;
     itemLevel: number | null;
+    effectsJson: string | null;
     isManualEntry: boolean;
     updatedAt: number;
   }
@@ -74,13 +75,8 @@
     ability_stone: 'Ability Stone',
   };
 
-  const SLOT_ORDER = [
-    'weapon','head','chest','pants','gloves','shoulder',
-    'neck','earring1','earring2','ring1','ring2','bracelet','ability_stone'
-  ];
-
-  const ARMOR_SLOTS  = new Set(['weapon','head','chest','pants','gloves','shoulder']);
-  const ACCESSORY_SLOTS = new Set(['neck','earring1','earring2','ring1','ring2','bracelet','ability_stone']);
+  const ARMOR_ORDER = ['head','shoulder','chest','pants','gloves','weapon'];
+  const ACCESSORY_ORDER = ['neck','earring1','earring2','ring1','ring2','ability_stone'];
 
   function qualityColor(q: number | null): string {
     if (q === null) return 'var(--md-sys-color-outline-variant)';
@@ -114,12 +110,25 @@
     return d.toLocaleString();
   }
 
-  function sortedEquipment(equipment: EquipmentRow[]): EquipmentRow[] {
-    return [...equipment].sort((a, b) => {
-      const ai = SLOT_ORDER.indexOf(a.slot);
-      const bi = SLOT_ORDER.indexOf(b.slot);
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
+  function equipmentBySlot(slot: string): EquipmentRow | null {
+    return snapshot?.equipment.find(e => e.slot === slot) ?? null;
+  }
+
+  function equipmentEffects(item: EquipmentRow | null): Array<{ label: string; value: string | number; grade?: string }> {
+    if (!item?.effectsJson) return [];
+    try {
+      const parsed = JSON.parse(item.effectsJson);
+      return Array.isArray(parsed) ? parsed.filter(e => e?.label && e?.value !== undefined && e?.value !== null) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function formatEffectValue(value: string | number): string {
+    if (typeof value === 'number') {
+      return value > 0 ? `+${value}` : `${value}`;
+    }
+    return value;
   }
 
   function sortedEngravings(engravings: EngravingRow[]): EngravingRow[] {
@@ -279,50 +288,75 @@
     <div class="content-grid">
 
       <!-- Equipment panel -->
-      <section class="panel">
+      <section class="panel equipment-panel">
         <h3 class="panel-title">⚔ Equipment</h3>
-        {#if (snapshot?.equipment ?? []).filter(e => ARMOR_SLOTS.has(e.slot)).length > 0}
-          <div class="equip-group-label">Armor &amp; Weapon</div>
-          <div class="equipment-list">
-            {#each sortedEquipment(snapshot?.equipment ?? []).filter(e => ARMOR_SLOTS.has(e.slot)) as item}
-              <div class="equip-row">
-                <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
-                <div class="equip-details">
-                  <div class="equip-top">
-                    {#if item.enhancementLevel !== null}
-                      <span class="honing-badge">+{item.enhancementLevel}</span>
-                    {/if}
-                    {#if item.tier}<span class="tier-badge">{item.tier}</span>{/if}
-                    {#if item.itemLevel !== null}<span class="ilvl-text">{item.itemLevel.toFixed(0)} ilvl</span>{/if}
-                  </div>
-                  {#if item.quality !== null}
-                    <div class="quality-bar-wrap">
-                      <div class="quality-bar-fill" style="width:{item.quality}%; background:{qualityColor(item.quality)}"></div>
-                      <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality}</span>
+        {#if (snapshot?.equipment ?? []).length > 0}
+          <div class="equipment-board">
+            <div class="equipment-column">
+              {#each ARMOR_ORDER as slot}
+                {@const item = equipmentBySlot(slot)}
+                {#if item}
+                  <div class="equip-card">
+                    <div class="equip-main-line">
+                      <span class="equip-name">{SLOT_LABELS[item.slot] ?? item.slot}</span>
+                      {#if item.enhancementLevel !== null}<span class="honing-inline">+{item.enhancementLevel}</span>{/if}
+                      {#if item.tier}<span class="tier-inline">{item.tier}</span>{/if}
                     </div>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-        {#if (snapshot?.equipment ?? []).filter(e => ACCESSORY_SLOTS.has(e.slot)).length > 0}
-          <div class="equip-group-label" style="margin-top:0.75rem">Accessories</div>
-          <div class="equipment-list">
-            {#each sortedEquipment(snapshot?.equipment ?? []).filter(e => ACCESSORY_SLOTS.has(e.slot)) as item}
-              <div class="equip-row">
-                <div class="equip-slot-label">{SLOT_LABELS[item.slot] ?? item.slot}</div>
-                <div class="equip-details">
-                  <div class="equip-top">
-                    {#if item.tier}<span class="tier-badge">{item.tier}</span>{/if}
-                    {#if item.quality !== null}
-                      <span class="quality-label" style="color:{qualityColor(item.quality)}">{item.quality} quality</span>
+                    <div class="equip-meta-line">
+                      {#if item.quality !== null}<span class="quality-pill" style="background:{qualityColor(item.quality)}">{item.quality}</span>{/if}
+                      {#if item.itemLevel !== null}<span>{item.itemLevel.toFixed(0)}</span>{/if}
+                    </div>
+                  </div>
+                {/if}
+              {/each}
+            </div>
+
+            <div class="equipment-column">
+              {#each ACCESSORY_ORDER as slot}
+                {@const item = equipmentBySlot(slot)}
+                {#if item}
+                  <div class="equip-card accessory-card">
+                    <div class="equip-main-line">
+                      <span class="equip-name">{SLOT_LABELS[item.slot] ?? item.slot}</span>
+                      {#if item.tier}<span class="tier-inline">{item.tier}</span>{/if}
+                    </div>
+                    {#if equipmentEffects(item).length > 0}
+                      <div class="effect-list">
+                        {#each equipmentEffects(item) as effect}
+                          <div class="effect-line" class:grade-blue={effect.grade === 'blue'} class:grade-purple={effect.grade === 'purple'} class:grade-orange={effect.grade === 'orange' || effect.grade === 'legendary'}>
+                            <span>{effect.label}</span>
+                            <strong>{formatEffectValue(effect.value)}</strong>
+                          </div>
+                        {/each}
+                      </div>
                     {/if}
                   </div>
-                </div>
-              </div>
-            {/each}
+                {/if}
+              {/each}
+            </div>
           </div>
+
+          {@const bracelet = equipmentBySlot('bracelet')}
+          {#if bracelet}
+            <div class="bracelet-card">
+              <div class="equip-main-line">
+                <span class="equip-name">{SLOT_LABELS.bracelet}</span>
+                {#if bracelet.tier}<span class="tier-inline">{bracelet.tier}</span>{/if}
+              </div>
+              {#if equipmentEffects(bracelet).length > 0}
+                <div class="effect-list bracelet-effects">
+                  {#each equipmentEffects(bracelet) as effect}
+                    <div class="effect-line" class:grade-blue={effect.grade === 'blue'} class:grade-purple={effect.grade === 'purple'} class:grade-orange={effect.grade === 'orange' || effect.grade === 'legendary'}>
+                      <span>{effect.label}</span>
+                      <strong>{formatEffectValue(effect.value)}</strong>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <p class="empty-msg">No bracelet stats were available in the scraped data.</p>
+              {/if}
+            </div>
+          {/if}
         {/if}
         {#if (snapshot?.equipment ?? []).length === 0}
           <p class="empty-msg">No equipment data scraped yet.</p>
@@ -386,26 +420,6 @@
           <span class="placeholder-icon">🔮</span>
           <p>Ark Grid data coming soon</p>
           <p class="placeholder-sub">Jumper / Order Sun / Chaos Moon points will appear here once scraping support is added.</p>
-        </div>
-      </section>
-
-      <!-- Ark Passive placeholder -->
-      <section class="panel placeholder-panel">
-        <h3 class="panel-title">✨ Ark Passive</h3>
-        <div class="placeholder-content">
-          <span class="placeholder-icon">📖</span>
-          <p>Ark Passive data coming soon</p>
-          <p class="placeholder-sub">Evolution / Enlightenment / Leap trees will appear here.</p>
-        </div>
-      </section>
-
-      <!-- Cards placeholder -->
-      <section class="panel placeholder-panel">
-        <h3 class="panel-title">🃏 Cards</h3>
-        <div class="placeholder-content">
-          <span class="placeholder-icon">🎴</span>
-          <p>Card set data coming soon</p>
-          <p class="placeholder-sub">Card set name and awakening level will appear here.</p>
         </div>
       </section>
 
@@ -579,6 +593,10 @@
     grid-column: 1 / -1;
   }
 
+  .equipment-panel {
+    grid-column: 1 / -1;
+  }
+
   /* ── Panel base ── */
   .panel {
     background: var(--md-sys-color-surface);
@@ -604,6 +622,111 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .equipment-board {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr);
+    gap: 0.75rem;
+  }
+
+  .equipment-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .equip-card,
+  .bracelet-card {
+    background: var(--md-sys-color-surface-container-low, var(--md-sys-color-surface-variant));
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .bracelet-card {
+    margin-top: 0.75rem;
+  }
+
+  .equip-main-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 1.35rem;
+  }
+
+  .equip-name {
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .honing-inline,
+  .tier-inline {
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .tier-inline {
+    color: var(--md-sys-color-primary);
+  }
+
+  .equip-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.75rem;
+    margin-top: 0.2rem;
+  }
+
+  .quality-pill {
+    min-width: 1.6rem;
+    padding: 0.05rem 0.28rem;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .effect-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    margin-top: 0.35rem;
+  }
+
+  .effect-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border-left: 2px solid var(--md-sys-color-outline-variant);
+    padding-left: 0.45rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  .effect-line strong {
+    color: var(--md-sys-color-on-surface);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .effect-line.grade-blue {
+    border-left-color: #3b82f6;
+  }
+
+  .effect-line.grade-purple {
+    border-left-color: #a855f7;
+  }
+
+  .effect-line.grade-orange {
+    border-left-color: #f59e0b;
   }
 
   .equip-row {
@@ -886,6 +1009,10 @@
   /* ── Responsive ── */
   @media (max-width: 720px) {
     .content-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .equipment-board {
       grid-template-columns: 1fr;
     }
 

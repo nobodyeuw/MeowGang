@@ -36,6 +36,7 @@ pub struct TrackingStatus {
     pub char_id: i64,
     pub content_id: String,
     pub is_tracked: i64,
+    pub lazy_daily: i64,
 }
 
 pub struct CharacterRepository {
@@ -335,7 +336,7 @@ impl CharacterRepository {
         let mut conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT char_id, content_id, is_tracked 
+            "SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) 
              FROM conf_tracking 
              WHERE char_id = ?1",
         )?;
@@ -345,6 +346,7 @@ impl CharacterRepository {
                 char_id: row.get(0)?,
                 content_id: row.get(1)?,
                 is_tracked: row.get(2)?,
+                lazy_daily: row.get(3)?,
             })
         })?;
 
@@ -441,7 +443,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT char_id, content_id, is_tracked FROM conf_tracking WHERE char_id IN ({})",
+            "SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) FROM conf_tracking WHERE char_id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -450,6 +452,7 @@ impl CharacterRepository {
                 char_id: row.get(0)?,
                 content_id: row.get(1)?,
                 is_tracked: row.get(2)?,
+                lazy_daily: row.get(3)?,
             })
         })?;
         let mut map: HashMap<i64, Vec<TrackingStatus>> = HashMap::new();

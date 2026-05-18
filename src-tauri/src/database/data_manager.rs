@@ -178,6 +178,7 @@ impl DataManager {
                     tier TEXT,
                     quality INTEGER,
                     item_level REAL,
+                    effects_json TEXT,
                     is_manual_entry INTEGER NOT NULL DEFAULT 0,
                     updated_at INTEGER NOT NULL,
                     UNIQUE(character_id, slot),
@@ -226,9 +227,13 @@ impl DataManager {
                     character_id INTEGER NOT NULL,
                     slot_index INTEGER NOT NULL DEFAULT 0,
                     gem_name TEXT NOT NULL DEFAULT '',
+                    gem_item_id INTEGER,
+                    skill_id INTEGER,
                     skill_name TEXT NOT NULL,
+                    skill_icon TEXT,
                     gem_type TEXT NOT NULL,
                     gem_level INTEGER NOT NULL,
+                    effect_value REAL,
                     is_bound INTEGER NOT NULL DEFAULT 0,
                     is_manual_entry INTEGER NOT NULL DEFAULT 0,
                     updated_at INTEGER NOT NULL,
@@ -239,6 +244,32 @@ impl DataManager {
                 CREATE INDEX IF NOT EXISTS idx_character_gems_slot ON character_gems(character_id, slot_index);
                 "#,
             )?;
+        }
+
+        if current_version >= 5 && current_version < 6 {
+            tx.execute_batch(
+                r#"
+                ALTER TABLE character_gems ADD COLUMN gem_item_id INTEGER;
+                ALTER TABLE character_gems ADD COLUMN skill_id INTEGER;
+                ALTER TABLE character_gems ADD COLUMN skill_icon TEXT;
+                ALTER TABLE character_gems ADD COLUMN effect_value REAL;
+                "#,
+            )?;
+        }
+
+        if current_version < 7 && !Self::column_exists(&tx, "character_equipment", "effects_json") {
+            tx.execute("ALTER TABLE character_equipment ADD COLUMN effects_json TEXT", [])?;
+        }
+
+        if current_version < 8 && !Self::column_exists(&tx, "conf_character", "roster_display_order") {
+            tx.execute(
+                "ALTER TABLE conf_character ADD COLUMN roster_display_order INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
+
+        if current_version < 9 && !Self::column_exists(&tx, "conf_tracking", "lazy_daily") {
+            tx.execute("ALTER TABLE conf_tracking ADD COLUMN lazy_daily INTEGER DEFAULT 0", [])?;
         }
 
         tx.commit()?;

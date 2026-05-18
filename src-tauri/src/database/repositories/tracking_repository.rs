@@ -40,17 +40,18 @@ impl TrackingRepository {
 
         // Get all conf_tracking entries for characters in this roster (both tasks and raids)
         let mut todo_stmt =
-            conn.prepare("SELECT char_id, content_id, is_tracked FROM conf_tracking WHERE roster_id = ?1")?;
+            conn.prepare("SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) FROM conf_tracking WHERE roster_id = ?1")?;
 
         let todo_iter = todo_stmt.query_map([roster_id], |row| {
             Ok((
                 row.get::<_, i64>(0)?,      // char_id
                 row.get::<_, String>(1)?,   // content_id
                 row.get::<_, i64>(2)? == 1, // is_tracked
+                row.get::<_, i64>(3)? == 1, // lazy_daily
             ))
         })?;
 
-        let todo_entries: Vec<(i64, String, bool)> = todo_iter.filter_map(Result::ok).collect();
+        let todo_entries: Vec<(i64, String, bool, bool)> = todo_iter.filter_map(Result::ok).collect();
 
         // Get rested values for characters in this roster
         let mut rested_stmt = conn.prepare(
@@ -74,7 +75,7 @@ impl TrackingRepository {
         // Create character states for each content_id
         let mut character_states = std::collections::HashMap::new();
         for char in &characters {
-            for (char_id, content_id, is_tracked) in &todo_entries {
+            for (char_id, content_id, is_tracked, lazy_daily) in &todo_entries {
                 // Only create state if this entry belongs to the current character
                 if *char_id == char.char_id {
                     // Get rested value if exists, default to 0
@@ -93,6 +94,7 @@ impl TrackingRepository {
                             content_id: content_id.clone(),
                             tracked: *is_tracked,
                             current_value: Some(current_value),
+                            lazy_daily: Some(*lazy_daily),
                         },
                     );
                 }
@@ -106,7 +108,12 @@ impl TrackingRepository {
             roster_tasks: Vec::new(),
             weekly_tasks: Vec::new(),
             raids: Vec::new(),
-            todo_entries: Some(todo_entries),
+            todo_entries: Some(
+                todo_entries
+                    .iter()
+                    .map(|(char_id, content_id, is_tracked, _)| (*char_id, content_id.clone(), *is_tracked))
+                    .collect(),
+            ),
             rested_entries: Some(rested_entries),
             character_states: Some(
                 character_states
@@ -132,8 +139,33 @@ impl TrackingRepository {
         let tracked_value = if is_tracked { 1 } else { 0 };
 
         conn.execute(
-            "INSERT OR REPLACE INTO conf_tracking (roster_id, char_id, content_id, is_tracked) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+             VALUES (?1, ?2, ?3, ?4, 0)
+             ON CONFLICT(char_id, content_id) DO UPDATE SET
+               roster_id = excluded.roster_id,
+               is_tracked = excluded.is_tracked",
             params![roster_id, character_id, content_id, tracked_value],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn update_lazy_daily_config(&self, character_id: i64, content_id: &str, lazy_daily: bool) -> Result<()> {
+        let conn = self.pool.get()?;
+
+        let roster_id: String = conn.query_row(
+            "SELECT roster_id FROM conf_character WHERE char_id = ?1",
+            params![character_id],
+            |row| row.get(0),
+        )?;
+
+        conn.execute(
+            "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+             VALUES (?1, ?2, ?3, 1, ?4)
+             ON CONFLICT(char_id, content_id) DO UPDATE SET
+               roster_id = excluded.roster_id,
+               lazy_daily = excluded.lazy_daily",
+            params![roster_id, character_id, content_id, if lazy_daily { 1 } else { 0 }],
         )?;
 
         Ok(())
@@ -181,9 +213,11 @@ impl TrackingRepository {
 
         for update in task_updates {
             tx.execute(
-                "INSERT OR REPLACE INTO conf_tracking 
-                 (char_id, content_id, is_tracked) 
-                 VALUES (?1, ?2, ?3)",
+                "INSERT INTO conf_tracking 
+                 (char_id, content_id, is_tracked, lazy_daily) 
+                 VALUES (?1, ?2, ?3, 0)
+                 ON CONFLICT(char_id, content_id) DO UPDATE SET
+                   is_tracked = excluded.is_tracked",
                 params![character_id, update.task_id, (if update.tracked { 1 } else { 0 }),],
             )?;
         }

@@ -16,17 +16,21 @@ impl RosterRepository {
     pub fn get_all_rosters(&self) -> Result<Vec<crate::models::Roster>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT roster_id as id, roster_name as roster_name, NULL as last_updated
-             FROM conf_character 
-             GROUP BY roster_id, roster_name
-             ORDER BY roster_name",
+            "SELECT roster_id as id,
+                    COALESCE(NULLIF(MAX(NULLIF(TRIM(roster_name), '')), ''), roster_id) as roster_name,
+                    COALESCE(MIN(roster_display_order), 0) as roster_display_order,
+                    NULL as last_updated
+             FROM conf_character
+             GROUP BY roster_id
+             ORDER BY roster_display_order, roster_name",
         )?;
 
         let roster_iter = stmt.query_map([], |row| {
             Ok(crate::models::Roster {
                 id: row.get(0)?,
                 roster_name: row.get(1)?,
-                last_updated: row.get(2)?,
+                roster_display_order: row.get(2)?,
+                last_updated: row.get(3)?,
             })
         })?;
 
@@ -79,8 +83,10 @@ impl RosterRepository {
             tx.execute(
                 "INSERT INTO conf_character 
                  (char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                  combat_power, display_order, earns_gold, hide_from_dashboard)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                  combat_power, display_order, roster_display_order, earns_gold, hide_from_dashboard)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                         COALESCE((SELECT MIN(roster_display_order) FROM conf_character WHERE roster_id = ?3), 0),
+                         ?9, ?10)
                  ON CONFLICT(char_id) DO UPDATE SET
                    char_name = excluded.char_name,
                    roster_id = excluded.roster_id,
@@ -143,6 +149,24 @@ impl RosterRepository {
         conn.execute(
             "UPDATE conf_character SET roster_name = ?1 WHERE char_id = ?2",
             params![new_roster_name, character_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_roster_name(&self, roster_id: &str, new_roster_name: &str) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE conf_character SET roster_name = ?1 WHERE roster_id = ?2",
+            params![new_roster_name, roster_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_roster_order(&self, roster_id: &str, display_order: i64) -> Result<()> {
+        let conn = self.pool.get()?;
+        conn.execute(
+            "UPDATE conf_character SET roster_display_order = ?1 WHERE roster_id = ?2",
+            params![display_order, roster_id],
         )?;
         Ok(())
     }

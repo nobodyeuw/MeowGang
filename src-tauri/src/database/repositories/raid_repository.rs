@@ -24,6 +24,7 @@ impl RaidRepository {
                 content_id: row.get::<_, String>(0)?,
                 tracked: row.get::<_, i64>(1)? == 1,
                 current_value: None, // Raids don't have rested values
+                lazy_daily: None,
             })
         })?;
 
@@ -197,6 +198,7 @@ impl RaidRepository {
                     content_id: raid_id.clone(),
                     tracked: row.get::<_, i64>(1)? == 1,
                     current_value: None, // Raids don't have rested values
+                    lazy_daily: None,
                 })
             })?;
 

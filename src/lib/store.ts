@@ -11,6 +11,7 @@ import { type GameTask as FrontendGameTask } from '$lib/data/tasks';
 export interface Roster {
   id: string;
   roster_name: string;
+  roster_display_order?: number;
   last_updated?: string;
 }
 
@@ -273,11 +274,17 @@ export async function loadRosters() {
     console.log('Loading rosters from backend...');
     const result = await invoke<Roster[]>('get_rosters');
     console.log('Rosters loaded successfully:', result);
-    rosters.set(result);
+    const uniqueRosters = Array.from(
+      new Map(result.map(roster => [roster.id, roster])).values()
+    ).sort((a, b) =>
+      (a.roster_display_order ?? 0) - (b.roster_display_order ?? 0)
+      || a.roster_name.localeCompare(b.roster_name)
+    );
+    rosters.set(uniqueRosters);
     console.log('Rosters store updated');
     
     // Sync all rosters to ensure raid data is initialized
-    for (const roster of result) {
+    for (const roster of uniqueRosters) {
       console.log(`STORE: Syncing roster ${roster.id}...`);
       try {
         await checkAndSyncRosterIfNeeded(roster.id);
@@ -286,7 +293,7 @@ export async function loadRosters() {
       }
     }
     
-    return result;
+    return uniqueRosters;
   } catch (error) {
     console.error('Failed to load rosters:', error);
     return [];
@@ -309,8 +316,11 @@ export async function loadCharacters(rosterId?: string) {
     }
     
     console.log('Characters loaded successfully:', result);
-    characters.set(result);
-    console.log('Characters store updated, new count:', result.length);
+    const uniqueCharacters = Array.from(
+      new Map(result.map(character => [character.char_id, character])).values()
+    );
+    characters.set(uniqueCharacters);
+    console.log('Characters store updated, new count:', uniqueCharacters.length);
   } catch (error) {
     console.error('Failed to load characters:', error);
   }

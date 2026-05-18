@@ -690,9 +690,10 @@
           <!-- DAILY TASKS -->
           {#if matrixData.daily_tasks.length > 0}
           <tr class="section-separator">
-            <td colspan={matrixData.characters.length + 1}>
+            <td class="section-title-cell sticky-col first-col">
               <div class="section-title">DAILY</div>
             </td>
+            <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
           {#each matrixData.daily_tasks as task}
             <tr>
@@ -744,9 +745,10 @@
           <!-- ROSTER WIDE TASKS -->
           {#if matrixData.roster_tasks.length > 0}
             <tr class="section-separator">
-              <td colspan={matrixData.characters.length + 1}>
+              <td class="section-title-cell sticky-col first-col">
                 <div class="section-title">ROSTER WIDE</div>
               </td>
+              <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
             </tr>
             {#each matrixData.roster_tasks as task}
               <tr>
@@ -787,9 +789,10 @@
           <!-- WEEKLY TASKS -->
           {#if matrixData.weekly_tasks.length > 0}
             <tr class="section-separator">
-              <td colspan={matrixData.characters.length + 1}>
+              <td class="section-title-cell sticky-col first-col">
                 <div class="section-title">WEEKLY</div>
               </td>
+              <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
             </tr>
             {#each matrixData.weekly_tasks as task}
               <tr>
@@ -832,9 +835,10 @@
           <!-- RAIDS -->
           {#if matrixData.raids.length > 0}
             <tr class="section-separator">
-              <td colspan={matrixData.characters.length + 1}>
+              <td class="section-title-cell sticky-col first-col">
                 <div class="section-title">RAIDS</div>
               </td>
+              <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
             </tr>
             {#each matrixData.raids as raid}
               <tr>
@@ -909,6 +913,10 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+    position: sticky;
+    left: 0;
+    z-index: 40;
+    width: max-content;
   }
 
   .roster-selector label {
@@ -1162,9 +1170,28 @@
     background: rgba(255, 107, 53, 0.02);
     border-bottom: 1px solid rgba(255, 107, 53, 0.08);
     padding: 0.5rem;
-    text-align: center;
+    text-align: left;
     font-weight: 600;
     color: rgba(255, 107, 53, 0.7);
+  }
+
+  .section-separator .section-title-cell {
+    background: color-mix(in srgb, var(--md-sys-color-surface-variant) 92%, rgba(255, 107, 53, 0.08));
+    min-width: 200px;
+    position: sticky;
+    left: 0;
+    z-index: 18;
+  }
+
+  .section-fill-cell {
+    min-width: 0;
+  }
+
+  .section-title {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0;
   }
 
   .task-name-cell {

@@ -14,6 +14,10 @@ pub struct MarketItem {
     pub fetched_at: i64,
     pub is_manual_override: bool,
     pub favorite: bool,
+    pub gem_tier: Option<String>,
+    pub gem_kind: Option<String>,
+    pub gem_level: Option<i64>,
+    pub is_manual_only: bool,
 }
 
 /// Manages the separate `market.db` database for progression planner data.
@@ -98,7 +102,19 @@ impl MarketDatabase {
 
     fn ensure_market_columns(&self, conn: &Connection) -> Result<()> {
         self.ensure_column_exists(conn, "market_prices", "favorite INTEGER NOT NULL DEFAULT 0")?;
+        self.ensure_column_exists(conn, "market_prices", "gem_tier TEXT")?;
+        self.ensure_column_exists(conn, "market_prices", "gem_kind TEXT")?;
+        self.ensure_column_exists(conn, "market_prices", "gem_level INTEGER")?;
+        self.ensure_column_exists(conn, "market_prices", "is_manual_only INTEGER NOT NULL DEFAULT 0")?;
         self.ensure_column_exists(conn, "manual_price_overrides", "favorite INTEGER NOT NULL DEFAULT 0")?;
+        self.ensure_column_exists(conn, "manual_price_overrides", "gem_tier TEXT")?;
+        self.ensure_column_exists(conn, "manual_price_overrides", "gem_kind TEXT")?;
+        self.ensure_column_exists(conn, "manual_price_overrides", "gem_level INTEGER")?;
+        self.ensure_column_exists(
+            conn,
+            "manual_price_overrides",
+            "is_manual_only INTEGER NOT NULL DEFAULT 0",
+        )?;
         Ok(())
     }
 
@@ -154,7 +170,7 @@ impl MarketDatabase {
         // Check manual override first
         let manual: Option<MarketItem> = conn
             .query_row(
-                "SELECT item_slug, item_name, category, price, favorite, updated_at
+                "SELECT item_slug, item_name, category, price, favorite, updated_at, gem_tier, gem_kind, gem_level, is_manual_only
              FROM manual_price_overrides WHERE item_slug = ?1",
                 params![item_slug],
                 |row| {
@@ -166,6 +182,10 @@ impl MarketDatabase {
                         favorite: row.get::<_, i32>(4)? == 1,
                         fetched_at: row.get(5)?,
                         is_manual_override: true,
+                        gem_tier: row.get(6)?,
+                        gem_kind: row.get(7)?,
+                        gem_level: row.get(8)?,
+                        is_manual_only: row.get::<_, i32>(9)? == 1,
                     })
                 },
             )
@@ -178,7 +198,7 @@ impl MarketDatabase {
         // Fall back to API price
         let market: Option<MarketItem> = conn
             .query_row(
-                "SELECT item_slug, item_name, category, price, favorite, fetched_at
+                "SELECT item_slug, item_name, category, price, favorite, fetched_at, gem_tier, gem_kind, gem_level, is_manual_only
              FROM market_prices WHERE item_slug = ?1",
                 params![item_slug],
                 |row| {
@@ -190,6 +210,10 @@ impl MarketDatabase {
                         favorite: row.get::<_, i32>(4)? == 1,
                         fetched_at: row.get(5)?,
                         is_manual_override: false,
+                        gem_tier: row.get(6)?,
+                        gem_kind: row.get(7)?,
+                        gem_level: row.get(8)?,
+                        is_manual_only: row.get::<_, i32>(9)? == 1,
                     })
                 },
             )
@@ -210,7 +234,11 @@ impl MarketDatabase {
                 COALESCE(o.price, m.price) AS price,
                 COALESCE(o.favorite, m.favorite, 0) AS favorite,
                 COALESCE(o.updated_at, m.fetched_at) AS fetched_at,
-                CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual
+                CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual,
+                COALESCE(o.gem_tier, m.gem_tier) AS gem_tier,
+                COALESCE(o.gem_kind, m.gem_kind) AS gem_kind,
+                COALESCE(o.gem_level, m.gem_level) AS gem_level,
+                COALESCE(o.is_manual_only, m.is_manual_only, 0) AS is_manual_only
              FROM market_prices m
              LEFT JOIN manual_price_overrides o ON m.item_slug = o.item_slug
              WHERE m.category = ?1
@@ -227,6 +255,10 @@ impl MarketDatabase {
                     favorite: row.get::<_, i32>(4)? == 1,
                     fetched_at: row.get(5)?,
                     is_manual_override: row.get::<_, i32>(6)? == 1,
+                    gem_tier: row.get(7)?,
+                    gem_kind: row.get(8)?,
+                    gem_level: row.get(9)?,
+                    is_manual_only: row.get::<_, i32>(10)? == 1,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -247,7 +279,11 @@ impl MarketDatabase {
                 COALESCE(o.price, m.price) AS price,
                 COALESCE(o.favorite, m.favorite, 0) AS favorite,
                 COALESCE(o.updated_at, m.fetched_at) AS fetched_at,
-                CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual
+                CASE WHEN o.item_slug IS NOT NULL THEN 1 ELSE 0 END AS is_manual,
+                COALESCE(o.gem_tier, m.gem_tier) AS gem_tier,
+                COALESCE(o.gem_kind, m.gem_kind) AS gem_kind,
+                COALESCE(o.gem_level, m.gem_level) AS gem_level,
+                COALESCE(o.is_manual_only, m.is_manual_only, 0) AS is_manual_only
              FROM market_prices m
              LEFT JOIN manual_price_overrides o ON m.item_slug = o.item_slug
              ORDER BY m.category ASC, m.item_name ASC",
@@ -263,6 +299,10 @@ impl MarketDatabase {
                     favorite: row.get::<_, i32>(4)? == 1,
                     fetched_at: row.get(5)?,
                     is_manual_override: row.get::<_, i32>(6)? == 1,
+                    gem_tier: row.get(7)?,
+                    gem_kind: row.get(8)?,
+                    gem_level: row.get(9)?,
+                    is_manual_only: row.get::<_, i32>(10)? == 1,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -361,7 +401,7 @@ impl MarketDatabase {
         let conn = self.pool.get()?;
         let mut count = 0;
 
-        let gem_entries: Vec<(&str, &str)> = vec![
+        let gem_entries: Vec<(&str, &str, &str, &str, i64)> = vec![
             ("gem-t3-damage-lv6", "T3 Damage Gem Lv. 6"),
             ("gem-t3-damage-lv7", "T3 Damage Gem Lv. 7"),
             ("gem-t3-damage-lv8", "T3 Damage Gem Lv. 8"),
@@ -382,17 +422,29 @@ impl MarketDatabase {
             ("gem-t4-cooldown-lv8", "T4 Cooldown Gem Lv. 8"),
             ("gem-t4-cooldown-lv9", "T4 Cooldown Gem Lv. 9"),
             ("gem-t4-cooldown-lv10", "T4 Cooldown Gem Lv. 10"),
-        ];
+        ]
+        .into_iter()
+        .filter_map(|(slug, name)| {
+            Self::parse_gem_slug(slug).map(|(tier, kind, level)| (slug, name, tier, kind, level))
+        })
+        .collect();
 
         let mut stmt = conn.prepare_cached(
-            "INSERT OR IGNORE INTO manual_price_overrides (item_slug, item_name, category, price, favorite, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR IGNORE INTO manual_price_overrides
+                (item_slug, item_name, category, price, favorite, updated_at, gem_tier, gem_kind, gem_level, is_manual_only)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         )?;
 
         let now = chrono::Utc::now().timestamp();
-        for (slug, name) in &gem_entries {
-            let rows = stmt.execute(params![slug, name, "gems", 0, 0, now])?;
+        for (slug, name, tier, kind, level) in &gem_entries {
+            let rows = stmt.execute(params![slug, name, "gems", 0, 0, now, tier, kind, level, 1])?;
             count += rows;
+            conn.execute(
+                "UPDATE manual_price_overrides
+                 SET gem_tier = ?1, gem_kind = ?2, gem_level = ?3, is_manual_only = 1
+                 WHERE item_slug = ?4 AND category = 'gems'",
+                params![tier, kind, level, slug],
+            )?;
         }
 
         if count > 0 {
@@ -406,10 +458,10 @@ impl MarketDatabase {
         let conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT item_slug, item_name, category, price, favorite, updated_at
+            "SELECT item_slug, item_name, category, price, favorite, updated_at, gem_tier, gem_kind, gem_level, is_manual_only
              FROM manual_price_overrides
              WHERE category = 'gems'
-             ORDER BY item_slug ASC",
+             ORDER BY COALESCE(gem_tier, ''), COALESCE(gem_kind, ''), COALESCE(gem_level, 0), item_slug ASC",
         )?;
 
         let items = stmt
@@ -422,11 +474,34 @@ impl MarketDatabase {
                     favorite: row.get::<_, i32>(4)? == 1,
                     fetched_at: row.get(5)?,
                     is_manual_override: true,
+                    gem_tier: row.get(6)?,
+                    gem_kind: row.get(7)?,
+                    gem_level: row.get(8)?,
+                    is_manual_only: row.get::<_, i32>(9)? == 1,
                 })
             })?
             .filter_map(|r| r.ok())
             .collect();
 
         Ok(items)
+    }
+
+    fn parse_gem_slug(slug: &str) -> Option<(&'static str, &'static str, i64)> {
+        let parts: Vec<&str> = slug.split('-').collect();
+        if parts.len() != 4 || parts[0] != "gem" {
+            return None;
+        }
+        let tier = match parts[1] {
+            "t3" => "T3",
+            "t4" => "T4",
+            _ => return None,
+        };
+        let kind = match parts[2] {
+            "damage" | "attack" => "attack",
+            "cooldown" => "cooldown",
+            _ => return None,
+        };
+        let level = parts[3].strip_prefix("lv")?.parse().ok()?;
+        Some((tier, kind, level))
     }
 }

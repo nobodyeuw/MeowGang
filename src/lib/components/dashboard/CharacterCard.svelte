@@ -12,7 +12,7 @@
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
   export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
   export let raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number; is_tracked?: number }> = [];
-  export let trackingStatus: Array<{ content_id: string; is_tracked: number }> = [];
+  export let trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }> = [];
 
   // Reactive values
   $: classInfo = GAME_CLASSES[character.class_id];
@@ -27,6 +27,15 @@
   function getCompletionStatus(contentId: string): boolean {
     const completion = completionStatus.find(c => c.content_id === contentId);
     return completion?.is_completed === 1;
+  }
+
+  function shouldShowDaily(contentId: string): boolean {
+    const tracking = trackingStatus.find(t => t.content_id === contentId && t.is_tracked === 1);
+    if (!tracking) return false;
+    if (tracking.lazy_daily === 1) {
+      return getRestedValue(contentId) >= 20;
+    }
+    return true;
   }
 
   function getRaidGateProgress(raidId: string, difficulty: string): { completed: number; total: number } {
@@ -131,8 +140,8 @@
   $: guardianCompleted = completionStatus.length > 0 ? getCompletionStatus('guardian') : false;
 
   // Check if chaos/guardian are tracked for this character
-  $: chaosTracked = trackingStatus.some(t => t.content_id === 'chaos' && t.is_tracked === 1);
-  $: guardianTracked = trackingStatus.some(t => t.content_id === 'guardian' && t.is_tracked === 1);
+  $: chaosTracked = shouldShowDaily('chaos');
+  $: guardianTracked = shouldShowDaily('guardian');
 
   function handleCharacterClick() {
     // Set active filter character in global store

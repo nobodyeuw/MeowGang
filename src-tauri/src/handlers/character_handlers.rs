@@ -166,6 +166,7 @@ pub async fn scrape_character_details(
                 tier: e.tier,
                 quality: e.quality.map(|v| v as i64),
                 item_level: e.item_level,
+                effects_json: e.effects_json,
                 is_manual_entry: false,
             },
         )
@@ -178,9 +179,13 @@ pub async fn scrape_character_details(
             |g| crate::database::repositories::progression_repository::CharacterGemInput {
                 slot_index: g.slot_index,
                 gem_name: g.gem_name,
+                gem_item_id: g.gem_item_id,
+                skill_id: g.skill_id,
                 skill_name: g.skill_name,
+                skill_icon: g.skill_icon,
                 gem_type: g.gem_type,
                 gem_level: g.gem_level,
+                effect_value: g.effect_value,
                 is_bound: g.is_bound,
                 is_manual_entry: false,
             },

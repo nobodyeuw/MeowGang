@@ -171,6 +171,7 @@
     .filter(item => !showFavoritesOnly || item.favorite)
     .filter(item => !searchQuery || item.item_name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
       const mul = sortAsc ? 1 : -1;
       if (sortKey === 'name') return mul * a.item_name.localeCompare(b.item_name);
       return mul * (a.price - b.price);

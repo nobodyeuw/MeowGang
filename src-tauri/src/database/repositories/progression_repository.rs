@@ -27,6 +27,7 @@ pub struct CharacterEquipmentRow {
     pub tier: Option<String>,
     pub quality: Option<i64>,
     pub item_level: Option<f64>,
+    pub effects_json: Option<String>,
     pub is_manual_entry: bool,
     pub updated_at: i64,
 }
@@ -38,9 +39,13 @@ pub struct CharacterGemRow {
     pub character_id: i64,
     pub slot_index: i64,
     pub gem_name: String,
+    pub gem_item_id: Option<i64>,
+    pub skill_id: Option<i64>,
     pub skill_name: String,
+    pub skill_icon: Option<String>,
     pub gem_type: String,
     pub gem_level: i64,
+    pub effect_value: Option<f64>,
     pub is_bound: bool,
     pub is_manual_entry: bool,
     pub updated_at: i64,
@@ -86,6 +91,7 @@ pub struct CharacterEquipmentInput {
     pub tier: Option<String>,
     pub quality: Option<i64>,
     pub item_level: Option<f64>,
+    pub effects_json: Option<String>,
     pub is_manual_entry: bool,
 }
 
@@ -94,9 +100,13 @@ pub struct CharacterEquipmentInput {
 pub struct CharacterGemInput {
     pub slot_index: i64,
     pub gem_name: String,
+    pub gem_item_id: Option<i64>,
+    pub skill_id: Option<i64>,
     pub skill_name: String,
+    pub skill_icon: Option<String>,
     pub gem_type: String,
     pub gem_level: i64,
+    pub effect_value: Option<f64>,
     pub is_bound: bool,
     pub is_manual_entry: bool,
 }
@@ -146,7 +156,7 @@ impl ProgressionRepository {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, character_id, slot, enhancement_level, tier, quality, item_level, is_manual_entry, updated_at
+            "SELECT id, character_id, slot, enhancement_level, tier, quality, item_level, effects_json, is_manual_entry, updated_at
              FROM character_equipment WHERE character_id = ?1 ORDER BY slot",
         )?;
         let equipment = stmt
@@ -159,14 +169,15 @@ impl ProgressionRepository {
                     tier: row.get(4)?,
                     quality: row.get(5)?,
                     item_level: row.get(6)?,
-                    is_manual_entry: row.get::<_, i64>(7)? != 0,
-                    updated_at: row.get(8)?,
+                    effects_json: row.get(7)?,
+                    is_manual_entry: row.get::<_, i64>(8)? != 0,
+                    updated_at: row.get(9)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, character_id, slot_index, gem_name, skill_name, gem_type, gem_level, is_bound, is_manual_entry, updated_at
+            "SELECT id, character_id, slot_index, gem_name, gem_item_id, skill_id, skill_name, skill_icon, gem_type, gem_level, effect_value, is_bound, is_manual_entry, updated_at
              FROM character_gems WHERE character_id = ?1 ORDER BY slot_index",
         )?;
         let gems = stmt
@@ -176,12 +187,16 @@ impl ProgressionRepository {
                     character_id: row.get(1)?,
                     slot_index: row.get(2)?,
                     gem_name: row.get(3)?,
-                    skill_name: row.get(4)?,
-                    gem_type: row.get(5)?,
-                    gem_level: row.get(6)?,
-                    is_bound: row.get::<_, i64>(7)? != 0,
-                    is_manual_entry: row.get::<_, i64>(8)? != 0,
-                    updated_at: row.get(9)?,
+                    gem_item_id: row.get(4)?,
+                    skill_id: row.get(5)?,
+                    skill_name: row.get(6)?,
+                    skill_icon: row.get(7)?,
+                    gem_type: row.get(8)?,
+                    gem_level: row.get(9)?,
+                    effect_value: row.get(10)?,
+                    is_bound: row.get::<_, i64>(11)? != 0,
+                    is_manual_entry: row.get::<_, i64>(12)? != 0,
+                    updated_at: row.get(13)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -252,8 +267,8 @@ impl ProgressionRepository {
         for r in rows {
             let manual = if r.is_manual_entry { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO character_equipment (character_id, slot, enhancement_level, tier, quality, item_level, is_manual_entry, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO character_equipment (character_id, slot, enhancement_level, tier, quality, item_level, effects_json, is_manual_entry, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     character_id,
                     &r.slot,
@@ -261,6 +276,7 @@ impl ProgressionRepository {
                     r.tier,
                     r.quality,
                     r.item_level,
+                    &r.effects_json,
                     manual,
                     ts,
                 ],
@@ -280,14 +296,22 @@ impl ProgressionRepository {
         )?;
         for r in rows {
             let manual = if r.is_manual_entry { 1 } else { 0 };
+            let bound = if r.is_bound { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO character_gems (character_id, skill_name, gem_type, gem_level, is_manual_entry, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO character_gems (character_id, slot_index, gem_name, gem_item_id, skill_id, skill_name, skill_icon, gem_type, gem_level, effect_value, is_bound, is_manual_entry, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     character_id,
+                    r.slot_index,
+                    &r.gem_name,
+                    r.gem_item_id,
+                    r.skill_id,
                     &r.skill_name,
+                    &r.skill_icon,
                     &r.gem_type,
                     r.gem_level,
+                    r.effect_value,
+                    bound,
                     manual,
                     ts,
                 ],
@@ -337,8 +361,8 @@ impl ProgressionRepository {
         for r in equipment {
             let manual = if r.is_manual_entry { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO character_equipment (character_id, slot, enhancement_level, tier, quality, item_level, is_manual_entry, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO character_equipment (character_id, slot, enhancement_level, tier, quality, item_level, effects_json, is_manual_entry, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     character_id,
                     &r.slot,
@@ -346,6 +370,7 @@ impl ProgressionRepository {
                     r.tier,
                     r.quality,
                     r.item_level,
+                    &r.effects_json,
                     manual,
                     ts,
                 ],
@@ -360,15 +385,19 @@ impl ProgressionRepository {
             let manual = if r.is_manual_entry { 1 } else { 0 };
             let bound = if r.is_bound { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO character_gems (character_id, slot_index, gem_name, skill_name, gem_type, gem_level, is_bound, is_manual_entry, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO character_gems (character_id, slot_index, gem_name, gem_item_id, skill_id, skill_name, skill_icon, gem_type, gem_level, effect_value, is_bound, is_manual_entry, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     character_id,
                     r.slot_index,
                     &r.gem_name,
+                    r.gem_item_id,
+                    r.skill_id,
                     &r.skill_name,
+                    &r.skill_icon,
                     &r.gem_type,
                     r.gem_level,
+                    r.effect_value,
                     bound,
                     manual,
                     ts,

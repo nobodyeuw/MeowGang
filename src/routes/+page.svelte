@@ -314,25 +314,22 @@
 
       <!-- Progression Sub-Tabs (only shown when progression tab is active) -->
       {#if activeTab === 'progression'}
-        {#if false}
-          <div class="settings-sub-tabs">
-            <button
-              class="settings-tab-button"
-              class:active={activeProgressionTab === 'market_prices'}
-              on:click={() => activeProgressionTab = 'market_prices'}
-            >
-              Market Prices
-            </button>
-            <button
-              class="settings-tab-button"
-              class:active={activeProgressionTab === 'planner'}
-              on:click={() => activeProgressionTab = 'planner'}
-            >
-              Planner
-            </button>
-          </div>
-        {/if}
-        <!-- Progression planner sub-tabs are currently disabled while this section is under development -->
+        <div class="settings-sub-tabs">
+          <button
+            class="settings-tab-button"
+            class:active={activeProgressionTab === 'market_prices'}
+            on:click={() => activeProgressionTab = 'market_prices'}
+          >
+            Market Prices
+          </button>
+          <button
+            class="settings-tab-button"
+            class:active={activeProgressionTab === 'planner'}
+            on:click={() => activeProgressionTab = 'planner'}
+          >
+            Planner
+          </button>
+        </div>
       {/if}
     </header>
 

@@ -49,6 +49,18 @@ pub async fn update_tracking_config(
 }
 
 #[tauri::command]
+pub async fn update_lazy_daily_config(
+    character_id: i64,
+    task_id: String,
+    lazy_daily: bool,
+    task_repo: State<'_, TrackingRepository>,
+) -> Result<(), String> {
+    task_repo
+        .update_lazy_daily_config(character_id, &task_id, lazy_daily)
+        .map_err(|e| format!("Failed to update lazy daily config: {}", e))
+}
+
+#[tauri::command]
 pub async fn save_tracking_config(
     character_id: i64,
     task_updates: Vec<TaskStatus>,

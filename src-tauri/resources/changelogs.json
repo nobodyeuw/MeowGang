@@ -1,13 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.1.6",
+      "version": "1.1.7",
       "date": "2026-05-18",
       "changes": [
         {
           "type": "Added",
           "description": "System settings now include general app controls.",
-          "details": "Added a General section to System settings with a toggle for showing or hiding the Set-Up Guide button in the header."
+          "details": "Added a General section to System settings with controls for showing or hiding the Set-Up Guide button and managing local user data."
         },
         {
           "type": "Added",
@@ -18,6 +18,26 @@
           "type": "Added",
           "description": "Tray background behavior for LOA Tracker.",
           "details": "Closing the main window now hides LOA Tracker to the system tray instead of fully exiting. The tray menu provides Show and Quit actions, and the tray icon can restore the main window."
+        },
+        {
+          "type": "Added",
+          "description": "Roster display order controls.",
+          "details": "Added roster ordering support so users can decide which roster appears first on the dashboard. The selected order is saved in the local character configuration."
+        },
+        {
+          "type": "Added",
+          "description": "Lazy daily tracking for Chaos and Guardian tasks.",
+          "details": "Chaos Dungeon and Guardian Raid tracking can now use lazy behavior per character, with row-wide toggle controls. When enabled, the dashboard only counts those dailies once the rested value is at least 20."
+        },
+        {
+          "type": "Added",
+          "description": "Rested value input guardrails.",
+          "details": "Rested value inputs now reject invalid values and guide users toward valid 10-step values from 0 to 100."
+        },
+        {
+          "type": "Added",
+          "description": "Progression Planner groundwork.",
+          "details": "Added early under-development groundwork for detailed character scraping and planner data, including equipment, accessory effect, engraving, and gem-related fields for future planner views."
         },
         {
           "type": "Improved",
@@ -35,14 +55,79 @@
           "details": "Windows builds now keep the NSIS installer in current-user mode so updates continue to target the existing LocalAppData installation path, while updater installs can still run passively."
         },
         {
+          "type": "Improved",
+          "description": "Market favorites stay pinned above other items.",
+          "details": "Favorite market items now remain at the top of the list even when sorting the remaining items by price or other columns."
+        },
+        {
+          "type": "Improved",
+          "description": "Tracking and ToDo task separators are easier to read.",
+          "details": "Task separator rows now align their labels consistently and stay visible while horizontally scrolling wide tracking and ToDo tables."
+        },
+        {
+          "type": "Improved",
+          "description": "Active roster controls stay visible while scrolling.",
+          "details": "The active roster selector remains pinned while horizontally scrolling settings tables, matching the sticky behavior of the task columns."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard spacing and roster sections were tightened.",
+          "details": "Reduced excess spacing between dashboard summary areas, daily and weekly labels, roster view controls, and roster cards. Roster labels now sit inside the section border with a smaller visual footprint."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard gold progress styling is more consistent.",
+          "details": "The actual earned gold text now follows the same color progression style as the weekly gold progress bar."
+        },
+        {
+          "type": "Improved",
+          "description": "Hidden characters still count toward tracking totals.",
+          "details": "The Hide from Dashboard option now only hides a character from the visible roster list. Daily and weekly dashboard totals still include those characters."
+        },
+        {
+          "type": "Fixed",
+          "description": "Roster rename no longer creates duplicate roster rows.",
+          "details": "Pressing Enter in the rename dialog now runs the same safe rename flow as the Rename button instead of creating a duplicate roster entry with an empty name."
+        },
+        {
+          "type": "Fixed",
+          "description": "Roster rename now updates every character in the roster.",
+          "details": "Renaming a roster now updates all characters that belong to that roster instead of only updating the character that submitted the rename."
+        },
+        {
+          "type": "Fixed",
+          "description": "Duplicate character keys no longer break Roster Settings.",
+          "details": "Fixed the duplicate-key state caused by broken roster rename submissions so Roster Settings navigation no longer crashes with duplicate character ids."
+        },
+        {
+          "type": "Fixed",
+          "description": "Rename dialog no longer closes accidentally.",
+          "details": "The roster rename popup now stays open when the cursor leaves the dialog area and only closes through the explicit Cancel, Rename, or close actions."
+        },
+        {
           "type": "Fixed",
           "description": "Removed repeated process-list debug spam from logs.",
           "details": "The Lost Ark monitor no longer logs a sample list of running processes every few seconds. This keeps long-running tray sessions from filling the log with repeated debug output."
         },
         {
+          "type": "Fixed",
+          "description": "LOA Logs elevated launch command handles paths correctly.",
+          "details": "Fixed the PowerShell launch path handling used when LOA Tracker requests an elevated LOA Logs startup through Windows UAC."
+        },
+        {
+          "type": "Fixed",
+          "description": "Rested value mouse wheel changes are disabled.",
+          "details": "Scrolling over rested value fields no longer accidentally increases or decreases the stored rested value."
+        },
+        {
           "type": "Changed",
           "description": "Startup monitoring now supports tray-first background use.",
           "details": "Startup monitor mode, Lost Ark monitoring, LOA Logs companion monitoring, and tray behavior now work together so LOA Tracker can run in the background and reveal the existing window when needed."
+        },
+        {
+          "type": "Changed",
+          "description": "Progression Planner remains marked as under development.",
+          "details": "The planner is still being prepared for a full release while scraper mappings, gem data, and goal valuation behavior continue to be refined."
         }
       ]
     }

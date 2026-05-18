@@ -44,6 +44,7 @@
   interface TrackingStatusEntry {
     content_id: string;
     is_tracked: number;
+    lazy_daily?: number;
   }
 
   interface RaidConfigEntry {
@@ -68,8 +69,8 @@
     visibleCharacters = $characters.filter(char => !char.hide_from_dashboard);
     loading = false;
     
-    // Calculate stats
-    await calculateGlobalStats(visibleCharacters);
+    // Calculate stats from all characters so hidden dashboard entries still count for daily/weekly progress.
+    await calculateGlobalStats($characters);
     
     // Update header
     if (setHeaderContent) {
@@ -175,14 +176,15 @@
             trackingStatus
           };
           
-          // Collect raid configs for gold calculation
-          if (characterRaidConfigs.length > 0) {
+          // Collect raid configs for visible characters only. Hidden characters still count for daily/weekly progress,
+          // but they stay out of dashboard raid/gold presentation.
+          if (!character.hide_from_dashboard && characterRaidConfigs.length > 0) {
             allRaidConfigsByCharacter[key] = characterRaidConfigs;
           }
           
-          // Count dailies (chaos + guardian)
-          const chaosTracked = trackingStatus.some((t: any) => t.content_id === 'chaos' && t.is_tracked === 1);
-          const guardianTracked = trackingStatus.some((t: any) => t.content_id === 'guardian' && t.is_tracked === 1);
+          // Count dailies (chaos + guardian). Lazy dailies only count from 20+ rested.
+          const chaosTracked = shouldCountDaily(trackingStatus, restedValues, 'chaos');
+          const guardianTracked = shouldCountDaily(trackingStatus, restedValues, 'guardian');
           
           if (chaosTracked) {
             dailiesPossible++;
@@ -207,17 +209,19 @@
             }
           }
           
-          // Count gold raids (unique raids only, not gates)
-          const raidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
-          const goldRaids = raidConfigs.filter((r: any) => r.take_gold === 1);
-          
-          // Get unique raid content_ids (not gates)
-          const uniqueRaidIds = [...new Set(goldRaids.map((r: any) => r.content_id))];
-          raidsPossible += uniqueRaidIds.length;
-          
-          for (const raidId of uniqueRaidIds) {
-            const isCompleted = completionStatus.some((c: any) => c.content_id === raidId && c.is_completed === 1);
-            if (isCompleted) raidsCompleted++;
+          if (!character.hide_from_dashboard) {
+            // Count gold raids (unique raids only, not gates)
+            const raidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
+            const goldRaids = raidConfigs.filter((r: any) => r.take_gold === 1);
+            
+            // Get unique raid content_ids (not gates)
+            const uniqueRaidIds = [...new Set(goldRaids.map((r: any) => r.content_id))];
+            raidsPossible += uniqueRaidIds.length;
+            
+            for (const raidId of uniqueRaidIds) {
+              const isCompleted = completionStatus.some((c: any) => c.content_id === raidId && c.is_completed === 1);
+              if (isCompleted) raidsCompleted++;
+            }
           }
         } catch (error) {
           console.error(`Failed to load stats for character ${character.char_id}:`, error);
@@ -234,7 +238,7 @@
       totalCalendarEventsPossible = calendarEventsPossible;
       
       // Update progress percentage and maximum gold display
-      const maxGold = calculateTotalEstimatedGold(characters, allRaidConfigsByCharacter);
+      const maxGold = calculateTotalEstimatedGold(visibleCharacters, allRaidConfigsByCharacter);
       estimatedGoldDisplay = maxGold;
       
       // Calculate progress percentage using actual gold stats
@@ -268,13 +272,13 @@
       console.log('Raid settings updated, refreshing dashboard...');
       // Add small delay to ensure database updates are committed
       await new Promise(resolve => setTimeout(resolve, 100));
-      await calculateGlobalStats(visibleCharacters);
+      await calculateGlobalStats($characters);
     };
     
     // Listen for raid completions
     const handleRaidCompleted = async () => {
       console.log('Raid completed, refreshing dashboard...');
-      await calculateGlobalStats(visibleCharacters);
+      await calculateGlobalStats($characters);
     };
     
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
@@ -293,7 +297,7 @@
 
   // Reload data when active roster changes
   $: if ($activeRosterId && !loading) {
-    calculateGlobalStats(visibleCharacters);
+    calculateGlobalStats($characters);
   }
 
   // Group characters by roster
@@ -327,7 +331,7 @@
     restedValues: Array<{ content_id: string; current_value: number }>;
     completionStatus: Array<{ content_id: string; is_completed: number }>;
     raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number }>;
-    trackingStatus: Array<{ content_id: string; is_tracked: number }>;
+    trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }>;
   }> = {};
 
   // Pre-build a lookup map for RAIDS by id+difficulty to avoid O(n) scans
@@ -422,6 +426,23 @@
     return classInfo ? classInfo.displayName : classId;
   }
 
+  function getRestedValue(restedValues: RestedValueEntry[], contentId: string): number {
+    return restedValues.find((value) => value.content_id === contentId)?.current_value || 0;
+  }
+
+  function shouldCountDaily(
+    trackingStatus: TrackingStatusEntry[],
+    restedValues: RestedValueEntry[],
+    contentId: string
+  ): boolean {
+    const tracking = trackingStatus.find((status) => status.content_id === contentId && status.is_tracked === 1);
+    if (!tracking) return false;
+    if (tracking.lazy_daily === 1) {
+      return getRestedValue(restedValues, contentId) >= 20;
+    }
+    return true;
+  }
+
   function setDashboardView(view: 'cards' | 'compact') {
     dashboardView = view;
     localStorage.setItem('dashboardView', view);
@@ -508,7 +529,7 @@
           </div>
           
           <div class="gold-values">
-            <span class="current">{goldStats?.weekly?.totalGold?.toLocaleString() ?? 0}</span>
+            <span class="current" style={`--gold-progress: ${Math.min(progressPercentage, 100)}%`}>{goldStats?.weekly?.totalGold?.toLocaleString() ?? 0}</span>
             <span class="divider">/</span>
             <span class="target">{estimatedGoldDisplay.toLocaleString()}</span>
             <span class="unit">Gold</span>
@@ -637,9 +658,6 @@
     <div class="characters-grid">
       {#each Object.entries(charactersByRoster) as [rosterId, rosterCharacters], index}
         <div class="roster-section roster-{rosterId}">
-          {#if index > 0 && rosterId !== 'Vaanyar'}
-            <div class="roster-separator"></div>
-          {/if}
           <h3 class="roster-title">
             {#each $rosters as roster}
               {#if roster.id === rosterId}
@@ -718,9 +736,9 @@
     box-sizing: border-box;
     background: #1a1a1d;
     border: 1px solid rgba(255, 215, 0, 0.15);
-    border-radius: 20px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
+    border-radius: 14px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   }
@@ -744,7 +762,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
   }
 
   .title-group {
@@ -754,24 +772,30 @@
   }
 
   .gold-icon-large {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
   }
 
   .gold-values {
-    font-size: 1.75rem;
+    font-size: 1.55rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
 
-  .gold-values .current { color: hsl(39, 96%, 50%); text-shadow: 0 0 15px #f7f6f44d; }
+  .gold-values .current {
+    color: transparent;
+    background: linear-gradient(90deg, #b8860b 0%, #ffd700 var(--gold-progress), #ffec8b 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.25);
+  }
   .gold-values .divider { color: #444; margin: 0 0.25rem; }
   .gold-values .target { color: #888; }
   .gold-values .unit { font-size: 0.875rem; color: #555; margin-left: 0.5rem; text-transform: uppercase; }
 
   .progress-container-modern {
-    margin-bottom: 1rem;
+    margin-bottom: 0.65rem;
   }
 
   .progress-track {
@@ -840,9 +864,9 @@
 
   .gold-details-minimal {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 1rem;
+    padding-top: 0.65rem;
   }
 
   .detail-item {
@@ -950,22 +974,22 @@
   .header-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.75rem;
+    gap: 0.5rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
-    margin-bottom: 2rem;
+    margin-bottom: 0.6rem;
   }
 
   .stat-card {
     min-width: 0;
     box-sizing: border-box;
     background: var(--surface-variant);
-    border-radius: 12px;
-    padding: 0.9rem 0.85rem;
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.65rem;
+    gap: 0.5rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
@@ -976,8 +1000,8 @@
   }
 
   .stat-icon {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -986,8 +1010,8 @@
   }
 
   .stat-icon img {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
   }
 
@@ -1028,7 +1052,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.55rem;
   }
 
   .dashboard-view-toolbar h3 {
@@ -1084,7 +1108,7 @@
   .characters-grid {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.75rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
   }
@@ -1103,13 +1127,14 @@
   }
 
   .roster-section {
+    --roster-border-color: rgba(255, 140, 0, 0.45);
     box-sizing: border-box;
     background: var(--surface-variant);
-    border-radius: 12px;
-    padding: 1rem;
+    border-radius: 8px;
+    padding: 0.85rem 0.75rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid rgba(255, 140, 0, 0.3);
+    border: 1px solid var(--roster-border-color);
     position: relative;
     width: 100%;
     max-width: none;
@@ -1124,7 +1149,7 @@
   .roster-separator {
     height: 3px;
     background: linear-gradient(90deg, transparent, var(--primary), transparent);
-    margin: 2rem 0;
+    margin: 0.5rem 0;
     border-radius: 2px;
     opacity: 0.7;
     position: relative;
@@ -1144,23 +1169,30 @@
   }
 
   .roster-title {
-    margin: 0 0 1rem 0;
-    color: var(--on-surface-variant);
-    font-size: 1.25rem;
-    font-weight: 600;
+    margin: 0;
+    color: var(--roster-border-color);
+    font-size: 0.68rem;
+    line-height: 1;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid var(--primary);
+    gap: 0.25rem;
+    position: absolute;
+    top: -0.38rem;
+    left: 0.65rem;
+    padding: 0 0.3rem;
+    background: var(--surface-variant);
+    border: 0;
+    text-transform: uppercase;
+    letter-spacing: 0;
   }
 
   .character-count {
-    background: var(--primary);
-    color: var(--on-primary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 12px;
-    font-size: 0.875rem;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.62rem;
     font-weight: 500;
   }
 

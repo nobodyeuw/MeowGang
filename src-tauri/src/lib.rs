@@ -246,7 +246,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 5;
+            const TARGET_VERSION: i32 = 9;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -438,7 +438,9 @@ pub fn run() {
             handlers::roster_handlers::get_rosters,
             handlers::roster_handlers::get_characters,
             handlers::roster_handlers::update_character_order,
+            handlers::roster_handlers::update_roster_order,
             handlers::roster_handlers::update_character_roster_name,
+            handlers::roster_handlers::update_roster_name,
             handlers::roster_handlers::sync_roster_data,
             handlers::roster_handlers::sync_roster_if_needed,
             handlers::roster_handlers::delete_roster,
@@ -456,6 +458,7 @@ pub fn run() {
             // Tracking handlers
             handlers::tracking_handlers::get_tracking_config_matrix,
             handlers::tracking_handlers::update_tracking_config,
+            handlers::tracking_handlers::update_lazy_daily_config,
             handlers::tracking_handlers::save_tracking_config,
             handlers::tracking_handlers::save_rested_value,
             handlers::tracking_handlers::set_todo_tracked,

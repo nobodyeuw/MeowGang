@@ -17,6 +17,8 @@
   let showSuccessMessage = false;
   let dndItems: any[] = [];
   let isDragging = false;
+  let rosterDndItems: any[] = [];
+  let isRosterDragging = false;
 
   // Load all characters for all rosters on component mount
   onMount(async () => {
@@ -33,8 +35,12 @@
       console.log('All characters loaded successfully:', result);
       console.log('Number of characters loaded:', result?.length || 0);
       
+      const uniqueCharacters = Array.from(
+        new Map((result || []).map(character => [character.char_id, character])).values()
+      );
+
       // Update the characters store
-      characters.set(result || []);
+      characters.set(uniqueCharacters);
       console.log('Characters store updated with all characters');
       console.log('Characters store now has:', $characters.length, 'characters');
       
@@ -60,28 +66,25 @@
   }
 
   async function renameRoster() {
-    if (!renameRosterName.trim() || !renameRosterId) return;
+    if (isLoading || !renameRosterName.trim() || !renameRosterId) return;
+    const targetRosterId = renameRosterId;
+    const targetRosterName = renameRosterName.trim();
     
     try {
       isLoading = true;
       
-      // Update roster name in all characters for this roster
-      console.log('Updating roster name for all characters in roster:', renameRosterId);
-      const rosterCharacters = $characters.filter(c => c.roster_id === renameRosterId);
-      console.log('Found', rosterCharacters.length, 'characters to update');
-      
-      for (const character of rosterCharacters) {
-        await invoke('update_character_roster_name', {
-          characterId: character.char_id,
-          newRosterName: renameRosterName.trim()
-        });
-      }
+      // Update every character row for this roster id in one backend call.
+      console.log('Updating roster name for roster:', targetRosterId);
+      await invoke('update_roster_name', {
+        rosterId: targetRosterId,
+        newRosterName: targetRosterName
+      });
       
       // Update rosters store immediately for live UI updates
       rosters.update(current => {
         return current.map(roster => {
-          if (roster.id === renameRosterId) {
-            return { ...roster, roster_name: renameRosterName.trim() };
+          if (roster.id === targetRosterId) {
+            return { ...roster, roster_name: targetRosterName };
           }
           return roster;
         });
@@ -90,15 +93,15 @@
       // Update characters store for consistency
       characters.update(current => {
         return current.map(char => {
-          if (char.roster_id === renameRosterId) {
-            return { ...char, roster_name: renameRosterName.trim() };
+          if (char.roster_id === targetRosterId) {
+            return { ...char, roster_name: targetRosterName };
           }
           return char;
         });
       });
       
       // Show success message
-      successMessage = `Roster "${renameRosterName.trim()}" renamed successfully!`;
+      successMessage = `Roster "${targetRosterName}" renamed successfully!`;
       showSuccessMessage = true;
       
       // Hide success message after 3 seconds
@@ -131,10 +134,38 @@
   }
 
   $: currentRoster = $rosters.find(r => r.id === $activeRosterId);
+
+  $: {
+    if (!isRosterDragging) {
+      rosterDndItems = $rosters
+        .map((roster, index) => ({
+          ...roster,
+          id: roster.id,
+          roster_display_order: roster.roster_display_order ?? index
+        }))
+        .sort((a, b) =>
+          (a.roster_display_order ?? 0) - (b.roster_display_order ?? 0)
+          || a.roster_name.localeCompare(b.roster_name)
+        );
+    }
+  }
+
+  $: rosterDndOptions = {
+    flipDurationMs: 200,
+    dragHandleSelector: ".roster-drag-handle",
+    items: rosterDndItems
+  };
+
   $: {
     if (!isDragging) {
+      const seenCharacterIds = new Set<number>();
       const rosterChars = $characters
         .filter(c => c.roster_id === $activeRosterId)
+        .filter(c => {
+          if (seenCharacterIds.has(c.char_id)) return false;
+          seenCharacterIds.add(c.char_id);
+          return true;
+        })
         // Ensure we sort by stored display_order
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
       
@@ -160,6 +191,7 @@
   $: console.log('Reactive update - rosters:', $rosters.length, 'activeRosterId:', $activeRosterId);
 
   async function addRoster() {
+    if (isLoading) return;
     if (newRosterName.trim()) {
       isLoading = true;
       const rosterName = newRosterName.trim();
@@ -329,6 +361,42 @@
     localStorage.setItem('activeRosterId', rosterId);
   }
 
+  function handleRosterDndConsider(event: CustomEvent<any>) {
+    isRosterDragging = true;
+    rosterDndItems = event.detail.items;
+  }
+
+  async function handleRosterDndFinalize(event: CustomEvent<any>) {
+    const reorderedItems = event.detail.items;
+    rosterDndItems = reorderedItems;
+
+    rosters.update(current => {
+      const orderByRosterId = new Map<string, number>(
+        reorderedItems.map((item: any, index: number) => [String(item.id), index])
+      );
+      return [...current]
+        .map(roster => ({
+          ...roster,
+          roster_display_order: orderByRosterId.get(roster.id) ?? roster.roster_display_order ?? 0
+        }))
+        .sort((a, b) => (a.roster_display_order ?? 0) - (b.roster_display_order ?? 0));
+    });
+
+    try {
+      await invoke('update_roster_order', {
+        rosters: reorderedItems.map((item: any, index: number) => ({
+          roster_id: item.id,
+          display_order: index
+        }))
+      });
+    } catch (error) {
+      console.error('Failed to update roster order:', error);
+      await loadRosters();
+    } finally {
+      isRosterDragging = false;
+    }
+  }
+
   function handleDndConsider(event: CustomEvent<any>) {
     isDragging = true; // Block store updates
     const { items } = event.detail;
@@ -464,8 +532,13 @@
       </button>
     </div>
 
-    <div class="roster-list">
-      {#each $rosters as roster}
+    <div
+      class="roster-list"
+      use:dndzone={rosterDndOptions}
+      on:consider={handleRosterDndConsider}
+      on:finalize={handleRosterDndFinalize}
+    >
+      {#each rosterDndItems as roster (roster.id)}
         <div 
           class="roster-item"
           class:active={roster.id === $activeRosterId}
@@ -474,6 +547,12 @@
           tabindex="0"
           role="button"
         >
+          <div class="roster-drag-handle" title="Drag roster" aria-label="Drag roster">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+              <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+            </svg>
+          </div>
           <div class="roster-info">
             <h4>{roster.roster_name}</h4>
             <p class="roster-id">ID: {roster.id}</p>
@@ -573,8 +652,8 @@
 
 <!-- Rename Roster Dialog -->
 {#if showRenameRosterDialog}
-  <div class="dialog-overlay" role="button" tabindex="0" on:click={cancelRename} on:keydown={(e) => e.key === 'Enter' && cancelRename()} aria-label="Close dialog">
-    <div class="dialog" on:click|stopPropagation role="dialog" tabindex="-1" on:keydown={(e) => e.key === 'Escape' && cancelRename()}>
+  <div class="dialog-overlay" role="presentation">
+    <div class="dialog" on:click|stopPropagation role="dialog" tabindex="-1">
       <div class="dialog-header">
         <h3>Rename Roster</h3>
         <button class="close-button" on:click={cancelRename}>×</button>
@@ -587,7 +666,13 @@
             type="text" 
             bind:value={renameRosterName}
             placeholder="Enter new roster name"
-            on:keydown={(e) => e.key === 'Enter' && renameRoster()}
+            on:keydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                renameRoster();
+              }
+            }}
             disabled={isLoading}
           />
         </div>
@@ -623,7 +708,13 @@
             type="text" 
             bind:value={newRosterName}
             placeholder="Enter 1 character of yours (e.g. Vaanyar)"
-            on:keydown={(e) => e.key === 'Enter' && addRoster()}
+            on:keydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                addRoster();
+              }
+            }}
             disabled={isLoading}
           />
         </div>
@@ -716,6 +807,26 @@
     transition: all 0.3s ease;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .roster-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: grab;
+    padding: 0.5rem;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .roster-drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .roster-info {
+    flex: 1;
+    min-width: 0;
   }
 
   .roster-item:hover {

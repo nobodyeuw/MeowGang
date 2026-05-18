@@ -3,14 +3,14 @@
   import { activeRosterId, rosters } from '$lib/store';
   import { GAME_TASKS, GAME_CLASSES } from '$lib/data/index';
   import { RAIDS } from '$lib/data/raids';
-  import type { TrackingConfigMatrix } from '$lib/types';
 
   let selectedCharacterId: number | null = null;
 
-  let matrixData: TrackingConfigMatrix | null = null;
+  let matrixData: any | null = null;
   let isLoading = true;
   let error = '';
   let lastLoadedRosterId: string = '';
+  let warningMessage = '';
 
   async function loadMatrixData() {
     try {
@@ -19,7 +19,7 @@
       isLoading = true;
       
       // Get basic matrix data with characters and tracking status
-      const baseMatrix = await invoke('get_tracking_config_matrix', { 
+      const baseMatrix = await invoke<any>('get_tracking_config_matrix', { 
         rosterId: $activeRosterId,
         tasks: [],
         raids: []
@@ -37,7 +37,8 @@
           return {
             char_id: char.char_id,
             tracked: backendState?.tracked || false, // Use backend data
-            current_value: backendState?.current_value || null
+            current_value: backendState?.current_value || null,
+            lazy_daily: backendState?.lazy_daily || false
           };
         });
         
@@ -95,7 +96,8 @@
           return {
             char_id: char.char_id,
             tracked,
-            current_value: null // Raids don't have rested values
+            current_value: null, // Raids don't have rested values
+            lazy_daily: false
           };
         });
 
@@ -162,6 +164,39 @@
     }
   }
 
+  function showWarning(message: string) {
+    warningMessage = message;
+  }
+
+  function isValidRestedValue(value: number): boolean {
+    return Number.isInteger(value) && value >= 0 && value <= 100 && value % 10 === 0;
+  }
+
+  function handleRestedWheel(event: WheelEvent) {
+    event.preventDefault();
+    (event.currentTarget as HTMLInputElement).blur();
+  }
+
+  function handleRestedChange(event: Event, charId: number, contentId: string) {
+    const input = event.currentTarget as HTMLInputElement;
+    const rawValue = input.value.trim();
+    const nextValue = Number(rawValue);
+    const currentState = matrixData?.daily_tasks
+      ?.find((task: any) => task.content_id === contentId)
+      ?.character_states
+      ?.find((state: any) => state.char_id === charId);
+    const previousValue = currentState?.current_value || 0;
+
+    if (rawValue === '' || !Number.isFinite(nextValue) || !isValidRestedValue(nextValue)) {
+      input.value = String(previousValue);
+      showWarning('Rested values must be 0, 10, 20, ... 100.');
+      return;
+    }
+
+    warningMessage = '';
+    updateRestedValue(charId, contentId, nextValue);
+  }
+
   function getClassIcon(classId: string) {
     return GAME_CLASSES[classId]?.iconId || '0';
   }
@@ -200,6 +235,26 @@
       
     } catch (err) {
       console.error('Failed to toggle task:', err);
+    }
+  }
+
+  async function toggleLazyDaily(charId: number, taskId: string, newState: boolean) {
+    try {
+      await invoke('update_lazy_daily_config', {
+        characterId: charId,
+        taskId,
+        lazyDaily: newState
+      });
+
+      const task = matrixData?.daily_tasks?.find((t: any) => t.content_id === taskId);
+      if (task) {
+        task.character_states = task.character_states.map((s: any) =>
+          s.char_id === charId ? { ...s, lazy_daily: newState } : { ...s }
+        );
+      }
+      matrixData = { ...matrixData };
+    } catch (err) {
+      console.error('Failed to toggle lazy daily:', err);
     }
   }
 
@@ -286,6 +341,28 @@
     }
   }
 
+  async function toggleAllLazyDailyForTask(taskId: string, newState: boolean) {
+    try {
+      const characters = matrixData?.characters || [];
+
+      for (const char of characters) {
+        await invoke('update_lazy_daily_config', {
+          characterId: char.char_id,
+          taskId,
+          lazyDaily: newState
+        });
+      }
+
+      const task = matrixData?.daily_tasks?.find((t: any) => t.content_id === taskId);
+      if (task) {
+        task.character_states = task.character_states.map((s: any) => ({ ...s, lazy_daily: newState }));
+      }
+      matrixData = { ...matrixData };
+    } catch (err) {
+      console.error('Failed to toggle lazy daily for all characters:', err);
+    }
+  }
+
   async function toggleAllCharactersForRaid(raidId: string, newState: boolean) {
     try {
       const characters = matrixData?.characters || [];
@@ -334,6 +411,16 @@
     return checkTaskState(matrixData.daily_tasks) || checkTaskState(matrixData.weekly_tasks);
   }
 
+  function areAllCharactersLazyForTask(taskId: string): boolean {
+    const task = matrixData?.daily_tasks?.find((t: any) => t.content_id === taskId);
+    if (!task || task.character_states.length === 0) return false;
+    return task.character_states.every((state: any) => state.lazy_daily === true);
+  }
+
+  function supportsLazyDaily(taskId: string): boolean {
+    return taskId === 'chaos' || taskId === 'guardian';
+  }
+
   function areAllEligibleCharactersTrackedForRaid(raidId: string): boolean {
     const raid = matrixData?.raids?.find((r: any) => r.raid_id === raidId);
     if (!raid || raid.character_states.length === 0) return false;
@@ -367,6 +454,17 @@
     </select>
   </div>
 
+  {#if warningMessage}
+    <div class="status-indicator warning">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {warningMessage}
+    </div>
+  {/if}
+
   {#if isLoading}
     <div class="loading">Loading tracking data...</div>
   {:else if error}
@@ -398,15 +496,17 @@
           <tbody>
           <!-- Section 1: DAILY (Chaos & Guardian) -->
           <tr class="section-separator">
-            <td colspan={matrixData.characters.length + 1}>
+            <td class="section-title-cell sticky-col first-col">
               <div class="section-title">DAILY</div>
             </td>
+            <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
           {#each matrixData.daily_tasks as task}
             <tr>
               <td class="task-name-cell sticky-col first-col">
                 <div class="task-info">
                   <span class="task-name">{task.content_name}</span>
+                  <div class="task-actions">
                   <button 
                     class="toggle-all-btn"
                     data-guide="tracking-row-toggle"
@@ -418,6 +518,19 @@
                   >
                     {areAllCharactersTrackedForTask(task.content_id) ? '☑' : '☐'}
                   </button>
+                  {#if supportsLazyDaily(task.content_id)}
+                    <button
+                      class="toggle-all-btn lazy-all-btn"
+                      on:click={() => {
+                        const currentState = areAllCharactersLazyForTask(task.content_id);
+                        toggleAllLazyDailyForTask(task.content_id, !currentState);
+                      }}
+                      title="Toggle lazy behavior for all characters"
+                    >
+                      Lazy {areAllCharactersLazyForTask(task.content_id) ? 'On' : 'Off'}
+                    </button>
+                  {/if}
+                  </div>
                 </div>
               </td>
               {#each matrixData.characters as char}
@@ -428,7 +541,7 @@
                       class="task-checkbox"
                       checked={getCharacterTaskState(task, char.char_id)?.tracked || false}
                       on:change={(event) => {
-                        const newState = event.target.checked;
+                        const newState = (event.currentTarget as HTMLInputElement).checked;
                         toggleTask(char.char_id, task.content_id, newState);
                       }}
                     />
@@ -439,14 +552,25 @@
                           data-guide="rested-input"
                           placeholder="0" 
                           min="0" 
+                          step="10"
+                          inputmode="numeric"
                           max={task.max_rest_value}
                           value={getCharacterTaskState(task, char.char_id)?.current_value || 0}
-                          on:change={(e) => {
-                            const currentValue = parseInt(e.target.value) || 0;
-                            updateRestedValue(char.char_id, task.content_id, currentValue);
-                          }}
+                          on:wheel={handleRestedWheel}
+                          on:change={(event) => handleRestedChange(event, char.char_id, task.content_id)}
                         />
                       </div>
+                      <label class="lazy-toggle" title="Only count this daily when rested is 20 or higher">
+                        <input
+                          type="checkbox"
+                          checked={getCharacterTaskState(task, char.char_id)?.lazy_daily || false}
+                          on:change={(event) => {
+                            const newState = (event.currentTarget as HTMLInputElement).checked;
+                            toggleLazyDaily(char.char_id, task.content_id, newState);
+                          }}
+                        />
+                        <span>Lazy</span>
+                      </label>
                     {/if}
                   </div>
                 </td>
@@ -456,9 +580,10 @@
 
           <!-- Section 2: WEEKLY -->
           <tr class="section-separator">
-            <td colspan={matrixData.characters.length + 1}>
+            <td class="section-title-cell sticky-col first-col">
               <div class="section-title">WEEKLY</div>
             </td>
+            <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
           {#each matrixData.weekly_tasks as task}
             <tr>
@@ -486,7 +611,7 @@
                       class="task-checkbox"
                       checked={getCharacterTaskState(task, char.char_id)?.tracked || false}
                       on:change={(event) => {
-                        const newState = event.target.checked;
+                        const newState = (event.currentTarget as HTMLInputElement).checked;
                         toggleTask(char.char_id, task.content_id, newState);
                       }}
                     />
@@ -498,9 +623,10 @@
 
           <!-- Section 3: ROSTER WIDE -->
           <tr class="section-separator">
-            <td colspan={matrixData.characters.length + 1}>
+            <td class="section-title-cell sticky-col first-col">
               <div class="section-title">ROSTER WIDE</div>
             </td>
+            <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
           {#each matrixData.roster_tasks as task}
             <tr>
@@ -512,7 +638,7 @@
                     class="task-checkbox"
                     checked={task.character_states[0]?.tracked || false}
                     on:change={(event) => {
-                      const newState = event.target.checked;
+                      const newState = (event.currentTarget as HTMLInputElement).checked;
                       toggleRosterTask(task.content_id, newState);
                     }}
                   />
@@ -524,9 +650,10 @@
 
           <!-- Section 4: RAIDS -->
           <tr class="section-separator">
-            <td colspan={matrixData.characters.length + 1}>
+            <td class="section-title-cell sticky-col first-col">
               <div class="section-title">RAIDS</div>
             </td>
+            <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
           {#each matrixData.raids as raid}
             <tr>
@@ -555,7 +682,7 @@
                         class="task-checkbox"
                         checked={getCharacterRaidState(raid, char.char_id)?.tracked || false}
                         on:change={(event) => {
-                          const newState = event.target.checked;
+                          const newState = (event.currentTarget as HTMLInputElement).checked;
                           toggleRaid(char.char_id, raid.raid_id, newState);
                         }}
                       />
@@ -596,6 +723,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    position: sticky;
+    left: 0;
+    z-index: 40;
   }
 
   .roster-label {
@@ -618,6 +748,24 @@
   .roster-dropdown:focus {
     outline: 2px solid var(--md-sys-color-primary);
     outline-offset: 2px;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    margin: 8px 16px 0;
+    color: var(--md-sys-color-on-surface);
+    background: color-mix(in srgb, var(--md-sys-color-surface-variant) 50%, transparent);
+  }
+
+  .status-indicator.warning svg {
+    color: #ef4444;
+    flex: 0 0 auto;
   }
 
   .loading, .error {
@@ -735,42 +883,33 @@
   }
 
   .section-separator td {
-    background: var(--md-sys-color-primary-container);
+    background: rgba(255, 107, 53, 0.02);
+    border-bottom: 1px solid rgba(255, 107, 53, 0.08);
     padding: 8px 12px;
     font-weight: 600;
-    color: var(--md-sys-color-on-primary-container);
-    border: none;
-    text-align: center;
+    color: rgba(255, 107, 53, 0.7);
+    text-align: left;
+  }
+
+  .section-separator .section-title-cell {
+    background: color-mix(in srgb, var(--md-sys-color-surface-variant) 92%, rgba(255, 107, 53, 0.08));
+    min-width: 200px;
+    position: sticky;
+    left: 0;
+    z-index: 18;
+  }
+
+  .section-fill-cell {
+    min-width: 0;
   }
 
   .section-title {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    position: relative;
-    padding: 0 16px;
+    justify-content: flex-start;
+    padding: 0;
     font-size: 16px;
     font-weight: 700;
-  }
-
-  .section-title::before,
-  .section-title::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 36px;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.35);
-  }
-
-  .section-title::before {
-    left: 0;
-    transform: translateX(-100%);
-  }
-
-  .section-title::after {
-    right: 0;
-    transform: translateX(100%);
   }
 
   .task-name-cell {
@@ -785,6 +924,13 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .task-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
   }
 
   .task-name {
@@ -809,6 +955,10 @@
     border-color: var(--md-sys-color-primary);
   }
 
+  .lazy-all-btn {
+    font-size: 11px;
+  }
+
   .rested-input input {
     width: 60px;
     padding: 4px;
@@ -817,6 +967,22 @@
     font-size: 12px;
     background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface);
+  }
+
+  .lazy-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .lazy-toggle input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--md-sys-color-primary);
   }
 
   .toggle-cell {

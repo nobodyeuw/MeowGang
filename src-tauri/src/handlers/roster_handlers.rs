@@ -144,6 +144,24 @@ pub async fn update_character_order(
 }
 
 #[tauri::command]
+pub async fn update_roster_order(
+    rosters: Vec<serde_json::Value>,
+    roster_repo: State<'_, RosterRepository>,
+) -> Result<(), String> {
+    for roster in rosters {
+        if let (Some(roster_id), Some(display_order)) = (
+            roster.get("roster_id").and_then(|v| v.as_str()),
+            roster.get("display_order").and_then(|v| v.as_i64()),
+        ) {
+            roster_repo
+                .update_roster_order(roster_id, display_order)
+                .map_err(|e| format!("Failed to update roster order for {}: {}", roster_id, e))?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn update_character_roster_name(
     character_id: i64,
     new_roster_name: String,
@@ -152,6 +170,20 @@ pub async fn update_character_roster_name(
     roster_repo
         .update_character_roster_name(character_id, &new_roster_name)
         .map_err(|e| format!("Failed to update character roster name: {}", e))
+}
+
+#[tauri::command]
+pub async fn update_roster_name(
+    roster_id: String,
+    new_roster_name: String,
+    roster_repo: State<'_, RosterRepository>,
+) -> Result<(), String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
+    crate::validation::validate_roster_name(&new_roster_name)?;
+
+    roster_repo
+        .update_roster_name(&roster_id, &new_roster_name)
+        .map_err(|e| format!("Failed to update roster name: {}", e))
 }
 
 #[tauri::command]
