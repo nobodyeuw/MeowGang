@@ -38,8 +38,9 @@ impl TrackingRepository {
         let characters: Vec<crate::models::CharacterMatrixInfo> = character_iter.filter_map(Result::ok).collect();
 
         // Get all conf_tracking entries for characters in this roster (both tasks and raids)
-        let mut todo_stmt =
-            conn.prepare("SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) FROM conf_tracking WHERE roster_id = ?1")?;
+        let mut todo_stmt = conn.prepare(
+            "SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) FROM conf_tracking WHERE roster_id = ?1",
+        )?;
 
         let todo_iter = todo_stmt.query_map([roster_id], |row| {
             Ok((

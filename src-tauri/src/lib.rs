@@ -384,10 +384,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Auth handlers
+            handlers::auth_handlers::authenticate_discord,
+            handlers::auth_handlers::verify_stored_discord_auth,
             // System handlers
             handlers::system_handlers::get_app_version,
             handlers::system_handlers::get_system_settings,
             handlers::system_handlers::set_show_setup_guide_button,
+            handlers::system_handlers::set_show_auth_welcome,
             handlers::system_handlers::clear_user_data,
             handlers::system_handlers::set_encounters_db_path,
             handlers::system_handlers::set_lost_ark_exe_path,

@@ -19,6 +19,7 @@
   let startWithLostArk = false;
   let startWithLoaLogs = false;
   let showSetupGuideButton = true;
+  let showAuthWelcome = true;
   let isClearingUserData = false;
   let showClearUserDataDialog = false;
   let isRunning = false;
@@ -60,6 +61,7 @@
       startWithLostArk = settings.startWithLostArk || settings.start_with_lost_ark || false;
       startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
+      showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
 
     } catch (err) {
       error = `Failed to load system settings: ${err}`;
@@ -198,6 +200,17 @@
       showSuccess(`Set-Up Guide button ${newValue ? 'shown' : 'hidden'}!`);
     } catch (err) {
       showError(`Failed to update Set-Up Guide button: ${err}`);
+    }
+  }
+
+  async function toggleAuthWelcome() {
+    try {
+      const newValue = !showAuthWelcome;
+      await invoke('set_show_auth_welcome', { enabled: newValue });
+      showAuthWelcome = newValue;
+      showSuccess(`Welcome screen ${newValue ? 'enabled' : 'disabled'}!`);
+    } catch (err) {
+      showError(`Failed to update welcome screen: ${err}`);
     }
   }
 
@@ -381,6 +394,29 @@
                   type="checkbox"
                   checked={showSetupGuideButton}
                   on:change={toggleSetupGuideButton}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Show Welcome Screen</h4>
+                <p>Show the Discord welcome screen before opening the app</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={showAuthWelcome}
+                  on:change={toggleAuthWelcome}
                 />
                 <span class="toggle-slider"></span>
               </label>

@@ -2303,6 +2303,7 @@ name = "loatracker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "dirs",
  "json5",
@@ -2316,6 +2317,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tauri",
  "tauri-build",

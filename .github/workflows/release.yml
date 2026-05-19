@@ -67,6 +67,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_WHITELIST_URL: ${{ secrets.DISCORD_WHITELIST_URL }}
         with:
           tagName: v${{ steps.version.outputs.version }}
           releaseName: "MeowGang Tracker v${{ steps.version.outputs.version }}"

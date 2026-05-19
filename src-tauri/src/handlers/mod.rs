@@ -1,5 +1,6 @@
 // src-tauri/src/handlers/mod.rs
 
+pub mod auth_handlers;
 pub mod character_handlers;
 pub mod data_manager_handlers;
 pub mod encounter_sync_handlers;

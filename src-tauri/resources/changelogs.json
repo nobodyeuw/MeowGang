@@ -1,73 +1,73 @@
 {
   "versions": [
     {
-      "version": "1.1.8",
+      "version": "1.1.9",
       "date": "2026-05-19",
       "changes": [
         {
           "type": "Added",
-          "description": "Dashboard now tracks the active calendar event.",
-          "details": "Added a dashboard summary label for the currently available roster-wide calendar event. The label switches between Chaos Gate and Field Boss, uses the matching event icon, and shows remaining completions across eligible rosters."
+          "description": "Discord access control was added.",
+          "details": "LOA Tracker can now require Discord login before the app opens. Approved users are checked against the configured whitelist JSON, including secret Gist-backed whitelists with Discord IDs and optional display names."
         },
         {
           "type": "Added",
-          "description": "Dashboard summary includes daily task status.",
-          "details": "Daily progress is now shown alongside raids, weeklies, roster-wide events, and gold earners while preserving lazy daily behavior for rested Chaos Dungeon and Guardian Raid tracking."
+          "description": "Discord auth uses Authorization Code with PKCE.",
+          "details": "The login flow opens Discord in the user's browser, uses a local callback listener for the authorization code, and exchanges it with PKCE so no Discord client secret is shipped in the desktop app."
         },
         {
           "type": "Added",
-          "description": "Update checks now wait before showing a fresh release.",
-          "details": "When a new version appears in the updater metadata, LOA Tracker now waits for a short release grace period before showing the update as installable. This gives GitHub Actions time to finish publishing the actual installer artifacts."
+          "description": "Approved Discord users are remembered locally.",
+          "details": "After approval, the app stores the user's Discord ID in meowgang_auth.txt under the LOA Tracker app data folder. On startup, that stored ID is rechecked against the current whitelist so users do not need to log in every time."
+        },
+        {
+          "type": "Added",
+          "description": "A Discord welcome screen was added.",
+          "details": "Approved users now see a small welcome screen with their whitelist display name and a Proceed button before the main app loads."
+        },
+        {
+          "type": "Added",
+          "description": "Welcome screen visibility can be configured.",
+          "details": "System Settings now includes a Show Welcome Screen toggle. Users who disable it will go directly into the app after their stored Discord access is approved."
         },
         {
           "type": "Improved",
-          "description": "Dashboard summary labels are cleaner and more compact.",
-          "details": "Raid, daily, weekly, roster-wide event, and gold earner labels now use a smaller modern layout, centered text, fixed maximum width, subtle dashboard-matching borders, and no hover effect for non-clickable elements."
+          "description": "Discord access UI was polished.",
+          "details": "The login screen now uses the LOA Tracker icon and title, shows a clearer MeowGang-only access message, and uses the correct login wording when no stored Discord ID exists."
         },
         {
           "type": "Improved",
-          "description": "Dashboard task labels now show remaining work more clearly.",
-          "details": "Task labels now display open counts instead of raw X/Y values and switch to an all-done state when completed, so the dashboard reads more naturally at a glance."
+          "description": "Denied Discord users get a clearer response.",
+          "details": "Stored IDs that are not approved now show the Not approved by our Meowtator message with a Tenor animation and a local fallback animation if the embed cannot load."
         },
         {
           "type": "Improved",
-          "description": "Roster sections and list view spacing were tightened.",
-          "details": "Roster titles were restyled with a simpler in-frame presentation. List view removes Chaos and Guardian progress bars, preserves raid labels longer on narrow widths, and lets character names shrink down before the layout wraps."
-        },
-        {
-          "type": "Improved",
-          "description": "Weekly gold progress now uses planned raid configuration.",
-          "details": "The maximum weekly gold value now comes from planned take-gold raid gates. Completed gold is calculated from completion status clears instead of gold logs, with mismatch/lost gold displayed separately as a greyed progress segment."
-        },
-        {
-          "type": "Improved",
-          "description": "Bound and tradable gold totals now use completion status.",
-          "details": "Bound and tradable weekly gold values are now derived from completed planned raid gates and their configured difficulties, keeping the gold card consistent with the main weekly progress calculation."
-        },
-        {
-          "type": "Improved",
-          "description": "Header reset countdown is easier to scan.",
-          "details": "The daily reset countdown now uses padded time parts such as 04H 09M or 04M and no longer displays seconds."
+          "description": "The approved username now lives in the sidebar.",
+          "details": "The Welcome username badge was moved out of the header and into the bottom of the sidebar, with smaller centered text so it does not crowd the reset timer or setup guide button."
         },
         {
           "type": "Fixed",
-          "description": "Updater no longer exposes releases before installers are ready.",
-          "details": "The install command now also respects the release grace period, so an old visible button cannot start downloading a release while GitHub Actions is still preparing the installer."
+          "description": "Discord login opens in the browser correctly on Windows.",
+          "details": "The browser launch path was adjusted so OAuth URLs are opened through the default browser instead of being interpreted by PowerShell or File Explorer."
         },
         {
           "type": "Fixed",
-          "description": "Dashboard gold no longer counts lost mismatch gold as earned.",
-          "details": "Difficulty mismatch gold is now shown separately and greyed out in the progress bar instead of being added to actual weekly income."
+          "description": "Empty local auth files now return to login.",
+          "details": "If meowgang_auth.txt is missing or empty, the app shows Log in with Discord instead of treating the user as a denied account."
+        },
+        {
+          "type": "Fixed",
+          "description": "Whitelist display names are used consistently.",
+          "details": "When a whitelist entry contains a name, the app now uses that name for welcome messaging instead of falling back to the raw Discord ID."
         },
         {
           "type": "Changed",
-          "description": "Gold logs were removed from the active data flow.",
-          "details": "The old gold_logs table, repository, service, frontend initialization, and cleanup calls were removed. Existing users migrate forward by dropping the table during the next schema migration, while fresh installs no longer create it."
+          "description": "README privacy notes were updated for Discord auth.",
+          "details": "The documentation now explains that local app data stays on the machine while Discord login contacts Discord and the configured whitelist source for access verification."
         },
         {
           "type": "Changed",
-          "description": "Database schema version advanced for gold log cleanup.",
-          "details": "The database migration target was bumped so existing installations remove the obsolete gold_logs table safely during the next update."
+          "description": "Discord auth configuration was documented.",
+          "details": "Development setup now documents the Discord client ID, callback URL, whitelist URL override, supported whitelist formats, and the local auth cache file location."
         }
       ]
     }

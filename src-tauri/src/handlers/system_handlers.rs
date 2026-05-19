@@ -17,6 +17,7 @@ pub struct SystemSettings {
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
     pub show_setup_guide_button: bool,
+    pub show_auth_welcome: bool,
 }
 
 #[tauri::command]
@@ -86,6 +87,7 @@ pub async fn get_system_settings(
         start_with_lost_ark: settings.system.start_with_lost_ark,
         start_with_loa_logs,
         show_setup_guide_button: settings.system.show_setup_guide_button,
+        show_auth_welcome: settings.system.show_auth_welcome,
         extra: settings.system.extra,
     })
 }
@@ -106,6 +108,25 @@ pub async fn set_show_setup_guide_button(
         .map_err(|e| format!("Failed to save settings: {}", e))?;
 
     crate::log_info!("Set setup guide header button visibility to: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_show_auth_welcome(
+    enabled: bool,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<(), String> {
+    let mut settings = settings_manager
+        .read()
+        .map_err(|e| format!("Failed to read settings: {}", e))?
+        .unwrap_or_else(|| settings_manager.get_default());
+
+    settings.system.show_auth_welcome = enabled;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    crate::log_info!("Set Discord welcome screen visibility to: {}", enabled);
     Ok(())
 }
 

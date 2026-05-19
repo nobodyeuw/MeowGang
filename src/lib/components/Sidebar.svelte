@@ -2,6 +2,7 @@
   export let activeTab: string;
   export let switchTab: (tab: string) => void;
   export let isOpen: boolean = false;
+  export let discordAuthUser: string = '';
 </script>
 
 <nav class="sidebar" class:isOpen={isOpen}>
@@ -55,6 +56,12 @@
       <span class="nav-icon">🔄</span>
       <span class="nav-text">Updates</span>
     </button>
+    {#if discordAuthUser}
+      <div class="sidebar-user">
+        <span class="user-label">Welcome</span>
+        <span class="user-name">{discordAuthUser}</span>
+      </div>
+    {/if}
   </div>
 
 </nav>
@@ -101,6 +108,40 @@
     background: var(--md-sys-color-outline);
     opacity: 0.35;
     margin: 0 1.5rem;
+  }
+
+  .sidebar-user {
+    margin: 0 1.5rem;
+    padding: 0.48rem 0.6rem;
+    border: 1px solid rgba(255, 140, 0, 0.25);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-variant) 70%, transparent);
+    color: var(--md-sys-color-on-surface-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .user-label {
+    font-size: 0.58rem;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.75;
+  }
+
+  .user-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.15;
   }
 
   .sidebar.isOpen {

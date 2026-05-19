@@ -1,7 +1,7 @@
 # 🐾 MeowGang Tracker
 **The sharpest, high-performance companion for your Lost Ark journey.**
 
-[![Version](https://img.shields.io/badge/version-1.1.8-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.1.9-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
@@ -63,6 +63,13 @@ Git
  
 # Development
 npm run tauri dev
+
+# Discord auth configuration
+# The Discord application must allow this redirect URI:
+# http://127.0.0.1:53682/discord/callback
+# The desktop app uses Authorization Code + PKCE, so no Discord client secret is shipped.
+npm run tauri dev
+
  
 # Build Production
 npm run tauri build
@@ -78,7 +85,7 @@ cargo fmt              # Format Rust code
 
 ## Privacy & Safety
 
-- 100% Local: No data is ever sent to external servers. Everything stays on your machine.
+- Local App Data: Roster, tracking, gold, and progression data stay on your machine. Discord login contacts Discord and the configured whitelist Gist only to verify app access.
 
 - Third-Party: This is a fan-project and is not affiliated with Smilegate RPG or Amazon Games.
 
