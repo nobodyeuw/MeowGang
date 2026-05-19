@@ -24,6 +24,7 @@
   let showClearUserDataDialog = false;
   let isRunning = false;
   let isLoaLogsRunning = false;
+  let loaLogsReminderMessage = '';
 
   // Logging
   let logContent: string | null = null;
@@ -31,17 +32,23 @@
   let showLogDialog = false;
 
   // Load system settings on mount
-  onMount(async () => {
-    await loadSystemSettings();
-    await checkLostArkStatus();
+  onMount(() => {
+    let statusInterval: ReturnType<typeof setInterval> | undefined;
 
-    // Check Lost Ark status periodically
-    const statusInterval = setInterval(async () => {
+    (async () => {
+      await loadSystemSettings();
       await checkLostArkStatus();
-    }, 5000); // Check every 5 seconds
+
+      // Check Lost Ark status periodically
+      statusInterval = setInterval(async () => {
+        await checkLostArkStatus();
+      }, 5000); // Check every 5 seconds
+    })();
 
     return () => {
-      clearInterval(statusInterval);
+      if (statusInterval) {
+        clearInterval(statusInterval);
+      }
     };
   });
 
@@ -185,7 +192,17 @@
       const newValue = !startWithLoaLogs;
       await invoke('set_start_with_loa_logs', { enabled: newValue });
       startWithLoaLogs = newValue;
-      showSuccess(`Start with LOA Logs ${newValue ? 'enabled' : 'disabled'}!`);
+      if (newValue) {
+        showSuccess('LOA Logs monitoring enabled. Please start LOA Logs manually for now.');
+        if (!isLoaLogsRunning) {
+          loaLogsReminderMessage = loaLogsExePath
+            ? 'Do not forget to start LOA Logs.exe for maximum efficiency.'
+            : 'For better QoL you should install LOA Logs.exe or set the path manually in Settings.';
+        }
+      } else {
+        loaLogsReminderMessage = '';
+        showSuccess('LOA Logs monitoring disabled!');
+      }
     } catch (err) {
       showError(`Failed to toggle start with LOA Logs: ${err}`);
     }
@@ -243,6 +260,9 @@
       isRunning = await invoke('is_lost_ark_running');
       try {
         isLoaLogsRunning = await invoke('is_loa_logs_running');
+        if (isLoaLogsRunning) {
+          loaLogsReminderMessage = '';
+        }
       } catch (_) {
         isLoaLogsRunning = false;
       }
@@ -305,6 +325,10 @@
     }, 5000);
   }
 
+  function dismissLoaLogsReminder() {
+    loaLogsReminderMessage = '';
+  }
+
   function formatPath(path: string): string {
     if (!path) return 'No path selected';
     if (path.length > 60) {
@@ -360,6 +384,15 @@
     </div>
   {:else}
     <div class="settings-content">
+      {#if loaLogsReminderMessage}
+        <div class="loa-logs-reminder">
+          <div>
+            <strong>LOA Logs:</strong> {loaLogsReminderMessage}
+          </div>
+          <button type="button" on:click={dismissLoaLogsReminder}>Dismiss</button>
+        </div>
+      {/if}
+
       <!-- General Section -->
       <div class="settings-section">
         <div class="section-header">
@@ -692,8 +725,8 @@
                 </svg>
               </div>
               <div class="toggle-content">
-                <h4>Combined Start with LOA Logs</h4>
-                <p>Start LOA Logs with LOA Tracker and reveal LOA Tracker when LOA Logs starts</p>
+                <h4>Monitor LOA Logs Startup</h4>
+                <p>Temporarily only reminds you to start LOA Logs manually and reveals LOA Tracker when it starts</p>
                 <div class="lost-ark-status">
                   <span class="status-dot" class:running={isLoaLogsRunning}></span>
                   <span class="status-text">{isLoaLogsRunning ? 'LOA Logs is running' : 'LOA Logs is not running'}</span>
@@ -996,6 +1029,29 @@
     display: flex;
     flex-direction: column;
     gap: 32px;
+  }
+
+  .loa-logs-reminder {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(255, 140, 0, 0.12);
+    border: 1px solid rgba(255, 140, 0, 0.24);
+    color: var(--md-sys-color-on-surface);
+    font-size: 14px;
+  }
+
+  .loa-logs-reminder button {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font-weight: 600;
   }
 
   /* Section Styles */

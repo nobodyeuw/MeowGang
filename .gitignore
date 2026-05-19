@@ -11,6 +11,7 @@ vite.config.ts.timestamp-*
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/
+src-tauri/src/handlers/auth_handlers.rs
 *.log
 # extras
 

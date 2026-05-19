@@ -23,6 +23,13 @@ export const GAME_TASKS: Record<string, GameTask> = {
     reset_schedule: "daily",
     logic_type: "calendar"
   },
+  "event_argeos_winter": {
+    id: "event_argeos_winter",
+    name: "Argeos Winter Event",
+    category: "roster",
+    reset_schedule: "weekly",
+    logic_type: "normal"
+  },
   "chaos": {
     id: "chaos",
     name: "Chaos Dungeon",

@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { activeRosterId, rosters } from '$lib/store';
+  import { activeRosterId } from '$lib/store';
   import { GAME_TASKS, GAME_CLASSES } from '$lib/data/index';
   import { RAIDS } from '$lib/data/raids';
+  import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
 
   let selectedCharacterId: number | null = null;
 
@@ -11,6 +13,56 @@
   let error = '';
   let lastLoadedRosterId: string = '';
   let warningMessage = '';
+  let rosterEventProgress: Record<string, RosterEventProgress> = {};
+
+  interface RosterEventProgress {
+    task_id: string;
+    completed_this_week: number;
+    weekly_limit: number;
+    completed_today: boolean;
+    available: boolean;
+  }
+
+  function isRosterEventTask(taskId: string): boolean {
+    return taskId === 'event_argeos_winter';
+  }
+
+  async function loadRosterEventProgress() {
+    const rosterId = $activeRosterId;
+    const eventTasks = matrixData?.roster_tasks?.filter((task: any) => isRosterEventTask(task.content_id)) || [];
+    const nextProgress: Record<string, RosterEventProgress> = {};
+
+    for (const task of eventTasks) {
+      try {
+        const progress = await invoke<RosterEventProgress>('get_roster_event_progress', {
+          rosterId,
+          taskId: task.content_id
+        });
+        nextProgress[task.content_id] = progress;
+      } catch (err) {
+        console.warn('Failed to load roster event progress:', err);
+      }
+    }
+
+    rosterEventProgress = nextProgress;
+  }
+
+  function syncRosterEventTaskState(taskId: string) {
+    const progress = rosterEventProgress[taskId];
+    if (!progress || !matrixData?.roster_tasks) return;
+
+    matrixData.roster_tasks = matrixData.roster_tasks.map((task: any) => {
+      if (task.content_id !== taskId) return task;
+      return {
+        ...task,
+        character_states: task.character_states.map((state: any) => ({
+          ...state,
+          completed: progress.completed_this_week >= progress.weekly_limit
+        }))
+      };
+    });
+    matrixData = { ...matrixData };
+  }
 
   async function loadMatrixData() {
     try {
@@ -120,7 +172,7 @@
           task.reset_schedule === 'daily' && 
           (task.content_id === 'chaos' || task.content_id === 'guardian')
         ),
-        weekly_tasks: tasksArray.filter((task: any) => task.reset_schedule === 'weekly'),
+        weekly_tasks: tasksArray.filter((task: any) => task.reset_schedule === 'weekly' && task.category === 'character'),
         roster_tasks: tasksArray.filter((task: any) => task.category === 'roster'),
         raids: raidsArray
       };
@@ -130,6 +182,8 @@
         error = 'No characters found for this roster';
         return;
       }
+
+      await loadRosterEventProgress();
     } catch (err) {
       error = `Error loading matrix: ${err}`;
     } finally {
@@ -195,6 +249,41 @@
 
     warningMessage = '';
     updateRestedValue(charId, contentId, nextValue);
+  }
+
+  async function handleRosterEventCountChange(event: Event, taskId: string) {
+    const input = event.currentTarget as HTMLInputElement;
+    const rawValue = input.value.trim();
+    const nextValue = Number(rawValue);
+    const progress = rosterEventProgress[taskId];
+    const weeklyLimit = progress?.weekly_limit ?? 3;
+    const previousValue = progress?.completed_this_week ?? 0;
+
+    if (
+      rawValue === '' ||
+      !Number.isInteger(nextValue) ||
+      nextValue < 0 ||
+      nextValue > weeklyLimit
+    ) {
+      input.value = String(previousValue);
+      showWarning(`Event completions must be 0, 1, 2, or 3.`);
+      return;
+    }
+
+    try {
+      warningMessage = '';
+      await invoke('update_roster_event_weekly_count', {
+        rosterId: $activeRosterId,
+        taskId,
+        completedCount: nextValue
+      });
+      await loadRosterEventProgress();
+      syncRosterEventTaskState(taskId);
+      window.dispatchEvent(new CustomEvent('roster-event-progress-updated', { detail: { taskId } }));
+    } catch (err) {
+      input.value = String(previousValue);
+      showWarning(`Failed to update event completions: ${err}`);
+    }
   }
 
   function getClassIcon(classId: string) {
@@ -305,6 +394,11 @@
         return { ...t };
       });
       matrixData = { ...matrixData };
+      if (isRosterEventTask(taskId)) {
+        await loadRosterEventProgress();
+        syncRosterEventTaskState(taskId);
+        window.dispatchEvent(new CustomEvent('roster-event-progress-updated', { detail: { taskId } }));
+      }
       
     } catch (err) {
       console.error('Failed to toggle roster task:', err);
@@ -437,22 +531,25 @@
     lastLoadedRosterId = $activeRosterId;
     loadMatrixData();
   }
+
+  onMount(() => {
+    const handleRosterEventProgressUpdated = async (event: Event) => {
+      const detail = (event as CustomEvent<{ taskId?: string }>).detail;
+      await loadRosterEventProgress();
+      if (detail?.taskId) {
+        syncRosterEventTaskState(detail.taskId);
+      }
+    };
+
+    window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+    return () => {
+      window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+    };
+  });
 </script>
 
 <div class="tracking-settings">
-  <!-- Roster Selector -->
-  <div class="roster-selector">
-    <label for="roster-select" class="roster-label">Active Roster:</label>
-    <select 
-      id="roster-select"
-      bind:value={$activeRosterId}
-      class="roster-dropdown"
-    >
-      {#each $rosters as roster}
-        <option value={roster.id}>{roster.roster_name}</option>
-      {/each}
-    </select>
-  </div>
+  <RosterButtonGroup />
 
   {#if warningMessage}
     <div class="status-indicator warning">
@@ -642,7 +739,26 @@
                       toggleRosterTask(task.content_id, newState);
                     }}
                   />
-                  <span class="roster-label">All Characters</span>
+                  {#if isRosterEventTask(task.content_id)}
+                    <span class="roster-label">All Characters</span>
+                    <input
+                      type="number"
+                      class="event-count-input"
+                      min="0"
+                      max={rosterEventProgress[task.content_id]?.weekly_limit ?? 3}
+                      step="1"
+                      value={rosterEventProgress[task.content_id]?.completed_this_week ?? 0}
+                      disabled={!task.character_states[0]?.tracked}
+                      aria-label={`${task.content_name} completions this week`}
+                      on:change={(event) => handleRosterEventCountChange(event, task.content_id)}
+                      on:wheel={handleRestedWheel}
+                    />
+                    <span class="roster-label">
+                      / {rosterEventProgress[task.content_id]?.weekly_limit ?? 3} this week
+                    </span>
+                  {:else}
+                    <span class="roster-label">All Characters</span>
+                  {/if}
                 </div>
               </td>
             </tr>
@@ -816,9 +932,11 @@
     overflow-x: auto;
     overflow-y: auto;
     position: relative;
+    container-type: inline-size;
   }
 
   .tracking-matrix {
+    --task-column-width: 200px;
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
@@ -893,7 +1011,7 @@
 
   .section-separator .section-title-cell {
     background: color-mix(in srgb, var(--md-sys-color-surface-variant) 92%, rgba(255, 107, 53, 0.08));
-    min-width: 200px;
+    min-width: var(--task-column-width);
     position: sticky;
     left: 0;
     z-index: 18;
@@ -917,7 +1035,7 @@
     padding: 12px 8px;
     border-bottom: 1px solid var(--md-sys-color-outline);
     font-weight: 500;
-    min-width: 200px;
+    min-width: var(--task-column-width);
   }
 
   .task-info {
@@ -997,6 +1115,16 @@
     background: var(--md-sys-color-surface-container);
   }
 
+  .roster-toggle-cell .cell-content {
+    position: sticky;
+    left: calc(var(--task-column-width) + ((100cqw - var(--task-column-width)) / 2));
+    z-index: 12;
+    width: max-content;
+    box-sizing: border-box;
+    margin: 0 auto;
+    transform: translateX(-50%);
+  }
+
   .cell-content {
     display: flex;
     justify-content: center;
@@ -1016,6 +1144,28 @@
     font-size: 12px;
     color: var(--md-sys-color-on-surface-variant);
     font-style: italic;
+  }
+
+  .event-count-input {
+    width: 3rem;
+    padding: 4px 6px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 4px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+  }
+
+  .event-count-input:focus {
+    border-color: var(--md-sys-color-primary);
+  }
+
+  .event-count-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 
   .raid-info {
@@ -1056,6 +1206,7 @@
 
   .first-col {
     z-index: 20;
+    min-width: var(--task-column-width);
     background: var(--md-sys-color-surface-variant);
     box-shadow: 2px 0 0 0 var(--md-sys-color-outline);
   }

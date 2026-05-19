@@ -1,73 +1,118 @@
 {
   "versions": [
     {
-      "version": "1.1.9",
+      "version": "1.1.10",
       "date": "2026-05-19",
       "changes": [
         {
-          "type": "Added",
-          "description": "Discord access control was added.",
-          "details": "LOA Tracker can now require Discord login before the app opens. Approved users are checked against the configured whitelist JSON, including secret Gist-backed whitelists with Discord IDs and optional display names."
+          "type": "Changed",
+          "description": "LOA Logs auto-start was temporarily disabled.",
+          "details": "The app no longer force-starts LOA Logs.exe as a workaround for cases where LOA Logs would launch but not function correctly when started by LOA Tracker."
         },
         {
           "type": "Added",
-          "description": "Discord auth uses Authorization Code with PKCE.",
-          "details": "The login flow opens Discord in the user's browser, uses a local callback listener for the authorization code, and exchanges it with PKCE so no Discord client secret is shipped in the desktop app."
-        },
-        {
-          "type": "Added",
-          "description": "Approved Discord users are remembered locally.",
-          "details": "After approval, the app stores the user's Discord ID in meowgang_auth.txt under the LOA Tracker app data folder. On startup, that stored ID is rechecked against the current whitelist so users do not need to log in every time."
-        },
-        {
-          "type": "Added",
-          "description": "A Discord welcome screen was added.",
-          "details": "Approved users now see a small welcome screen with their whitelist display name and a Proceed button before the main app loads."
-        },
-        {
-          "type": "Added",
-          "description": "Welcome screen visibility can be configured.",
-          "details": "System Settings now includes a Show Welcome Screen toggle. Users who disable it will go directly into the app after their stored Discord access is approved."
-        },
-        {
-          "type": "Improved",
-          "description": "Discord access UI was polished.",
-          "details": "The login screen now uses the LOA Tracker icon and title, shows a clearer MeowGang-only access message, and uses the correct login wording when no stored Discord ID exists."
-        },
-        {
-          "type": "Improved",
-          "description": "Denied Discord users get a clearer response.",
-          "details": "Stored IDs that are not approved now show the Not approved by our Meowtator message with a Tenor animation and a local fallback animation if the embed cannot load."
-        },
-        {
-          "type": "Improved",
-          "description": "The approved username now lives in the sidebar.",
-          "details": "The Welcome username badge was moved out of the header and into the bottom of the sidebar, with smaller centered text so it does not crowd the reset timer or setup guide button."
+          "description": "LOA Logs reminder banners were added.",
+          "details": "When LOA Logs is not running, the app now warns users to start it for full tracking support. The warning clears automatically once LOA Logs is detected."
         },
         {
           "type": "Fixed",
-          "description": "Discord login opens in the browser correctly on Windows.",
-          "details": "The browser launch path was adjusted so OAuth URLs are opened through the default browser instead of being interpreted by PowerShell or File Explorer."
+          "description": "The app now prevents duplicate running instances.",
+          "details": "Starting the executable again while LOA Tracker is already open should focus/show the existing app instead of creating another tray icon and second running instance."
         },
         {
-          "type": "Fixed",
-          "description": "Empty local auth files now return to login.",
-          "details": "If meowgang_auth.txt is missing or empty, the app shows Log in with Discord instead of treating the user as a denied account."
+          "type": "Improved",
+          "description": "Dashboard card and list layouts were reworked.",
+          "details": "Character cards now use tighter spacing, centered roster card grids, reduced dashboard side padding, and better responsive behavior between full card view and list view."
         },
         {
-          "type": "Fixed",
-          "description": "Whitelist display names are used consistently.",
-          "details": "When a whitelist entry contains a name, the app now uses that name for welcome messaging instead of falling back to the raw Discord ID."
+          "type": "Improved",
+          "description": "Chaos and Guardian status is visible again.",
+          "details": "Cards and list rows show Chaos Dungeon and Guardian Raid state even when lazy behavior is active, greying the icons out when completed or currently resting."
+        },
+        {
+          "type": "Improved",
+          "description": "Daily progress is shown in compact contexts.",
+          "details": "Card-view mini cards and wide list rows now show compact Chaos and Guardian rested progress bars when there is enough space, while narrower layouts fall back to icons only."
+        },
+        {
+          "type": "Added",
+          "description": "Non-gold earners can show tracked raid progress.",
+          "details": "Characters that do not earn gold now show their latest tracked raids in a blue tracked-raid style, including gate progress and completion state."
+        },
+        {
+          "type": "Added",
+          "description": "Weekly fallback tasks were added for non-raid characters.",
+          "details": "Characters without tracked raids can show weekly tasks instead of looking empty. In list view, weekly-only rows can display up to four tracked weeklies side by side."
+        },
+        {
+          "type": "Improved",
+          "description": "Tracked weekly tasks now appear as compact icons.",
+          "details": "Tracked weeklies can appear as small icons in card and list views, with completed tasks greyed out and tooltips showing whether each task is open or done."
+        },
+        {
+          "type": "Improved",
+          "description": "Card-view top status icons were reorganized.",
+          "details": "Card view now places weekly shop/guild icons between the character info and Chaos/Guardian status icons, with Chaos and Guardian stacked in the top-right area."
+        },
+        {
+          "type": "Improved",
+          "description": "List view alignment was tightened.",
+          "details": "The list view now keeps raid difficulty visible for longer while resizing, reduces the character-name-to-stat gap first, and aligns iLvl and CP fields with fixed tabular widths."
         },
         {
           "type": "Changed",
-          "description": "README privacy notes were updated for Discord auth.",
-          "details": "The documentation now explains that local app data stays on the machine while Discord login contacts Discord and the configured whitelist source for access verification."
+          "description": "Combat Power formatting is now consistent.",
+          "details": "CP values now always render with two decimal places, matching the item level format and preventing row segments from shifting because of different decimal lengths."
         },
         {
-          "type": "Changed",
-          "description": "Discord auth configuration was documented.",
-          "details": "Development setup now documents the Discord client ID, callback URL, whitelist URL override, supported whitelist formats, and the local auth cache file location."
+          "type": "Fixed",
+          "description": "Roster-wide task tracking is now scoped per roster.",
+          "details": "Chaos Gate and Field Boss tracking/completion now use roster-level state instead of relying on an arbitrary character row, with a migration that normalizes existing roster-wide task data."
+        },
+        {
+          "type": "Added",
+          "description": "Guardian Raid clears can sync from LOA Logs encounters.",
+          "details": "Known Guardian Raid bosses in encounters.db now auto-complete the character's Guardian Raid daily for the current reset day. Argeos is intentionally excluded because the winter event is tracked manually."
+        },
+        {
+          "type": "Added",
+          "description": "Temporary roster events are supported.",
+          "details": "The Argeos Winter Event was added as a manually completed roster-wide event with 3 weekly completions and a 1-per-day limit. It can be disabled again from the roster-wide task toggle in Tracking settings."
+        },
+        {
+          "type": "Improved",
+          "description": "Roster event progress can be corrected manually.",
+          "details": "Tracking settings now includes a 0-3 weekly completion input for the Argeos event, so users can enter already completed event runs if they did them while the app was closed."
+        },
+        {
+          "type": "Fixed",
+          "description": "Roster event completions no longer duplicate rows.",
+          "details": "Toggling the event completion during the same daily cycle now updates the existing completion_status row instead of inserting a new one every time. Existing duplicate daily event rows are ignored by progress counts and cleaned up on the next toggle."
+        },
+        {
+          "type": "Improved",
+          "description": "Roster event state stays synced across tabs.",
+          "details": "Event changes from the Todo tab, Tracking tab, and dashboard now refresh each other so the weekly input, completion button, and dashboard label all follow the same completion_status data."
+        },
+        {
+          "type": "Added",
+          "description": "The dashboard now shows an Argeos event label.",
+          "details": "A Stoopid Argeos dashboard label was added with the event icon, showing how many tracked rosters are open today, done today, or fully done for the week."
+        },
+        {
+          "type": "Improved",
+          "description": "Reset countdown wording now highlights weekly reset.",
+          "details": "After the Tuesday 10:00 UTC daily reset, the header countdown switches to Next weekly reset in until Wednesday 10:00 UTC, then returns to the normal next daily reset wording."
+        },
+        {
+          "type": "Improved",
+          "description": "Roster selection now uses ordered buttons.",
+          "details": "Todo, Tracking, and Raid settings now use compact roster buttons instead of a dropdown. Buttons follow the user's roster order and use the same active styling as the header settings buttons."
+        },
+        {
+          "type": "Improved",
+          "description": "Task icons were updated for events and Paradise.",
+          "details": "Event tasks now use the new event_quest.webp icon, and Paradise tasks use the new paradise.webp icon in dashboard and Todo task displays."
         }
       ]
     }

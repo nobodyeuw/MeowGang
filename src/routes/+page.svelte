@@ -38,6 +38,10 @@
   let appReady = false;
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
+  let startWithLoaLogsEnabled = false;
+  let loaLogsPathConfigured = false;
+  let loaLogsReminderShown = false;
+  let loaLogsReminderMessage = '';
   let discordAuthState: DiscordAuthState = 'checking';
   let discordAuthMessage = 'Checking Discord access...';
   let discordAuthUser = '';
@@ -85,12 +89,14 @@
     const countdownInterval = setInterval(updateResetCountdown, 1000);
     // Refresh backend reset timestamp only once per minute.
     const resetRefreshInterval = setInterval(refreshNextResetTimeFromBackend, 60000);
+    const loaLogsStatusInterval = setInterval(clearLoaLogsReminderWhenRunning, 5000);
 
     // Cleanup on unmount
     return () => {
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
       clearInterval(countdownInterval);
       clearInterval(resetRefreshInterval);
+      clearInterval(loaLogsStatusInterval);
     };
   });
 
@@ -173,6 +179,7 @@
       await initializeApp();
       await loadSystemPreferences();
       appReady = true;
+      await showLoaLogsReminderIfNeeded();
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
 
       // Update rested values immediately on app start
@@ -198,6 +205,7 @@
           }
         });
         console.log('?? Data completeness check:', completenessResult);
+        window.dispatchEvent(new CustomEvent('character-data-complete'));
 
         // Update reset timestamps
         const resetResult = await invoke('update_reset_timestamps');
@@ -271,9 +279,52 @@
       const settings: any = await invoke('get_system_settings');
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
+      startWithLoaLogsEnabled = settings.startWithLoaLogs ?? settings.start_with_loa_logs ?? false;
+      const loaLogsPath = settings.loaLogsExePath ?? settings.loa_logs_exe_path ?? '';
+      loaLogsPathConfigured = typeof loaLogsPath === 'string' && loaLogsPath.trim().length > 0;
     } catch (error) {
       console.warn('Failed to load system preferences:', error);
     }
+  }
+
+  async function showLoaLogsReminderIfNeeded() {
+    if (!startWithLoaLogsEnabled || loaLogsReminderShown) {
+      return;
+    }
+
+    try {
+      const isRunning = await invoke<boolean>('is_loa_logs_running');
+      if (isRunning) {
+        loaLogsReminderMessage = '';
+        return;
+      }
+
+      loaLogsReminderShown = true;
+      loaLogsReminderMessage = loaLogsPathConfigured
+        ? 'Do not forget to start LOA Logs.exe for maximum efficiency.'
+        : 'For better QoL you should install LOA Logs.exe or set the path manually in Settings.';
+    } catch (error) {
+      console.warn('Failed to check LOA Logs reminder state:', error);
+    }
+  }
+
+  async function clearLoaLogsReminderWhenRunning() {
+    if (!loaLogsReminderMessage) {
+      return;
+    }
+
+    try {
+      const isRunning = await invoke<boolean>('is_loa_logs_running');
+      if (isRunning) {
+        loaLogsReminderMessage = '';
+      }
+    } catch (error) {
+      console.warn('Failed to refresh LOA Logs reminder state:', error);
+    }
+  }
+
+  function dismissLoaLogsReminder() {
+    loaLogsReminderMessage = '';
   }
 
   function setHeaderContent(content: string) {
@@ -286,13 +337,17 @@
 
   // Update reset countdown
   function updateResetCountdown() {
-    if (!nextResetTime) {
+    const weeklyResetWindow = getWeeklyResetCountdownTarget();
+    const targetResetTime = weeklyResetWindow ? weeklyResetWindow.toISOString() : nextResetTime;
+    const resetLabel = weeklyResetWindow ? 'Next weekly reset in' : 'Next daily reset in';
+
+    if (!targetResetTime) {
       resetCountdown = 'Reset timer unavailable';
       return;
     }
 
     const now = new Date();
-    const reset = new Date(nextResetTime);
+    const reset = new Date(targetResetTime);
     const diff = reset.getTime() - now.getTime();
 
     if (diff > 0) {
@@ -302,13 +357,35 @@
       const formatTimePart = (value: number) => value.toString().padStart(2, '0');
 
       if (hours > 0) {
-        resetCountdown = `Next daily reset in: ${formatTimePart(hours)}H ${formatTimePart(minutes)}M`;
+        resetCountdown = `${resetLabel}: ${formatTimePart(hours)}H ${formatTimePart(minutes)}M`;
       } else {
-        resetCountdown = `Next daily reset in: ${formatTimePart(minutes)}M`;
+        resetCountdown = `${resetLabel}: ${formatTimePart(minutes)}M`;
       }
     } else {
-      resetCountdown = 'Daily reset should have occurred!';
+      resetCountdown = weeklyResetWindow ? 'Weekly reset should have occurred!' : 'Daily reset should have occurred!';
     }
+  }
+
+  function getWeeklyResetCountdownTarget(): Date | null {
+    const now = new Date();
+    const day = now.getUTCDay();
+    const currentDailyReset = new Date(now);
+    currentDailyReset.setUTCHours(10, 0, 0, 0);
+
+    const isAfterTuesdayDailyReset = day === 2 && now.getTime() >= currentDailyReset.getTime();
+    const isBeforeWednesdayWeeklyReset = day === 3 && now.getTime() < currentDailyReset.getTime();
+
+    if (!isAfterTuesdayDailyReset && !isBeforeWednesdayWeeklyReset) {
+      return null;
+    }
+
+    const weeklyReset = new Date(now);
+    weeklyReset.setUTCHours(10, 0, 0, 0);
+    if (day === 2) {
+      weeklyReset.setUTCDate(weeklyReset.getUTCDate() + 1);
+    }
+
+    return weeklyReset;
   }
 
   async function refreshNextResetTimeFromBackend() {
@@ -436,6 +513,15 @@
         </div>
         {#if headerContent}
           <div class="header-info">{headerContent}</div>
+        {/if}
+
+        {#if loaLogsReminderMessage}
+          <div class="app-alert loa-logs-reminder">
+            <div class="alert-copy">
+              <strong>LOA Logs:</strong> {loaLogsReminderMessage}
+            </div>
+            <button class="banner-button secondary" type="button" on:click={dismissLoaLogsReminder}>Dismiss</button>
+          </div>
         {/if}
 
         {#if $updateAvailable}
@@ -793,7 +879,7 @@
     flex: 1;
   }
 
-  .update-banner {
+  .app-alert {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.75rem;
@@ -801,9 +887,17 @@
     padding: 0.9rem 1rem;
     margin-top: 0.75rem;
     border-radius: 16px;
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .update-banner {
     background: rgba(255, 210, 0, 0.12);
     border: 1px solid rgba(255, 191, 0, 0.25);
-    color: var(--md-sys-color-on-surface);
+  }
+
+  .loa-logs-reminder {
+    background: rgba(255, 140, 0, 0.12);
+    border: 1px solid rgba(255, 140, 0, 0.24);
   }
 
   .alert-copy {

@@ -23,6 +23,10 @@
   let totalWeekliesPossible = 0;
   let totalCalendarEventsCompleted = 0;
   let totalCalendarEventsPossible = 0;
+  let totalArgeosTracked = 0;
+  let totalArgeosAvailableToday = 0;
+  let totalArgeosDoneToday = 0;
+  let totalArgeosFullyDone = 0;
   let progressPercentage = 0;
   let actualGoldDisplay = 0;
   let actualBoundGoldDisplay = 0;
@@ -66,6 +70,14 @@
     raid_configs_by_character: Record<string, RaidConfigEntry[]>;
   }
 
+  interface RosterEventProgress {
+    task_id: string;
+    completed_this_week: number;
+    weekly_limit: number;
+    completed_today: boolean;
+    available: boolean;
+  }
+
   let currentDashboardSnapshot: DashboardSnapshot | null = null;
 
   // Load characters for ALL rosters
@@ -95,7 +107,12 @@
       let weekliesPossible = 0;
       let calendarEventsCompleted = 0;
       let calendarEventsPossible = 0;
+      let argeosTracked = 0;
+      let argeosAvailableToday = 0;
+      let argeosDoneToday = 0;
+      let argeosFullyDone = 0;
       const currentCalendarEventIds = getCurrentCalendarEventIds();
+      const nextCharacterDataMap: typeof characterDataMap = {};
       
       // Collect raid configs for all rosters
       let allRaidConfigsByCharacter: Record<string, RaidConfigEntry[]> = {};
@@ -109,11 +126,8 @@
         rosterDataMap[roster.id] = snapshot;
 
         if (currentCalendarEventIds.length > 0) {
-          const firstRosterCharacter = snapshot.characters?.[0];
-
-          if (firstRosterCharacter) {
-            const rosterCompletionStatus =
-              snapshot.completion_by_character?.[String(firstRosterCharacter.char_id)] || [];
+          if (snapshot.characters?.length > 0) {
+            const rosterCompletionStatus = Object.values(snapshot.completion_by_character || {}).flat();
 
             for (const eventId of currentCalendarEventIds) {
               calendarEventsPossible++;
@@ -123,6 +137,18 @@
               }
             }
           }
+        }
+
+        if (isRosterTaskTracked(snapshot, 'event_argeos_winter')) {
+          argeosTracked++;
+          const progress = await invoke<RosterEventProgress>('get_roster_event_progress', {
+            rosterId: roster.id,
+            taskId: 'event_argeos_winter'
+          });
+
+          if (progress.available) argeosAvailableToday++;
+          if (progress.completed_today) argeosDoneToday++;
+          if (progress.completed_this_week >= progress.weekly_limit) argeosFullyDone++;
         }
       }
       
@@ -139,7 +165,7 @@
           const characterRaidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
           
           // Populate character data map for CharacterCard
-          characterDataMap[key] = {
+          nextCharacterDataMap[key] = {
             restedValues,
             completionStatus,
             raidConfigs: characterRaidConfigs,
@@ -153,8 +179,8 @@
           }
           
           // Count dailies (chaos + guardian). Lazy dailies only count from 20+ rested.
-          const chaosConfigured = trackingStatus.some((t: any) => t.content_id === 'chaos' && t.is_tracked === 1);
-          const guardianConfigured = trackingStatus.some((t: any) => t.content_id === 'guardian' && t.is_tracked === 1);
+          const chaosConfigured = trackingStatus.some((t: any) => t.content_id === 'chaos' && Number(t.is_tracked) === 1);
+          const guardianConfigured = trackingStatus.some((t: any) => t.content_id === 'guardian' && Number(t.is_tracked) === 1);
           const chaosTracked = shouldCountDaily(trackingStatus, restedValues, 'chaos');
           const guardianTracked = shouldCountDaily(trackingStatus, restedValues, 'guardian');
 
@@ -176,7 +202,7 @@
           // Count weeklies (cube, paradise, shop, guild, etc.)
           const weeklyTasks = ['cube', 'paradise', 'shop', 'guild'];
           for (const weeklyTask of weeklyTasks) {
-            const weeklyTracked = trackingStatus.some((t: any) => t.content_id === weeklyTask && t.is_tracked === 1);
+            const weeklyTracked = trackingStatus.some((t: any) => t.content_id === weeklyTask && Number(t.is_tracked) === 1);
             if (weeklyTracked) {
               weekliesPossible++;
               const weeklyCompleted = completionStatus.some((c: any) => c.content_id === weeklyTask && c.is_completed === 1);
@@ -212,6 +238,11 @@
       totalWeekliesPossible = weekliesPossible;
       totalCalendarEventsCompleted = calendarEventsCompleted;
       totalCalendarEventsPossible = calendarEventsPossible;
+      totalArgeosTracked = argeosTracked;
+      totalArgeosAvailableToday = argeosAvailableToday;
+      totalArgeosDoneToday = argeosDoneToday;
+      totalArgeosFullyDone = argeosFullyDone;
+      characterDataMap = nextCharacterDataMap;
       
       // Update progress percentage from completed raid clears.
       const goldProgress = calculateGoldProgress(visibleCharacters, allRaidConfigsByCharacter);
@@ -272,14 +303,28 @@
       console.log('Raid completed, refreshing dashboard...');
       await calculateGlobalStats($characters);
     };
+
+    const handleCharacterDataComplete = async () => {
+      console.log('Character data completed, refreshing dashboard...');
+      await calculateGlobalStats($characters);
+    };
+
+    const handleRosterEventProgressUpdated = async () => {
+      console.log('Roster event progress updated, refreshing dashboard...');
+      await calculateGlobalStats($characters);
+    };
     
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
     window.addEventListener('raid-completed', handleRaidCompleted);
+    window.addEventListener('character-data-complete', handleCharacterDataComplete);
+    window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
     
     // Cleanup on unmount
     return () => {
       window.removeEventListener('raid-settings-updated', handleRaidSettingsUpdate);
       window.removeEventListener('raid-completed', handleRaidCompleted);
+      window.removeEventListener('character-data-complete', handleCharacterDataComplete);
+      window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
     };
   });
 
@@ -439,9 +484,9 @@
     restedValues: RestedValueEntry[],
     contentId: string
   ): boolean {
-    const tracking = trackingStatus.find((status) => status.content_id === contentId && status.is_tracked === 1);
+    const tracking = trackingStatus.find((status) => status.content_id === contentId && Number(status.is_tracked) === 1);
     if (!tracking) return false;
-    if (tracking.lazy_daily === 1) {
+    if (Number(tracking.lazy_daily) === 1) {
       return getRestedValue(restedValues, contentId) >= 20;
     }
     return true;
@@ -459,6 +504,20 @@
   function getOpenStatusKind(completed: number, possible: number, configured = possible): 'empty' | 'idle' | 'done' | 'open' {
     if (possible <= 0) return configured > 0 ? 'idle' : 'empty';
     return getOpenCount(completed, possible) === 0 ? 'done' : 'open';
+  }
+
+  function isRosterTaskTracked(snapshot: DashboardSnapshot, taskId: string): boolean {
+    return Object.values(snapshot.tracking_by_character || {})
+      .flat()
+      .some((entry) => entry.content_id === taskId && Number(entry.is_tracked) === 1);
+  }
+
+  function getArgeosStatusKind(): 'empty' | 'done' | 'today' | 'open' {
+    if (totalArgeosTracked <= 0) return 'empty';
+    if (totalArgeosFullyDone >= totalArgeosTracked) return 'done';
+    if (totalArgeosAvailableToday > 0) return 'open';
+    if (totalArgeosDoneToday > 0) return 'today';
+    return 'empty';
   }
 
   function getCurrentCalendarEventLabel(): string {
@@ -574,7 +633,7 @@
     </div>
 
     <!-- Header Stats -->
-    {#if totalRaidsPossible > 0 || totalDailiesTracked > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold) || visibleCharacters.length > 0}
+    {#if totalRaidsPossible > 0 || totalDailiesTracked > 0 || totalWeekliesPossible > 0 || totalArgeosTracked > 0 || visibleCharacters.some(c => c.earns_gold) || visibleCharacters.length > 0}
     <div class="header-stats">
       {#if totalRaidsPossible > 0}
       <div class="stat-card">
@@ -658,6 +717,32 @@
           <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
         </div>
       </div>
+      {#if totalArgeosTracked > 0}
+      <div class="stat-card">
+        <div class="stat-icon">
+          <img src="/images/event_quest.webp" alt="Stoopid Argeos" />
+        </div>
+        <div class="stat-content">
+          <div
+            class="stat-status"
+            class:done={getArgeosStatusKind() === 'done'}
+            class:idle={getArgeosStatusKind() === 'today'}
+          >
+            {#if getArgeosStatusKind() === 'done'}
+              <span class="stat-status-text">Fully done</span>
+            {:else if getArgeosStatusKind() === 'today'}
+              <span class="stat-status-text">Done today</span>
+            {:else if getArgeosStatusKind() === 'open'}
+              <span class="stat-open-count">{totalArgeosAvailableToday}</span>
+              <span class="stat-open-label">open</span>
+            {:else}
+              <span class="stat-status-text">Not tracked</span>
+            {/if}
+          </div>
+          <div class="stat-label event-name">Stoopid Argeos</div>
+        </div>
+      </div>
+      {/if}
       {#if visibleCharacters.some(c => c.earns_gold)}
       <div class="stat-card">
         <div class="stat-icon">
@@ -739,9 +824,10 @@
 
 <style>
   .dashboard-container {
-    padding: 1rem;
-    width: 100%;
-    max-width: min(calc(100vw - 320px), 1920px);
+    box-sizing: border-box;
+    padding: 0.65rem;
+    width: min(100%, 1920px);
+    max-width: 100%;
     margin: 0 auto;
     background: var(--background);
     --dashboard-frame-width: 100%;
@@ -1204,19 +1290,42 @@
     gap: 0.75rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
+    align-items: center;
   }
 
   .characters-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, 180px);
+    grid-auto-flow: dense;
+    grid-auto-rows: 72px;
     gap: 1rem;
-    align-items: start;
+    align-items: stretch;
     width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+    justify-content: center;
+  }
+
+  .characters-list:not(.compact-list) :global(.character-card) {
+    grid-column: span 2;
+    grid-row: span 2;
+    min-height: 0;
+  }
+
+  .characters-list:not(.compact-list) :global(.character-card.minimal-card) {
+    grid-row: span 1;
   }
 
   .characters-list.compact-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    grid-auto-flow: row;
     gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .characters-list.compact-list :global(.character-card:not(.minimal-card)) {
+    grid-column: 1 / -1;
   }
 
   .roster-section {
@@ -1322,7 +1431,7 @@
 
   @media (max-width: 768px) {
     .dashboard-container {
-      padding: 0.75rem;
+      padding: 0.5rem;
     }
 
     .progress-content {
@@ -1347,6 +1456,14 @@
       grid-template-columns: 1fr;
     }
 
+    .characters-list:not(.compact-list) :global(.character-card) {
+      grid-column: 1 / -1;
+    }
+
+    .characters-list.compact-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .dashboard-view-toolbar {
       align-items: stretch;
       flex-direction: column;
@@ -1362,6 +1479,10 @@
   }
 
   @media (max-width: 480px) {
+    .characters-list.compact-list {
+      grid-template-columns: 1fr;
+    }
+
     .stat-card {
       flex-basis: min(100%, 154px);
     }

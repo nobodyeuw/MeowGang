@@ -628,6 +628,23 @@
       0 5px 16px rgba(245, 158, 11, 0.32);
   }
 
+  .bug-severity.severity-no-priority {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 50%, #1f2937 100%);
+    color: #d1d5db;
+    border: 1px solid rgba(156, 163, 175, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 2px 8px rgba(17, 24, 39, 0.22);
+    opacity: 0.82;
+  }
+
+  .bug-severity.severity-no-priority:hover {
+    transform: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 2px 8px rgba(17, 24, 39, 0.22);
+  }
+
   .bug-severity.severity-moderate {
     background: rgba(245, 158, 11, 0.16);
     color: #b45309;

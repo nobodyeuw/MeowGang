@@ -1,8 +1,9 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { activeRosterId, rosters } from '$lib/store';
+  import { activeRosterId } from '$lib/store';
   import { RAIDS } from '$lib/data/raids';
   import { GAME_CLASSES } from '$lib/data/classes';
+  import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
 
   // Interfaces
   interface RaidGate {
@@ -1186,19 +1187,7 @@
 </script>
 
 <div class="raid-matrix-settings">
-  <!-- Roster Selector -->
-  <div class="roster-selector">
-    <label for="roster-select" class="roster-label">Active Roster:</label>
-    <select 
-      id="roster-select"
-      bind:value={$activeRosterId}
-      class="roster-dropdown"
-    >
-      {#each $rosters as roster}
-        <option value={roster.id}>{roster.roster_name}</option>
-      {/each}
-    </select>
-  </div>
+  <RosterButtonGroup />
 
   {#if isLoading}
     <div class="loading">

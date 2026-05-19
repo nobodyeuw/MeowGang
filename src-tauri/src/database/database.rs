@@ -242,6 +242,7 @@ impl DatabaseManager {
             "CREATE INDEX IF NOT EXISTS idx_app_metadata_timestamp ON app_metadata(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_completion_status_char_content ON completion_status(char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_completion_status_char_content_session ON completion_status(char_id, content_id, session_id)",
+            "CREATE INDEX IF NOT EXISTS idx_completion_status_roster_content_session ON completion_status(roster_id, content_id, session_id)",
             "CREATE INDEX IF NOT EXISTS idx_completion_status_char_timestamp ON completion_status(char_id, timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_conf_character_char_id ON conf_character(char_id)",
             "CREATE INDEX IF NOT EXISTS idx_conf_character_class ON conf_character(class_id)",

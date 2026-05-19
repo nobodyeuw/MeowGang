@@ -3,11 +3,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import { isTaskAvailable } from '../utils/availability';
   import Countdown from './Countdown.svelte';
-  import { activeRosterId, rosters, activeFilterCharId } from '$lib/store';
+  import { activeRosterId, activeFilterCharId } from '$lib/store';
   import { GAME_TASKS } from '$lib/data/tasks';
   import { RAIDS } from '$lib/data/raids';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { encounterMap } from '$lib/data/encounters';
+  import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
   
   export let highlightCharId: number | null = null;
   
@@ -77,10 +78,19 @@
     gate_id: string;
     completed: boolean;
   }
+
+  interface RosterEventProgress {
+    task_id: string;
+    completed_this_week: number;
+    weekly_limit: number;
+    completed_today: boolean;
+    available: boolean;
+  }
   
   // State
   let matrixData: TodoMatrixResponse | null = null;
   let rosterTaskStates: Record<string, boolean> = {};
+  let rosterEventProgress: Record<string, RosterEventProgress> = {};
   let raidConfigMap: Map<string, Map<number, string>> = new Map();
   let loading = true;
   let error = '';
@@ -101,6 +111,7 @@
       
       // Initialize roster task states
       rosterTaskStates = {};
+      rosterEventProgress = {};
       
       // Debug logging for baseMatrix structure
       console.log(`DEBUG BASEMATRIX: character_states exists=${!!baseMatrix.character_states}, characters count=${baseMatrix.characters?.length || 0}`);
@@ -125,6 +136,17 @@
           rosterTaskStates[task.id] = taskCompleted;
         }
       });
+
+      const rosterEvents = Object.values(GAME_TASKS).filter((task: any) => isRosterEventTask(task.id));
+      await Promise.all(rosterEvents.map(async (task: any) => {
+        const progress = await invoke<RosterEventProgress>('get_roster_event_progress', {
+          rosterId: $activeRosterId,
+          taskId: task.id
+        });
+        rosterEventProgress[task.id] = progress;
+        rosterTaskStates[task.id] = progress.completed_this_week >= progress.weekly_limit;
+      }));
+      rosterEventProgress = { ...rosterEventProgress };
       
       raidConfigs.forEach(config => {
         if (!raidConfigMap.has(config.content_id)) {
@@ -170,7 +192,7 @@
       const isAnyCharTracked = (task: any) => task.character_states.some((s: any) => s.tracked);
       const dailyTasks = allTasks.filter(task => task.reset_schedule === 'daily' && task.category === 'character' && isAnyCharTracked(task));
       const rosterTasks = allTasks.filter(task => task.category === 'roster' && isAnyCharTracked(task));
-      const weeklyTasks = allTasks.filter(task => task.reset_schedule === 'weekly' && isAnyCharTracked(task));
+      const weeklyTasks = allTasks.filter(task => task.reset_schedule === 'weekly' && task.category === 'character' && isAnyCharTracked(task));
       
       // Transform raids from RAIDS - only show raids that at least one character tracks
       const raidMap = new Map<string, typeof RAIDS[0]>();
@@ -314,6 +336,10 @@
   }
   
   function getTaskIcon(taskId: string): string {
+    if (taskId.startsWith('event_')) {
+      return '/images/event_quest.webp';
+    }
+
     const raidIds = RAIDS.map(raid => raid.id);
     if (raidIds.includes(taskId)) {
       return '/images/kazeros-raid.webp';
@@ -326,11 +352,15 @@
       'boss': '/images/boss.png',
       'guild': '/images/guild.webp',
       'cube': '/images/ebony1720.png',
-      'paradise': '/images/gold.png',
+      'paradise': '/images/paradise.webp',
       'shop': '/images/daily.webp',
     };
     
     return iconMap[taskId] || '/images/daily.webp';
+  }
+
+  function isRosterEventTask(taskId: string): boolean {
+    return taskId === 'event_argeos_winter';
   }
   
   function getClassName(classId: string): string {
@@ -595,10 +625,59 @@
       console.error('Failed to update raid gate status:', err);
     }
   }
+
+  async function handleRosterEventToggle(taskId: string) {
+    try {
+      const progress = rosterEventProgress[taskId];
+      if (!progress) return;
+
+      const newState = !progress.completed_today;
+
+      await invoke('update_roster_event_status', {
+        rosterId: $activeRosterId,
+        taskId,
+        completed: newState
+      });
+
+      const updatedProgress = await invoke<RosterEventProgress>('get_roster_event_progress', {
+        rosterId: $activeRosterId,
+        taskId
+      });
+
+      rosterEventProgress = { ...rosterEventProgress, [taskId]: updatedProgress };
+      rosterTaskStates = {
+        ...rosterTaskStates,
+        [taskId]: updatedProgress.completed_this_week >= updatedProgress.weekly_limit
+      };
+      window.dispatchEvent(new CustomEvent('roster-event-progress-updated', { detail: { taskId } }));
+
+      if (matrixData?.character_states && matrixData.characters) {
+        matrixData.characters.forEach(character => {
+          matrixData!.character_states![`${character.id}_${taskId}`] = {
+            tracked: true,
+            completed: updatedProgress.completed_this_week >= updatedProgress.weekly_limit
+          };
+        });
+        matrixData = { ...matrixData };
+      }
+    } catch (err) {
+      console.error('Failed to update roster event status:', err);
+      await loadMatrix();
+    }
+  }
   
     
   onMount(() => {
+    const handleRosterEventProgressUpdated = () => {
+      loadMatrix();
+    };
+
+    window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
     loadMatrix();
+
+    return () => {
+      window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+    };
   });
   
   $: if ($activeRosterId) {
@@ -620,20 +699,7 @@
     </div>
   {:else if matrixData && matrixData.characters.length > 0}
     <div class="matrix-content">
-      <!-- Roster Dropdown -->
-      <div class="roster-selector">
-        <label for="roster-select">Active Roster:</label>
-        <select 
-          id="roster-select"
-          bind:value={$activeRosterId}
-          on:change={loadMatrix}
-          class="roster-selector select"
-        >
-          {#each $rosters as roster}
-            <option value={roster.id}>{roster.roster_name}</option>
-          {/each}
-        </select>
-      </div>
+      <RosterButtonGroup />
       
       <table class="todo-matrix">
         <thead>
@@ -743,7 +809,22 @@
                 </td>
                 <td colspan={matrixData.characters.length} class="roster-task-cell">
                   <div class="roster-toggle-container">
-                    {#if isTaskAvailable(task.id)}
+                    {#if isRosterEventTask(task.id)}
+                      {@const progress = rosterEventProgress[task.id]}
+                      <button
+                        class="roster-toggle event-toggle"
+                        class:completed={progress?.completed_today}
+                        disabled={!progress?.available && !progress?.completed_today}
+                        on:click={() => handleRosterEventToggle(task.id)}
+                      >
+                        <span class="roster-label event-label">
+                          {progress ? `${progress.completed_this_week}/${progress.weekly_limit}` : '0/3'}
+                        </span>
+                        <span class="roster-label">
+                          {progress?.completed_today ? 'Completed' : progress?.available ? 'Available' : 'Weekly done'}
+                        </span>
+                      </button>
+                    {:else if isTaskAvailable(task.id)}
                       <button 
                         class="roster-toggle"
                         class:completed={rosterTaskStates[task.id]}
@@ -753,9 +834,6 @@
                           handleRosterTaskToggle(task.id);
                         }}
                       >
-                        <span class="checkbox" class:checked={rosterTaskStates[task.id]}>
-                          {rosterTaskStates[task.id] ? '÷' : '÷'}
-                        </span>
                         <span class="roster-label">
                           {rosterTaskStates[task.id] ? 'Completed' : 'Available'}
                         </span>
@@ -961,9 +1039,11 @@
     min-height: 0;
     overflow: auto;
     position: relative;
+    container-type: inline-size;
   }
 
   .todo-matrix {
+    --task-column-width: 200px;
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
@@ -993,7 +1073,7 @@
 
   .first-col {
     z-index: 11;
-    min-width: 200px;
+    min-width: var(--task-column-width);
     background: var(--md-sys-color-surface-variant);
   }
 
@@ -1309,10 +1389,16 @@
   }
 
   .roster-toggle-container {
+    position: sticky;
+    left: calc(var(--task-column-width) + ((100cqw - var(--task-column-width)) / 2));
+    z-index: 12;
     display: flex;
     justify-content: center;
     align-items: center;
+    width: max-content;
+    box-sizing: border-box;
     padding: 0.5rem;
+    transform: translateX(-50%);
   }
 
   .roster-toggle {
@@ -1349,6 +1435,28 @@
 
   .roster-toggle.completed .checkbox {
     color: var(--md-sys-color-on-primary);
+  }
+
+  .roster-toggle:disabled {
+    cursor: default;
+    opacity: 0.55;
+    transform: none;
+  }
+
+  .roster-toggle:disabled:hover {
+    background: var(--md-sys-color-surface);
+    transform: none;
+  }
+
+  .event-toggle {
+    min-width: 8.5rem;
+    padding-inline: 0.75rem;
+    justify-content: center;
+  }
+
+  .event-label {
+    font-weight: 700;
+    color: inherit;
   }
 
   .roster-label {

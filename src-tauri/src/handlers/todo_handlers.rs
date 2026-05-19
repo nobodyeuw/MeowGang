@@ -20,6 +20,50 @@ pub struct RaidGateCompletionResponse {
 }
 
 #[tauri::command]
+pub async fn get_roster_event_progress(
+    todo_repo: State<'_, Arc<TodoRepository>>,
+    roster_id: String,
+    task_id: String,
+) -> Result<crate::database::repositories::todo_repository::RosterEventProgress, String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
+    crate::validation::validate_non_empty(&task_id, "task_id")?;
+    todo_repo
+        .get_roster_event_progress(&roster_id, &task_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_roster_event_status(
+    todo_repo: State<'_, Arc<TodoRepository>>,
+    roster_id: String,
+    task_id: String,
+    completed: bool,
+) -> Result<(), String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
+    crate::validation::validate_non_empty(&task_id, "task_id")?;
+    todo_repo
+        .set_roster_event_completed(&roster_id, &task_id, completed)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_roster_event_weekly_count(
+    todo_repo: State<'_, Arc<TodoRepository>>,
+    roster_id: String,
+    task_id: String,
+    completed_count: i64,
+) -> Result<(), String> {
+    crate::validation::validate_non_empty(&roster_id, "roster_id")?;
+    crate::validation::validate_non_empty(&task_id, "task_id")?;
+    if !(0..=3).contains(&completed_count) {
+        return Err("Roster event completion count must be 0, 1, 2, or 3".to_string());
+    }
+    todo_repo
+        .set_roster_event_weekly_count(&roster_id, &task_id, completed_count)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_todo_matrix(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,

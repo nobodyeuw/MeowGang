@@ -408,15 +408,15 @@ pub async fn set_start_with_loa_logs(
         .map_err(|e| format!("Failed to save settings: {}", e))?;
     refresh_startup_registration(&settings).map_err(|e| format!("Failed to update startup registration: {}", e))?;
 
-    if enabled {
-        if let Err(e) = ensure_loa_logs_running(settings.system.loa_logs_exe_path.as_deref()) {
-            crate::log_warn!("{}", e);
-        }
-    }
-
     set_loa_logs_monitoring(enabled, app)?;
 
-    crate::log_info!("Successfully set start with LOA Logs to: {}", enabled);
+    if enabled {
+        crate::log_warn!(
+            "LOA Logs auto-launch is temporarily disabled; LOA Tracker will only monitor for LOA Logs startup"
+        );
+    }
+
+    crate::log_info!("Successfully set LOA Logs monitoring to: {}", enabled);
     Ok(())
 }
 

@@ -204,9 +204,9 @@ fn get_cleared_encounters(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, current_boss, local_player, difficulty, fight_start, cleared 
-         FROM encounter_preview 
-         WHERE cleared = 1 AND fight_start >= ? 
+            "SELECT id, current_boss, local_player, difficulty, fight_start, cleared
+         FROM encounter_preview
+         WHERE cleared = 1 AND fight_start >= ?
          ORDER BY fight_start DESC",
         )
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;
@@ -240,6 +240,10 @@ fn process_encounter(
     todo_repo: &TodoRepository,
     settings_manager: &crate::settings::SettingsManager,
 ) -> Result<bool> {
+    if is_guardian_boss(&encounter.current_boss) {
+        return process_guardian_encounter(encounter, todo_repo, settings_manager);
+    }
+
     // Map boss name to encounter
     let mapping = match boss_mapper.map_boss_to_encounter(&encounter.current_boss) {
         Some(mapping) => mapping,
@@ -273,7 +277,7 @@ fn process_encounter(
     let conn = todo_repo.pool.get()?;
     let existing_entry: Option<(i64, Option<i64>)> = conn
         .query_row(
-            "SELECT is_completed, timestamp FROM completion_status 
+            "SELECT is_completed, timestamp FROM completion_status
          WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3 LIMIT 1",
             params![char_id, &mapping.content_id, &session_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -336,6 +340,98 @@ fn process_encounter(
     Ok(true)
 }
 
+fn process_guardian_encounter(
+    encounter: &EncounterPreview,
+    todo_repo: &TodoRepository,
+    settings_manager: &crate::settings::SettingsManager,
+) -> Result<bool> {
+    let current_daily_reset_ms = current_daily_reset_ms();
+    if encounter.fight_start < current_daily_reset_ms {
+        crate::log_debug!(
+            "Skipping guardian encounter outside current daily window: {} for {}",
+            encounter.current_boss,
+            encounter.local_player
+        );
+        return Ok(false);
+    }
+
+    let char_id = match find_character_id_by_name(todo_repo, &encounter.local_player)? {
+        Some(char_id) => char_id,
+        None => {
+            crate::log_debug!(
+                "Skipping guardian encounter: Character '{}' not found in database",
+                encounter.local_player
+            );
+            return Ok(false);
+        }
+    };
+
+    let changed = todo_repo.set_character_task_completed_at(
+        char_id,
+        "guardian",
+        true,
+        encounter.fight_start,
+        "LOAlogs",
+        Some(&encounter.current_boss),
+    )?;
+
+    if !changed {
+        crate::log_debug!(
+            "Skipping guardian encounter: guardian already completed today for {} ({})",
+            encounter.local_player,
+            encounter.current_boss
+        );
+        return Ok(false);
+    }
+
+    if let Err(e) = sync_entity_data_for_encounter(todo_repo, &*settings_manager, encounter.id) {
+        crate::log_warn!(
+            "Failed to sync entity data for guardian encounter {}: {}",
+            encounter.id,
+            e
+        );
+    }
+
+    crate::log_debug!(
+        "Synced guardian encounter: {} (Player: {}) -> guardian daily",
+        encounter.current_boss,
+        encounter.local_player
+    );
+
+    Ok(true)
+}
+
+fn is_guardian_boss(boss_name: &str) -> bool {
+    const GUARDIAN_BOSSES: [&str; 11] = [
+        "Krathios",
+        "Drextalas",
+        "Skolakia",
+        "Argeos",
+        "Veskal",
+        "Gargadeth",
+        "Sonavel",
+        "Hanumatan",
+        "Kungelanium",
+        "Deskaluda",
+        "Lumencaligo",
+    ];
+
+    let boss_name = boss_name.trim();
+    GUARDIAN_BOSSES
+        .iter()
+        .any(|guardian| boss_name.eq_ignore_ascii_case(guardian))
+}
+
+fn current_daily_reset_ms() -> i64 {
+    let now = chrono::Utc::now();
+    let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+    if now >= today_reset {
+        today_reset.timestamp_millis()
+    } else {
+        (today_reset - chrono::Duration::days(1)).timestamp_millis()
+    }
+}
+
 fn sync_entity_data_for_encounter(
     todo_repo: &TodoRepository,
     settings_manager: &crate::settings::SettingsManager,
@@ -389,7 +485,7 @@ fn entry_already_exists(todo_repo: &TodoRepository, char_id: i64, content_id: &s
     let conn = todo_repo.pool.get()?;
 
     let mut stmt = conn.prepare(
-        "SELECT COUNT(*) as count FROM completion_status 
+        "SELECT COUNT(*) as count FROM completion_status
          WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3",
     )?;
 
@@ -420,8 +516,8 @@ fn create_completion_entry(
     let normalized_timestamp = timestamp;
 
     conn.execute(
-        "INSERT INTO completion_status 
-         (roster_id, char_id, content_id, is_completed, timestamp, session_id, completion_source, details) 
+        "INSERT INTO completion_status
+         (roster_id, char_id, content_id, is_completed, timestamp, session_id, completion_source, details)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             roster_id,

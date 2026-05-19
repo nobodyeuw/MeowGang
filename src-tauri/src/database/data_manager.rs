@@ -113,6 +113,116 @@ impl DataManager {
         .unwrap_or(false)
     }
 
+    fn normalize_roster_wide_tasks(tx: &rusqlite::Transaction) -> Result<()> {
+        let mut roster_stmt = tx.prepare(
+            "SELECT DISTINCT roster_id
+             FROM conf_character
+             WHERE roster_id IS NOT NULL AND roster_id <> ''",
+        )?;
+        let roster_rows = roster_stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut roster_ids = Vec::new();
+        for roster_id in roster_rows {
+            roster_ids.push(roster_id?);
+        }
+        drop(roster_stmt);
+
+        for roster_id in roster_ids {
+            let canonical_char_id: i64 = match tx.query_row(
+                "SELECT char_id
+                 FROM conf_character
+                 WHERE roster_id = ?1
+                 ORDER BY CAST(display_order AS INTEGER), char_name, char_id
+                 LIMIT 1",
+                [&roster_id],
+                |row| row.get(0),
+            ) {
+                Ok(char_id) => char_id,
+                Err(_) => continue,
+            };
+
+            for task_id in ["gate", "boss"] {
+                let tracked_value = tx
+                    .query_row(
+                        "SELECT is_tracked
+                         FROM conf_tracking
+                         WHERE roster_id = ?1
+                           AND char_id = ?2
+                           AND content_id = ?3
+                         LIMIT 1",
+                        params![&roster_id, canonical_char_id, task_id],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .or_else(|_| {
+                        tx.query_row(
+                            "SELECT COALESCE(MAX(is_tracked), 1)
+                             FROM conf_tracking
+                             WHERE roster_id = ?1
+                               AND content_id = ?2",
+                            params![&roster_id, task_id],
+                            |row| row.get::<_, i64>(0),
+                        )
+                    })
+                    .unwrap_or(1);
+
+                tx.execute(
+                    "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+                     SELECT roster_id, char_id, ?2, ?3, 0
+                     FROM conf_character
+                     WHERE roster_id = ?1
+                     ON CONFLICT(char_id, content_id) DO UPDATE SET
+                       roster_id = excluded.roster_id,
+                       is_tracked = excluded.is_tracked",
+                    params![&roster_id, task_id, tracked_value],
+                )?;
+
+                let latest_completion = tx
+                    .query_row(
+                        "SELECT is_completed, COALESCE(timestamp, 0)
+                         FROM completion_status
+                         WHERE roster_id = ?1
+                           AND content_id = ?2
+                           AND session_id IS NULL
+                         ORDER BY timestamp DESC, rowid DESC
+                         LIMIT 1",
+                        params![&roster_id, task_id],
+                        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                    )
+                    .ok();
+
+                if let Some((is_completed, timestamp)) = latest_completion {
+                    tx.execute(
+                        "DELETE FROM completion_status
+                         WHERE roster_id = ?1
+                           AND content_id = ?2
+                           AND session_id IS NULL",
+                        params![&roster_id, task_id],
+                    )?;
+
+                    tx.execute(
+                        "INSERT INTO completion_status
+                            (roster_id, char_id, content_id, is_completed, completion_source, timestamp, session_id)
+                         VALUES (?1, ?2, ?3, ?4, 'manual', ?5, NULL)",
+                        params![&roster_id, canonical_char_id, task_id, is_completed, timestamp],
+                    )?;
+                }
+            }
+        }
+
+        tx.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_completion_roster_task_unique
+             ON completion_status(roster_id, content_id)
+             WHERE session_id IS NULL AND content_id IN ('gate', 'boss')",
+            [],
+        )?;
+        tx.execute(
+            "CREATE INDEX IF NOT EXISTS idx_completion_status_roster_content_session
+             ON completion_status(roster_id, content_id, session_id)",
+            [],
+        )?;
+
+        Ok(())
+    }
+
     /// Migrate database schema from current to target version
     pub fn migrate_database(
         pool: &Pool<SqliteConnectionManager>,
@@ -274,6 +384,10 @@ impl DataManager {
 
         if current_version < 10 {
             tx.execute("DROP TABLE IF EXISTS gold_logs", [])?;
+        }
+
+        if current_version < 11 {
+            Self::normalize_roster_wide_tasks(&tx)?;
         }
 
         tx.commit()?;
@@ -476,6 +590,18 @@ impl DataManager {
                 category: "character".to_string(),
                 reset_schedule: "daily".to_string(),
                 logic_type: "calendar".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
+            "event_argeos_winter".to_string(),
+            GameTask {
+                id: "event_argeos_winter".to_string(),
+                name: "Argeos Winter Event".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
                 max_rest_value: None,
             },
         );

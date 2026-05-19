@@ -1,4 +1,3 @@
-use crate::database::data_manager::{Raid, RaidGate};
 use anyhow::Result;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -45,6 +44,15 @@ pub struct CharacterTaskState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RosterEventProgress {
+    pub task_id: String,
+    pub completed_this_week: i64,
+    pub weekly_limit: i64,
+    pub completed_today: bool,
+    pub available: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TodoRaid {
     pub id: String,
     pub name: String,
@@ -78,6 +86,83 @@ pub struct TodoRepository {
 impl TodoRepository {
     pub fn new(pool: Arc<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>) -> Self {
         Self { pool }
+    }
+
+    fn is_roster_wide_task_id(task_id: &str) -> bool {
+        matches!(task_id, "gate" | "boss" | "event_argeos_winter")
+    }
+
+    fn is_roster_event_task_id(task_id: &str) -> bool {
+        matches!(task_id, "event_argeos_winter")
+    }
+
+    fn roster_event_weekly_limit(task_id: &str) -> i64 {
+        match task_id {
+            "event_argeos_winter" => 3,
+            _ => 1,
+        }
+    }
+
+    fn current_daily_reset_ms() -> i64 {
+        let now = chrono::Utc::now();
+        let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+        if now >= today_reset {
+            today_reset.timestamp_millis()
+        } else {
+            (today_reset - chrono::Duration::days(1)).timestamp_millis()
+        }
+    }
+
+    fn current_weekly_reset_ms() -> i64 {
+        use chrono::Datelike;
+
+        let now = chrono::Utc::now();
+        let mut reset_date = now.date_naive();
+        while reset_date.weekday().num_days_from_monday() != 2 {
+            reset_date = reset_date - chrono::Duration::days(1);
+        }
+
+        let reset_time = reset_date.and_hms_opt(10, 0, 0).unwrap().and_utc();
+        if now < reset_time {
+            (reset_time - chrono::Duration::weeks(1)).timestamp_millis()
+        } else {
+            reset_time.timestamp_millis()
+        }
+    }
+
+    fn get_first_character_id_for_roster(conn: &rusqlite::Connection, roster_id: &str) -> Result<i64> {
+        let char_id = conn.query_row(
+            "SELECT char_id FROM conf_character
+             WHERE roster_id = ?1
+             ORDER BY CAST(display_order AS INTEGER), char_name, char_id
+             LIMIT 1",
+            [roster_id],
+            |row| row.get(0),
+        )?;
+
+        Ok(char_id)
+    }
+
+    fn get_roster_task_completed_with_conn(
+        conn: &rusqlite::Connection,
+        roster_id: &str,
+        task_id: &str,
+    ) -> Result<bool> {
+        let completed = conn
+            .query_row(
+                "SELECT is_completed
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND content_id = ?2
+                   AND session_id IS NULL
+                 ORDER BY timestamp DESC, rowid DESC
+                 LIMIT 1",
+                params![roster_id, task_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        Ok(completed == 1)
     }
 
     pub fn get_todo_matrix(&self, roster_id: &str) -> Result<TodoMatrixResponse> {
@@ -140,26 +225,6 @@ impl TodoRepository {
 
         let rested_entries: Vec<(i64, String, i64)> = rested_iter.filter_map(Result::ok).collect();
 
-        // Create tasks from unique content_ids in todo_entries
-        let mut task_map = std::collections::HashMap::new();
-        for (_, content_id, _) in &todo_entries {
-            if !task_map.contains_key(content_id) {
-                task_map.insert(
-                    content_id.clone(),
-                    TodoTask {
-                        id: content_id.clone(),
-                        name: content_id.clone(),
-                        category: "unknown".to_string(),
-                        reset_schedule: "daily".to_string(),
-                        logic_type: "normal".to_string(),
-                        max_rest_value: None,
-                    },
-                );
-            }
-        }
-
-        let mut tasks: Vec<TodoTask> = task_map.into_values().collect();
-
         // Load raids from conf_raid and group by raid_id
         let mut raid_map = std::collections::HashMap::new();
         for character in &characters {
@@ -210,51 +275,15 @@ impl TodoRepository {
         // Create character states using todo_entries and rested_entries (like tracking_repository)
         let mut character_states = std::collections::HashMap::new();
 
-        // Get first character ID for roster task checking
-        let first_char_id = characters.first().map(|c| c.id);
-        // Track which roster tasks have already been processed to avoid duplicates
-        let mut processed_roster_tasks = std::collections::HashSet::new();
-
         for character in &characters {
             for (char_id, content_id, is_tracked) in &todo_entries {
+                if Self::is_roster_wide_task_id(content_id) {
+                    continue;
+                }
+
                 // Create state for character-specific tasks
                 if *char_id == character.id {
-                    // Get rested value if exists, default to 0
-                    let current_value = rested_entries
-                        .iter()
-                        .find(|(rested_char_id, rested_content_id, _)| {
-                            rested_char_id == char_id && rested_content_id == content_id
-                        })
-                        .map(|(_, _, value)| *value)
-                        .unwrap_or(0);
-
-                    // Check if completed - special handling for gate/boss tasks
-                    let completed = if content_id == "gate" || content_id == "boss" {
-                        // For gate/boss tasks, check for both roster task entries (session_id IS NULL)
-                        // and individual gate entries (session_id LIKE 'boss_%' OR 'gate_%')
-                        if let Ok(conn) = self.pool.get() {
-                            let count: i64 = conn
-                                .query_row(
-                                    "SELECT COUNT(*) FROM completion_status 
-                                 WHERE char_id = ?1 AND content_id = ?2 
-                                 AND (session_id IS NULL OR session_id LIKE ?3)",
-                                    params![character.id, content_id, format!("{}_%", content_id)],
-                                    |row| row.get(0),
-                                )
-                                .unwrap_or(0);
-
-                            count > 0
-                        } else {
-                            false
-                        }
-                    } else {
-                        // For other tasks, use the regular method
-                        if let Ok(is_completed) = self.get_task_completed(character.id, content_id) {
-                            is_completed
-                        } else {
-                            false
-                        }
-                    };
+                    let completed = self.get_task_completed(character.id, content_id).unwrap_or(false);
 
                     let state = CharacterTaskState {
                         tracked: *is_tracked,
@@ -263,55 +292,38 @@ impl TodoRepository {
 
                     character_states.insert(format!("{}_{}", character.id, content_id), state);
                 }
+            }
+        }
 
-                // Create roster task states for all characters using first character's entry
-                if let Some(first_id) = first_char_id {
-                    if *char_id == first_id && !processed_roster_tasks.contains(content_id.as_str()) {
-                        // Check if this is a roster task by checking if it exists in completion_status with the first character
-                        // and has session_id IS NULL (indicating it's a roster-wide task)
-                        let is_roster_task = if let Ok(conn) = self.pool.get() {
-                            let mut stmt = conn.prepare(
-                                "SELECT COUNT(*) FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id IS NULL"
-                            );
+        for task_id in ["gate", "boss"] {
+            let tracked = todo_entries
+                .iter()
+                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
 
-                            if let Ok(mut stmt) = stmt {
-                                if let Ok(count) =
-                                    stmt.query_row(params![first_id, content_id], |row| row.get::<_, i64>(0))
-                                {
-                                    count > 0
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }
-                        } else {
-                            false
-                        };
+            let completed = Self::get_roster_task_completed_with_conn(&conn, roster_id, task_id)?;
 
-                        if is_roster_task {
-                            processed_roster_tasks.insert(content_id.clone());
+            for roster_char in &characters {
+                character_states.insert(
+                    format!("{}_{}", roster_char.id, task_id),
+                    CharacterTaskState { tracked, completed },
+                );
+            }
+        }
 
-                            // Get completion status from first character's entry (per-roster)
-                            let completed = if let Ok(is_completed) = self.get_task_completed(first_id, content_id) {
-                                is_completed
-                            } else {
-                                false
-                            };
+        for task_id in ["event_argeos_winter"] {
+            let tracked = todo_entries
+                .iter()
+                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
 
-                            // Create state for all characters in roster for this roster task
-                            for roster_char in &characters {
-                                let state = CharacterTaskState {
-                                    tracked: true, // Roster tasks are always tracked
-                                    completed,
-                                };
-
-                                let key = format!("{}_{}", roster_char.id, content_id);
-                                character_states.insert(key.clone(), state);
-                            }
-                        }
-                    }
-                }
+            let progress = self.get_roster_event_progress(roster_id, task_id)?;
+            for roster_char in &characters {
+                character_states.insert(
+                    format!("{}_{}", roster_char.id, task_id),
+                    CharacterTaskState {
+                        tracked,
+                        completed: progress.completed_this_week >= progress.weekly_limit,
+                    },
+                );
             }
         }
 
@@ -416,36 +428,6 @@ impl TodoRepository {
         Ok(result)
     }
 
-    /// Check if a task is a roster-wide task by checking game_tasks table
-    fn is_roster_task(&self, task_id: &str) -> bool {
-        if let Ok(conn) = self.pool.get() {
-            // Check if game_tasks table exists first
-            let mut check_stmt =
-                conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='game_tasks'");
-
-            if let Ok(mut stmt) = check_stmt {
-                if let Ok(table_exists) = stmt.query_row([], |row| {
-                    let name: String = row.get(0)?;
-                    Ok(name == "game_tasks")
-                }) {
-                    if table_exists {
-                        let mut stmt = conn
-                            .prepare("SELECT COUNT(*) FROM game_tasks WHERE id = ?1 AND category = 'roster'")
-                            .unwrap_or_else(|_| {
-                                // If prepare fails, return false
-                                conn.prepare("SELECT 0 WHERE 0").unwrap()
-                            });
-
-                        if let Ok(count) = stmt.query_row([task_id], |row| row.get::<_, i64>(0)) {
-                            return count > 0;
-                        }
-                    }
-                }
-            }
-        }
-        false
-    }
-
     pub fn set_task_completed(&self, char_id: i64, task_id: &str, completed: bool) -> Result<()> {
         let conn = self.pool.get()?;
 
@@ -453,6 +435,12 @@ impl TodoRepository {
         let mut stmt = conn.prepare("SELECT roster_id FROM conf_character WHERE char_id = ?1")?;
 
         let roster_id: String = stmt.query_row([char_id], |row| row.get(0))?;
+
+        if Self::is_roster_wide_task_id(task_id) {
+            drop(stmt);
+            drop(conn);
+            return self.set_roster_task_completed(&roster_id, task_id, completed);
+        }
 
         let completed_value = if completed { 1i64 } else { 0i64 };
         let timestamp = chrono::Utc::now().timestamp_millis();
@@ -487,6 +475,69 @@ impl TodoRepository {
         }
 
         Ok(())
+    }
+
+    pub fn set_character_task_completed_at(
+        &self,
+        char_id: i64,
+        task_id: &str,
+        completed: bool,
+        timestamp: i64,
+        source: &str,
+        details: Option<&str>,
+    ) -> Result<bool> {
+        let conn = self.pool.get()?;
+
+        let roster_id: String = conn.query_row(
+            "SELECT roster_id FROM conf_character WHERE char_id = ?1",
+            [char_id],
+            |row| row.get(0),
+        )?;
+
+        let daily_reset_ms = Self::current_daily_reset_ms();
+
+        let already_completed = conn
+            .query_row(
+                "SELECT COUNT(*)
+                 FROM completion_status
+                 WHERE char_id = ?1
+                   AND content_id = ?2
+                   AND is_completed = 1
+                   AND timestamp >= ?3",
+                params![char_id, task_id, daily_reset_ms],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0)
+            > 0;
+
+        if completed && already_completed {
+            return Ok(false);
+        }
+
+        let completed_value = if completed { 1i64 } else { 0i64 };
+        let session_id = format!("{}_{}", task_id, daily_reset_ms);
+
+        let changed = conn.execute(
+            "INSERT INTO completion_status
+                (roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                roster_id,
+                char_id,
+                task_id,
+                completed_value,
+                source,
+                timestamp,
+                details,
+                session_id
+            ],
+        )? > 0;
+
+        if completed && changed && (task_id == "chaos" || task_id == "guardian") {
+            self.consume_rested_on_completion(char_id, task_id)?;
+        }
+
+        Ok(changed)
     }
 
     /// Consume 20 rested points when chaos/guardian is completed (if available)
@@ -578,38 +629,233 @@ impl TodoRepository {
     }
 
     pub fn set_roster_task_completed(&self, roster_id: &str, task_id: &str, completed: bool) -> Result<()> {
-        let conn = self.pool.get()?;
+        if Self::is_roster_event_task_id(task_id) {
+            self.set_roster_event_completed(roster_id, task_id, completed)?;
+            return Ok(());
+        }
+
+        let mut conn = self.pool.get()?;
 
         let completed_value = if completed { 1i64 } else { 0i64 };
         let timestamp = chrono::Utc::now().timestamp_millis();
 
-        // Get first character in roster for foreign key constraint
-        let mut stmt = conn.prepare("SELECT char_id FROM conf_character WHERE roster_id = ?1 LIMIT 1")?;
+        let tx = conn.transaction()?;
+        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
 
-        let char_id: i64 = stmt.query_row([roster_id], |row| row.get(0))?;
+        tx.execute(
+            "DELETE FROM completion_status
+             WHERE roster_id = ?1
+               AND content_id = ?2
+               AND session_id IS NULL
+               AND char_id <> ?3",
+            params![roster_id, task_id, char_id],
+        )?;
 
-        // Check if entry already exists for this roster and task
-        let mut stmt = conn
-            .prepare("SELECT rowid FROM completion_status WHERE roster_id = ?1 AND char_id = ?2 AND content_id = ?3")?;
-
-        let exists = stmt.exists(params![roster_id, char_id, task_id])?;
+        let exists = tx
+            .prepare(
+                "SELECT rowid
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND char_id = ?2
+                   AND content_id = ?3
+                   AND session_id IS NULL
+                 LIMIT 1",
+            )?
+            .exists(params![roster_id, char_id, task_id])?;
 
         if exists {
-            // If yes: UPDATE
-            conn.execute(
-                "UPDATE completion_status SET is_completed = ?1, timestamp = ?2 
-                 WHERE roster_id = ?3 AND char_id = ?4 AND content_id = ?5",
+            tx.execute(
+                "UPDATE completion_status
+                 SET is_completed = ?1, timestamp = ?2, completion_source = 'manual'
+                 WHERE roster_id = ?3
+                   AND char_id = ?4
+                   AND content_id = ?5
+                   AND session_id IS NULL",
                 params![completed_value, timestamp, roster_id, char_id, task_id],
             )?;
         } else {
-            // If no: INSERT
-            conn.execute(
-                "INSERT INTO completion_status (roster_id, char_id, content_id, is_completed, timestamp, completion_source) 
-                 VALUES (?1, ?2, ?3, ?4, ?5, 'manual')",
+            tx.execute(
+                "INSERT INTO completion_status
+                    (roster_id, char_id, content_id, is_completed, timestamp, completion_source, session_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 'manual', NULL)",
                 params![roster_id, char_id, task_id, completed_value, timestamp],
             )?;
         }
 
+        tx.commit()?;
+
+        Ok(())
+    }
+
+    pub fn get_roster_event_progress(&self, roster_id: &str, task_id: &str) -> Result<RosterEventProgress> {
+        let conn = self.pool.get()?;
+        let weekly_reset_ms = Self::current_weekly_reset_ms();
+        let daily_reset_ms = Self::current_daily_reset_ms();
+        let weekly_limit = Self::roster_event_weekly_limit(task_id);
+
+        let completed_this_week = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT session_id)
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND content_id = ?2
+                   AND is_completed = 1
+                   AND timestamp >= ?3",
+                params![roster_id, task_id, weekly_reset_ms],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+
+        let completed_today = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT session_id)
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND content_id = ?2
+                   AND is_completed = 1
+                   AND timestamp >= ?3",
+                params![roster_id, task_id, daily_reset_ms],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0)
+            > 0;
+
+        Ok(RosterEventProgress {
+            task_id: task_id.to_string(),
+            completed_this_week,
+            weekly_limit,
+            completed_today,
+            available: completed_this_week < weekly_limit && !completed_today,
+        })
+    }
+
+    pub fn set_roster_event_completed(&self, roster_id: &str, task_id: &str, completed: bool) -> Result<()> {
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
+        let daily_reset_ms = Self::current_daily_reset_ms();
+        let weekly_reset_ms = Self::current_weekly_reset_ms();
+        let timestamp = chrono::Utc::now().timestamp_millis();
+        let session_id = format!("{}_{}", task_id, daily_reset_ms);
+
+        let today_rowids = {
+            let mut stmt = tx.prepare(
+                "SELECT rowid
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND content_id = ?2
+                   AND session_id = ?3
+                   AND timestamp >= ?4
+                 ORDER BY rowid ASC",
+            )?;
+            let rowids = stmt
+                .query_map(params![roster_id, task_id, session_id, weekly_reset_ms], |row| {
+                    row.get::<_, i64>(0)
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            rowids
+        };
+
+        let existing_today_rowid = today_rowids.first().copied();
+        for duplicate_rowid in today_rowids.iter().skip(1) {
+            tx.execute(
+                "DELETE FROM completion_status WHERE rowid = ?1",
+                params![duplicate_rowid],
+            )?;
+        }
+
+        if completed {
+            let completed_this_week = tx
+                .query_row(
+                    "SELECT COUNT(DISTINCT session_id)
+                     FROM completion_status
+                     WHERE roster_id = ?1
+                       AND content_id = ?2
+                       AND is_completed = 1
+                       AND timestamp >= ?3",
+                    params![roster_id, task_id, weekly_reset_ms],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0);
+            if existing_today_rowid.is_none() && completed_this_week >= Self::roster_event_weekly_limit(task_id) {
+                tx.commit()?;
+                return Ok(());
+            }
+
+            if let Some(rowid) = existing_today_rowid {
+                tx.execute(
+                    "UPDATE completion_status
+                     SET is_completed = 1,
+                         completion_source = 'manual',
+                         timestamp = ?1,
+                         details = 'manual event completion'
+                     WHERE rowid = ?2",
+                    params![timestamp, rowid],
+                )?;
+            } else {
+                tx.execute(
+                    "INSERT INTO completion_status
+                        (roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
+                     VALUES (?1, ?2, ?3, 1, 'manual', ?4, 'manual event completion', ?5)",
+                    params![roster_id, char_id, task_id, timestamp, session_id],
+                )?;
+            }
+        } else {
+            if let Some(rowid) = existing_today_rowid {
+                tx.execute(
+                    "UPDATE completion_status
+                     SET is_completed = 0,
+                         completion_source = 'manual',
+                         timestamp = ?1,
+                         details = 'manual event completion'
+                     WHERE rowid = ?2",
+                    params![timestamp, rowid],
+                )?;
+            }
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn set_roster_event_weekly_count(&self, roster_id: &str, task_id: &str, completed_count: i64) -> Result<()> {
+        let weekly_limit = Self::roster_event_weekly_limit(task_id);
+        if completed_count < 0 || completed_count > weekly_limit {
+            anyhow::bail!("Roster event completion count must be between 0 and {}", weekly_limit);
+        }
+
+        let mut conn = self.pool.get()?;
+        let tx = conn.transaction()?;
+        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
+        let weekly_reset_ms = Self::current_weekly_reset_ms();
+        let daily_reset_ms = Self::current_daily_reset_ms();
+        let timestamp_base = if daily_reset_ms > weekly_reset_ms {
+            daily_reset_ms - 1
+        } else {
+            daily_reset_ms
+        };
+
+        tx.execute(
+            "DELETE FROM completion_status
+             WHERE roster_id = ?1
+               AND content_id = ?2
+               AND timestamp >= ?3",
+            params![roster_id, task_id, weekly_reset_ms],
+        )?;
+
+        for index in 0..completed_count {
+            let event_timestamp = (timestamp_base - ((completed_count - index - 1) * 60_000)).max(weekly_reset_ms);
+            let session_id = format!("{}_manual_{}_{}", task_id, weekly_reset_ms, index);
+
+            tx.execute(
+                "INSERT INTO completion_status
+                    (roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
+                 VALUES (?1, ?2, ?3, 1, 'manual', ?4, 'manual weekly event count', ?5)",
+                params![roster_id, char_id, task_id, event_timestamp, session_id],
+            )?;
+        }
+
+        tx.commit()?;
         Ok(())
     }
 }

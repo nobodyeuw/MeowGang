@@ -33,6 +33,14 @@ use tauri::{
 pub fn run() {
     crate::log_info!("Starting LOA Tracker application");
 
+    let single_instance_guard = match single_instance::claim() {
+        single_instance::SingleInstanceGuard::Primary(guard) => Some(guard),
+        single_instance::SingleInstanceGuard::Secondary => {
+            crate::log_info!("Existing LOA Tracker instance detected; requesting it to show");
+            return;
+        }
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -55,6 +63,9 @@ pub fn run() {
         })
         .setup(|app| {
             crate::log_info!("Initializing Tauri application setup");
+            if let Some(guard) = single_instance_guard {
+                single_instance::listen_for_show_requests(app.handle().clone(), guard);
+            }
 
             // Initialize application context like reference project
             let package_info = app.package_info();
@@ -152,13 +163,9 @@ pub fn run() {
                             }
                         }
 
-                        if !is_startup_monitor {
-                            if let Err(e) = crate::handlers::system_handlers::ensure_loa_logs_running(
-                                startup_settings.system.loa_logs_exe_path.as_deref(),
-                            ) {
-                                crate::log_warn!("{}", e);
-                            }
-                        }
+                        crate::log_warn!(
+                            "LOA Logs auto-launch is temporarily disabled; LOA Tracker will only monitor for LOA Logs startup"
+                        );
 
                         match crate::handlers::system_handlers::set_loa_logs_monitoring(true, app.handle().clone()) {
                             Ok(_) => crate::log_info!("LOA Logs companion monitoring started on startup"),
@@ -227,7 +234,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 10;
+            const TARGET_VERSION: i32 = 11;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -456,7 +463,10 @@ pub fn run() {
             handlers::raid_handlers::update_raid_gate_config,
             // Todo handlers
             handlers::todo_handlers::get_todo_matrix,
+            handlers::todo_handlers::get_roster_event_progress,
             handlers::todo_handlers::update_task_status,
+            handlers::todo_handlers::update_roster_event_status,
+            handlers::todo_handlers::update_roster_event_weekly_count,
             handlers::todo_handlers::update_roster_task_status,
             handlers::todo_handlers::update_raid_gate_status,
             handlers::todo_handlers::get_raid_gate_completed,
@@ -504,6 +514,115 @@ pub fn run() {
             eprintln!("Fatal error while running LOA Tracker: {}", e);
             std::panic::panic_any(format!("Failed to start application: {}", e));
         });
+}
+
+#[cfg(target_os = "windows")]
+mod single_instance {
+    use std::ptr::null_mut;
+    use std::sync::OnceLock;
+    use tauri::AppHandle;
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE};
+    use windows_sys::Win32::System::Threading::{
+        CreateEventW, CreateMutexW, OpenEventW, SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE, INFINITE,
+    };
+
+    const MUTEX_NAME: &str = "Local\\LOA_Tracker_Single_Instance";
+    const SHOW_EVENT_NAME: &str = "Local\\LOA_Tracker_Show_Main_Window";
+
+    static INSTANCE_MUTEX: OnceLock<usize> = OnceLock::new();
+
+    pub enum SingleInstanceGuard {
+        Primary(PrimaryInstanceGuard),
+        Secondary,
+    }
+
+    pub struct PrimaryInstanceGuard {
+        show_event: usize,
+    }
+
+    pub fn claim() -> SingleInstanceGuard {
+        let mutex_name = wide_null(MUTEX_NAME);
+        let mutex = unsafe { CreateMutexW(null_mut(), 1, mutex_name.as_ptr()) };
+        if mutex.is_null() {
+            crate::log_warn!("Failed to create single-instance mutex");
+            return SingleInstanceGuard::Primary(create_guard());
+        }
+
+        let already_exists = unsafe { GetLastError() } == ERROR_ALREADY_EXISTS;
+        if already_exists {
+            unsafe {
+                CloseHandle(mutex);
+            }
+            signal_primary_instance();
+            SingleInstanceGuard::Secondary
+        } else {
+            let _ = INSTANCE_MUTEX.set(mutex as usize);
+            SingleInstanceGuard::Primary(create_guard())
+        }
+    }
+
+    pub fn listen_for_show_requests(app: AppHandle, guard: PrimaryInstanceGuard) {
+        if guard.show_event == 0 {
+            return;
+        }
+
+        std::thread::spawn(move || loop {
+            let result = unsafe { WaitForSingleObject(guard.show_event as HANDLE, INFINITE) };
+            if result == 0 {
+                crate::handlers::system_handlers::reveal_main_window(&app);
+            } else {
+                crate::log_warn!("Single-instance show listener stopped unexpectedly: {}", result);
+                break;
+            }
+        });
+    }
+
+    fn create_guard() -> PrimaryInstanceGuard {
+        let event_name = wide_null(SHOW_EVENT_NAME);
+        let show_event = unsafe { CreateEventW(null_mut(), 0, 0, event_name.as_ptr()) };
+        if show_event.is_null() {
+            crate::log_warn!("Failed to create single-instance show event");
+        }
+        PrimaryInstanceGuard {
+            show_event: show_event as usize,
+        }
+    }
+
+    fn signal_primary_instance() {
+        let event_name = wide_null(SHOW_EVENT_NAME);
+        let show_event = unsafe { OpenEventW(EVENT_MODIFY_STATE, 0, event_name.as_ptr()) };
+        if show_event.is_null() {
+            crate::log_warn!("Existing instance was detected, but show event could not be opened");
+            return;
+        }
+
+        unsafe {
+            SetEvent(show_event);
+            CloseHandle(show_event);
+        }
+    }
+
+    fn wide_null(value: &str) -> Vec<u16> {
+        value.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod single_instance {
+    use tauri::AppHandle;
+
+    pub enum SingleInstanceGuard {
+        Primary(PrimaryInstanceGuard),
+        Secondary,
+    }
+
+    pub struct PrimaryInstanceGuard;
+
+    pub fn claim() -> SingleInstanceGuard {
+        SingleInstanceGuard::Primary(PrimaryInstanceGuard)
+    }
+
+    pub fn listen_for_show_requests(_app: AppHandle, _guard: PrimaryInstanceGuard) {}
 }
 
 fn setup_tray_icon(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {

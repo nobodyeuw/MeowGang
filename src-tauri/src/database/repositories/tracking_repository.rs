@@ -13,6 +13,10 @@ impl TrackingRepository {
         Self { pool }
     }
 
+    fn is_roster_wide_task_id(content_id: &str) -> bool {
+        matches!(content_id, "gate" | "boss" | "event_argeos_winter")
+    }
+
     pub fn get_tracking_config_matrix(&self, roster_id: &str) -> Result<crate::models::TodoConfigMatrix> {
         let conn = self.pool.get()?;
 
@@ -127,7 +131,7 @@ impl TrackingRepository {
     }
 
     pub fn update_tracking_config(&self, character_id: i64, content_id: &str, is_tracked: bool) -> Result<()> {
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
 
         // First get roster_id for this character
         let roster_id: String = conn.query_row(
@@ -137,6 +141,22 @@ impl TrackingRepository {
         )?;
 
         let tracked_value = if is_tracked { 1 } else { 0 };
+
+        if Self::is_roster_wide_task_id(content_id) {
+            let tx = conn.transaction()?;
+            tx.execute(
+                "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+                 SELECT roster_id, char_id, ?2, ?3, 0
+                 FROM conf_character
+                 WHERE roster_id = ?1
+                 ON CONFLICT(char_id, content_id) DO UPDATE SET
+                   roster_id = excluded.roster_id,
+                   is_tracked = excluded.is_tracked",
+                params![roster_id, content_id, tracked_value],
+            )?;
+            tx.commit()?;
+            return Ok(());
+        }
 
         conn.execute(
             "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
