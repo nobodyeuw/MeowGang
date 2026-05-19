@@ -192,10 +192,6 @@ impl RosterRepository {
             "DELETE FROM rested_values WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
             params![roster_id],
         )?;
-        tx.execute(
-            "DELETE FROM gold_logs WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
-            params![roster_id],
-        )?;
 
         // Delete characters
         tx.execute("DELETE FROM conf_character WHERE roster_id = ?1", params![roster_id])?;

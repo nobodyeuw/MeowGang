@@ -4,7 +4,6 @@ pub mod character_handlers;
 pub mod data_manager_handlers;
 pub mod encounter_sync_handlers;
 pub mod entity_sync_handlers;
-pub mod gold_service_handlers;
 pub mod market_handlers;
 pub mod progression_handlers;
 pub mod raid_handlers;

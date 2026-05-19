@@ -1,133 +1,73 @@
 {
   "versions": [
     {
-      "version": "1.1.7",
-      "date": "2026-05-18",
+      "version": "1.1.8",
+      "date": "2026-05-19",
       "changes": [
         {
           "type": "Added",
-          "description": "System settings now include general app controls.",
-          "details": "Added a General section to System settings with controls for showing or hiding the Set-Up Guide button and managing local user data."
+          "description": "Dashboard now tracks the active calendar event.",
+          "details": "Added a dashboard summary label for the currently available roster-wide calendar event. The label switches between Chaos Gate and Field Boss, uses the matching event icon, and shows remaining completions across eligible rosters."
         },
         {
           "type": "Added",
-          "description": "Clear user data option with confirmation.",
-          "details": "Added a destructive Clear User Data action that removes configured characters and connected character data from the local user database. The action now requires an explicit confirmation dialog before anything is deleted."
+          "description": "Dashboard summary includes daily task status.",
+          "details": "Daily progress is now shown alongside raids, weeklies, roster-wide events, and gold earners while preserving lazy daily behavior for rested Chaos Dungeon and Guardian Raid tracking."
         },
         {
           "type": "Added",
-          "description": "Tray background behavior for LOA Tracker.",
-          "details": "Closing the main window now hides LOA Tracker to the system tray instead of fully exiting. The tray menu provides Show and Quit actions, and the tray icon can restore the main window."
-        },
-        {
-          "type": "Added",
-          "description": "Roster display order controls.",
-          "details": "Added roster ordering support so users can decide which roster appears first on the dashboard. The selected order is saved in the local character configuration."
-        },
-        {
-          "type": "Added",
-          "description": "Lazy daily tracking for Chaos and Guardian tasks.",
-          "details": "Chaos Dungeon and Guardian Raid tracking can now use lazy behavior per character, with row-wide toggle controls. When enabled, the dashboard only counts those dailies once the rested value is at least 20."
-        },
-        {
-          "type": "Added",
-          "description": "Rested value input guardrails.",
-          "details": "Rested value inputs now reject invalid values and guide users toward valid 10-step values from 0 to 100."
-        },
-        {
-          "type": "Added",
-          "description": "Progression Planner groundwork.",
-          "details": "Added early under-development groundwork for detailed character scraping and planner data, including equipment, accessory effect, engraving, and gem-related fields for future planner views."
+          "description": "Update checks now wait before showing a fresh release.",
+          "details": "When a new version appears in the updater metadata, LOA Tracker now waits for a short release grace period before showing the update as installable. This gives GitHub Actions time to finish publishing the actual installer artifacts."
         },
         {
           "type": "Improved",
-          "description": "Startup registration is more reliable on Windows.",
-          "details": "LOA Tracker now tries Task Scheduler startup registration first and falls back to the current-user Windows registry startup entry when Task Scheduler access is denied. This keeps Start with Lost Ark and Start with LOA Logs usable on systems where the scheduled task cannot be updated."
+          "description": "Dashboard summary labels are cleaner and more compact.",
+          "details": "Raid, daily, weekly, roster-wide event, and gold earner labels now use a smaller modern layout, centered text, fixed maximum width, subtle dashboard-matching borders, and no hover effect for non-clickable elements."
         },
         {
           "type": "Improved",
-          "description": "LOA Logs companion launch handles elevated installs better.",
-          "details": "When LOA Logs requires admin rights, LOA Tracker now requests an elevated launch through Windows UAC instead of failing with the standard 'requires elevated rights' error."
+          "description": "Dashboard task labels now show remaining work more clearly.",
+          "details": "Task labels now display open counts instead of raw X/Y values and switch to an all-done state when completed, so the dashboard reads more naturally at a glance."
         },
         {
           "type": "Improved",
-          "description": "Installer and updater behavior for Windows releases.",
-          "details": "Windows builds now keep the NSIS installer in current-user mode so updates continue to target the existing LocalAppData installation path, while updater installs can still run passively."
+          "description": "Roster sections and list view spacing were tightened.",
+          "details": "Roster titles were restyled with a simpler in-frame presentation. List view removes Chaos and Guardian progress bars, preserves raid labels longer on narrow widths, and lets character names shrink down before the layout wraps."
         },
         {
           "type": "Improved",
-          "description": "Market favorites stay pinned above other items.",
-          "details": "Favorite market items now remain at the top of the list even when sorting the remaining items by price or other columns."
+          "description": "Weekly gold progress now uses planned raid configuration.",
+          "details": "The maximum weekly gold value now comes from planned take-gold raid gates. Completed gold is calculated from completion status clears instead of gold logs, with mismatch/lost gold displayed separately as a greyed progress segment."
         },
         {
           "type": "Improved",
-          "description": "Tracking and ToDo task separators are easier to read.",
-          "details": "Task separator rows now align their labels consistently and stay visible while horizontally scrolling wide tracking and ToDo tables."
+          "description": "Bound and tradable gold totals now use completion status.",
+          "details": "Bound and tradable weekly gold values are now derived from completed planned raid gates and their configured difficulties, keeping the gold card consistent with the main weekly progress calculation."
         },
         {
           "type": "Improved",
-          "description": "Active roster controls stay visible while scrolling.",
-          "details": "The active roster selector remains pinned while horizontally scrolling settings tables, matching the sticky behavior of the task columns."
-        },
-        {
-          "type": "Improved",
-          "description": "Dashboard spacing and roster sections were tightened.",
-          "details": "Reduced excess spacing between dashboard summary areas, daily and weekly labels, roster view controls, and roster cards. Roster labels now sit inside the section border with a smaller visual footprint."
-        },
-        {
-          "type": "Improved",
-          "description": "Dashboard gold progress styling is more consistent.",
-          "details": "The actual earned gold text now follows the same color progression style as the weekly gold progress bar."
-        },
-        {
-          "type": "Improved",
-          "description": "Hidden characters still count toward tracking totals.",
-          "details": "The Hide from Dashboard option now only hides a character from the visible roster list. Daily and weekly dashboard totals still include those characters."
+          "description": "Header reset countdown is easier to scan.",
+          "details": "The daily reset countdown now uses padded time parts such as 04H 09M or 04M and no longer displays seconds."
         },
         {
           "type": "Fixed",
-          "description": "Roster rename no longer creates duplicate roster rows.",
-          "details": "Pressing Enter in the rename dialog now runs the same safe rename flow as the Rename button instead of creating a duplicate roster entry with an empty name."
+          "description": "Updater no longer exposes releases before installers are ready.",
+          "details": "The install command now also respects the release grace period, so an old visible button cannot start downloading a release while GitHub Actions is still preparing the installer."
         },
         {
           "type": "Fixed",
-          "description": "Roster rename now updates every character in the roster.",
-          "details": "Renaming a roster now updates all characters that belong to that roster instead of only updating the character that submitted the rename."
-        },
-        {
-          "type": "Fixed",
-          "description": "Duplicate character keys no longer break Roster Settings.",
-          "details": "Fixed the duplicate-key state caused by broken roster rename submissions so Roster Settings navigation no longer crashes with duplicate character ids."
-        },
-        {
-          "type": "Fixed",
-          "description": "Rename dialog no longer closes accidentally.",
-          "details": "The roster rename popup now stays open when the cursor leaves the dialog area and only closes through the explicit Cancel, Rename, or close actions."
-        },
-        {
-          "type": "Fixed",
-          "description": "Removed repeated process-list debug spam from logs.",
-          "details": "The Lost Ark monitor no longer logs a sample list of running processes every few seconds. This keeps long-running tray sessions from filling the log with repeated debug output."
-        },
-        {
-          "type": "Fixed",
-          "description": "LOA Logs elevated launch command handles paths correctly.",
-          "details": "Fixed the PowerShell launch path handling used when LOA Tracker requests an elevated LOA Logs startup through Windows UAC."
-        },
-        {
-          "type": "Fixed",
-          "description": "Rested value mouse wheel changes are disabled.",
-          "details": "Scrolling over rested value fields no longer accidentally increases or decreases the stored rested value."
+          "description": "Dashboard gold no longer counts lost mismatch gold as earned.",
+          "details": "Difficulty mismatch gold is now shown separately and greyed out in the progress bar instead of being added to actual weekly income."
         },
         {
           "type": "Changed",
-          "description": "Startup monitoring now supports tray-first background use.",
-          "details": "Startup monitor mode, Lost Ark monitoring, LOA Logs companion monitoring, and tray behavior now work together so LOA Tracker can run in the background and reveal the existing window when needed."
+          "description": "Gold logs were removed from the active data flow.",
+          "details": "The old gold_logs table, repository, service, frontend initialization, and cleanup calls were removed. Existing users migrate forward by dropping the table during the next schema migration, while fresh installs no longer create it."
         },
         {
           "type": "Changed",
-          "description": "Progression Planner remains marked as under development.",
-          "details": "The planner is still being prepared for a full release while scraper mappings, gem data, and goal valuation behavior continue to be refined."
+          "description": "Database schema version advanced for gold log cleanup.",
+          "details": "The database migration target was bumped so existing installations remove the obsolete gold_logs table safely during the next update."
         }
       ]
     }

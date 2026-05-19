@@ -218,12 +218,7 @@ export function initializeSyncEvents() {
     }
     const payload = event.payload as any;
     if (payload?.synced_count > 0) {
-      try {
-        await invoke('trigger_gold_processing');
-        dispatchEvent(new CustomEvent('raid-completed'));
-      } catch (e) {
-        console.error('Gold processing after encounter sync failed:', e);
-      }
+      dispatchEvent(new CustomEvent('raid-completed'));
     }
   });
 
@@ -235,12 +230,7 @@ export function initializeSyncEvents() {
     }
     const payload = event.payload as any;
     if (payload?.synced_count > 0) {
-      try {
-        await invoke('trigger_gold_processing');
-        dispatchEvent(new CustomEvent('raid-completed'));
-      } catch (e) {
-        console.error('Gold processing after force sync failed:', e);
-      }
+      dispatchEvent(new CustomEvent('raid-completed'));
     }
   });
 
@@ -252,12 +242,7 @@ export function initializeSyncEvents() {
     }
     const payload = event.payload as any;
     if (payload?.synced_count > 0) {
-      try {
-        await invoke('trigger_gold_processing');
-        dispatchEvent(new CustomEvent('raid-completed'));
-      } catch (e) {
-        console.error('Gold processing after auto sync failed:', e);
-      }
+      dispatchEvent(new CustomEvent('raid-completed'));
     }
   });
 
@@ -626,18 +611,8 @@ export async function markRaidGateCompleted(charId: number, raidId: string, gate
     
     console.log(`STORE: Raid gate completion status updated successfully`);
     
-    // Trigger automatic gold processing for new raid completions
     if (cleared) {
-      try {
-        console.log('Triggering automatic gold processing for raid completion...');
-        const goldResult = await invoke('trigger_gold_processing');
-        console.log('Automatic gold processing result:', goldResult);
-        
-        // Dispatch event to refresh dashboard
-        dispatchEvent(new CustomEvent('raid-completed'));
-      } catch (goldError) {
-        console.error('Failed to trigger automatic gold processing:', goldError);
-      }
+      dispatchEvent(new CustomEvent('raid-completed'));
     }
   } catch (error) {
     console.error(`STORE: Failed to mark raid gate completed:`, error);

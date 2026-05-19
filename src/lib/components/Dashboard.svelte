@@ -3,7 +3,6 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import type { Character } from '$lib/store';
-  import type { GoldStatsResponse } from '$lib/types/gold';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { RAIDS } from '$lib/data/raids';
   import { getCurrentAvailabilityStatus } from '$lib/utils/availability';
@@ -15,16 +14,19 @@
   // State
   let visibleCharacters: Character[] = [];
   let loading = true;
-  let goldStats: GoldStatsResponse | null = null;
   let totalRaidsCompleted = 0;
   let totalDailiesCompleted = 0;
   let totalWeekliesCompleted = 0;
   let totalRaidsPossible = 0;
+  let totalDailiesTracked = 0;
   let totalDailiesPossible = 0;
   let totalWeekliesPossible = 0;
   let totalCalendarEventsCompleted = 0;
   let totalCalendarEventsPossible = 0;
   let progressPercentage = 0;
+  let actualGoldDisplay = 0;
+  let actualBoundGoldDisplay = 0;
+  let actualTradableGoldDisplay = 0;
   let estimatedGoldDisplay = 0;
   let dashboardView: 'cards' | 'compact' = 'cards';
 
@@ -34,6 +36,7 @@
     content_id: string;
     is_completed: number;
     details?: string | null;
+    session_id?: string | null;
   }
 
   interface RestedValueEntry {
@@ -49,6 +52,7 @@
 
   interface RaidConfigEntry {
     content_id: string;
+    gate: string;
     difficulty: string;
     take_gold: number;
     buy_box: number;
@@ -81,46 +85,12 @@
   // Calculate global statistics using reactive data
   async function calculateGlobalStats(characters: Character[]) {
     try {
-      // Load gold stats for all rosters combined
-      console.log('Fetching gold stats for all rosters');
-      const result = await invoke('get_weekly_gold_stats', { rosterId: null });
-      
-      // Backend returns snake_case, map to camelCase for TypeScript interface
-      if (result && typeof result === 'object') {
-        const backendResult = result as any;
-        goldStats = {
-          weekly: {
-            tradableGold: backendResult.tradable_gold || 0,
-            boundGold: backendResult.bound_gold || 0,
-            totalGold: backendResult.total_gold || 0,
-            totalEntries: backendResult.total_entries || 0,
-            extraIncomeGold: 0,
-            boxPurchaseCost: 0
-          },
-          recentEntries: []
-        } as GoldStatsResponse;
-        console.log('Processed goldStats:', goldStats);
-        console.log('Actual gold from backend:', goldStats.weekly.totalGold);
-      } else {
-        console.warn('Invalid gold stats response, using default:', result);
-        goldStats = {
-          weekly: {
-            tradableGold: 0,
-            boundGold: 0,
-            totalGold: 0,
-            totalEntries: 0,
-            extraIncomeGold: 0,
-            boxPurchaseCost: 0
-          },
-          recentEntries: []
-        };
-      }
-      
       // Calculate completion stats
       let raidsCompleted = 0;
       let dailiesCompleted = 0;
       let weekliesCompleted = 0;
       let raidsPossible = 0;
+      let dailiesTracked = 0;
       let dailiesPossible = 0;
       let weekliesPossible = 0;
       let calendarEventsCompleted = 0;
@@ -183,8 +153,13 @@
           }
           
           // Count dailies (chaos + guardian). Lazy dailies only count from 20+ rested.
+          const chaosConfigured = trackingStatus.some((t: any) => t.content_id === 'chaos' && t.is_tracked === 1);
+          const guardianConfigured = trackingStatus.some((t: any) => t.content_id === 'guardian' && t.is_tracked === 1);
           const chaosTracked = shouldCountDaily(trackingStatus, restedValues, 'chaos');
           const guardianTracked = shouldCountDaily(trackingStatus, restedValues, 'guardian');
+
+          if (chaosConfigured) dailiesTracked++;
+          if (guardianConfigured) dailiesTracked++;
           
           if (chaosTracked) {
             dailiesPossible++;
@@ -232,22 +207,39 @@
       totalDailiesCompleted = dailiesCompleted;
       totalWeekliesCompleted = weekliesCompleted;
       totalRaidsPossible = raidsPossible;
+      totalDailiesTracked = dailiesTracked;
       totalDailiesPossible = dailiesPossible;
       totalWeekliesPossible = weekliesPossible;
       totalCalendarEventsCompleted = calendarEventsCompleted;
       totalCalendarEventsPossible = calendarEventsPossible;
       
-      // Update progress percentage and maximum gold display
-      const maxGold = calculateTotalEstimatedGold(visibleCharacters, allRaidConfigsByCharacter);
-      estimatedGoldDisplay = maxGold;
-      
-      // Calculate progress percentage using actual gold stats
-      if (goldStats && goldStats.weekly && maxGold > 0) {
-        progressPercentage = Math.min((goldStats.weekly.totalGold / maxGold) * 100, 100);
-        console.log('Progress calculation - Actual gold:', goldStats.weekly.totalGold, 'Max gold:', maxGold, 'Progress %:', progressPercentage);
+      // Update progress percentage from completed raid clears.
+      const goldProgress = calculateGoldProgress(visibleCharacters, allRaidConfigsByCharacter);
+      actualGoldDisplay = goldProgress.actualGold;
+      actualBoundGoldDisplay = goldProgress.actualBoundGold;
+      actualTradableGoldDisplay = goldProgress.actualTradableGold;
+      estimatedGoldDisplay = goldProgress.plannedGold;
+      mismatchGoldLost = goldProgress.lostGold;
+
+      if (goldProgress.plannedGold > 0) {
+        progressPercentage = Math.min((goldProgress.actualGold / goldProgress.plannedGold) * 100, 100);
+        console.log(
+          'Progress calculation - Actual gold:',
+          goldProgress.actualGold,
+          'Bound gold:',
+          goldProgress.actualBoundGold,
+          'Tradable gold:',
+          goldProgress.actualTradableGold,
+          'Max gold:',
+          goldProgress.plannedGold,
+          'Lost gold:',
+          goldProgress.lostGold,
+          'Progress %:',
+          progressPercentage
+        );
       } else {
         progressPercentage = 0;
-        console.log('Progress calculation failed - goldStats:', goldStats, 'maxGold:', maxGold);
+        console.log('Progress calculation failed - planned gold:', goldProgress.plannedGold);
       }
       
     } catch (error) {
@@ -329,8 +321,8 @@
   // Create reactive data map for character cards
   let characterDataMap: Record<string, {
     restedValues: Array<{ content_id: string; current_value: number }>;
-    completionStatus: Array<{ content_id: string; is_completed: number }>;
-    raidConfigs: Array<{ content_id: string; difficulty: string; take_gold: number }>;
+    completionStatus: CompletionStatusEntry[];
+    raidConfigs: RaidConfigEntry[];
     trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }>;
   }> = {};
 
@@ -340,11 +332,47 @@
     raidLookup[`${raid.id}-${raid.difficulty}`] = raid;
   }
 
-  function calculateTotalEstimatedGold(
+  function getGateIdFromSession(sessionId?: string | null): string | null {
+    if (!sessionId) return null;
+    const parts = sessionId.split('_');
+    return parts.length > 1 ? parts[parts.length - 1] : null;
+  }
+
+  function findRaid(contentId: string, difficulty?: string | null): typeof RAIDS[0] | undefined {
+    const normalizedDifficulty = (difficulty ?? '').trim().toLowerCase();
+    return Object.values(raidLookup).find(
+      raid => raid.id === contentId && raid.difficulty.trim().toLowerCase() === normalizedDifficulty
+    );
+  }
+
+  function getGateGoldBreakdown(
+    contentId: string,
+    difficulty: string | null | undefined,
+    gateId: string,
+    buyBox: number
+  ): { boundGold: number; tradableGold: number; totalGold: number } {
+    const raid = findRaid(contentId, difficulty);
+    const gate = raid?.gates.find(g => g.gate === gateId);
+    if (!gate) return { boundGold: 0, tradableGold: 0, totalGold: 0 };
+
+    const boundGold = gate.boundGold || 0;
+    const boxPrice = buyBox === 1 ? (gate.boxPrice || 0) : 0;
+    const tradableGold = (gate.tradableGold || 0) - boxPrice;
+    return {
+      boundGold,
+      tradableGold,
+      totalGold: boundGold + tradableGold
+    };
+  }
+
+  function calculateGoldProgress(
     characters: Character[],
     raidConfigsByCharacter: Record<string, RaidConfigEntry[]>
-  ): number {
-    let totalGold = 0;
+  ): { plannedGold: number; actualGold: number; actualBoundGold: number; actualTradableGold: number; lostGold: number } {
+    let plannedGold = 0;
+    let actualGold = 0;
+    let actualBoundGold = 0;
+    let actualTradableGold = 0;
     let lostGold = 0;
 
     for (const character of characters) {
@@ -354,57 +382,34 @@
         const charKey = String(character.char_id);
         const raidConfigs = raidConfigsByCharacter[charKey] || [];
         const goldRaids = raidConfigs.filter(config => config.take_gold === 1);
-        const uniqueRaids = new Set<string>();
         const completionData = characterDataMap[charKey]?.completionStatus ?? [];
+        const countedGates = new Set<string>();
 
         for (const config of goldRaids) {
-          const raidKey = `${config.content_id}-${config.difficulty}`;
-          if (uniqueRaids.has(raidKey)) continue;
-          uniqueRaids.add(raidKey);
+          const gateId = config.gate;
+          const gateKey = `${config.content_id}-${config.difficulty}-${gateId}`;
+          if (countedGates.has(gateKey)) continue;
+          countedGates.add(gateKey);
 
-          const plannedRaid = raidLookup[raidKey];
-          if (!plannedRaid) continue;
+          const plannedGateGold = getGateGoldBreakdown(config.content_id, config.difficulty, gateId, config.buy_box);
+          plannedGold += plannedGateGold.totalGold;
 
-          // Gold the user planned to earn from this raid
-          const plannedGold = plannedRaid.gates.reduce((sum: number, gate) => {
-            const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
-            const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
-            return sum + gateGold - boxPrice;
-          }, 0);
-
-          totalGold += plannedGold;
-
-          // Check for a difficulty mismatch
-          const plannedDiff = (config.difficulty ?? '').trim().toLowerCase();
-          const clearedEntry = completionData.find(
-            (c: any) => c.content_id === config.content_id && c.is_completed === 1 && c.details
+          const clearedEntry = completionData.find(entry =>
+            entry.content_id === config.content_id &&
+            entry.is_completed === 1 &&
+            entry.details &&
+            getGateIdFromSession(entry.session_id) === gateId
           );
-          if (clearedEntry) {
-            const actualDiff = (clearedEntry.details as string).trim().toLowerCase();
-            if (actualDiff !== plannedDiff) {
-              // Find what the user actually earned in the difficulty they ran
-              const actualRaidKey = `${config.content_id}-${clearedEntry.details?.trim()}`;
-              const actualRaid = raidLookup[actualRaidKey]
-                // Fallback: try case-insensitive match
-                ?? Object.values(raidLookup).find(r =>
-                    r.id === config.content_id &&
-                    r.difficulty.toLowerCase() === actualDiff
-                  );
+          if (!clearedEntry) continue;
 
-              const actualGold = actualRaid
-                ? actualRaid.gates.reduce((sum: number, gate) => {
-                    const gateGold = (gate.tradableGold || 0) + (gate.boundGold || 0);
-                    const boxPrice = config.buy_box === 1 ? (gate.boxPrice || 0) : 0;
-                    return sum + gateGold - boxPrice;
-                  }, 0)
-                : 0;
+          const actualGateGold = getGateGoldBreakdown(config.content_id, clearedEntry.details, gateId, config.buy_box);
+          actualGold += actualGateGold.totalGold;
+          actualBoundGold += actualGateGold.boundGold;
+          actualTradableGold += actualGateGold.tradableGold;
 
-              // lostGold = difference between what was planned and what was actually earned
-              // Positive = user earned less than planned (e.g. ran Normal instead of Hard)
-              // Negative = user earned more than planned (e.g. ran Hard instead of Normal) - clamp to 0
-              const diff = plannedGold - actualGold;
-              if (diff > 0) lostGold += diff;
-            }
+          const diff = plannedGateGold.totalGold - actualGateGold.totalGold;
+          if (diff > 0) {
+            lostGold += diff;
           }
         }
       } catch (error) {
@@ -412,8 +417,7 @@
       }
     }
 
-    mismatchGoldLost = lostGold;
-    return totalGold;
+    return { plannedGold, actualGold, actualBoundGold, actualTradableGold, lostGold };
   }
 
   function getClassIcon(classId: string): string {
@@ -446,6 +450,15 @@
   function setDashboardView(view: 'cards' | 'compact') {
     dashboardView = view;
     localStorage.setItem('dashboardView', view);
+  }
+
+  function getOpenCount(completed: number, possible: number): number {
+    return Math.max(possible - completed, 0);
+  }
+
+  function getOpenStatusKind(completed: number, possible: number, configured = possible): 'empty' | 'idle' | 'done' | 'open' {
+    if (possible <= 0) return configured > 0 ? 'idle' : 'empty';
+    return getOpenCount(completed, possible) === 0 ? 'done' : 'open';
   }
 
   function getCurrentCalendarEventLabel(): string {
@@ -495,19 +508,6 @@
     return 'images/calendar_7743808.png';
   }
 
-  // Calculate progress percentage
-  async function getGoldProgressPercentage(): Promise<number> {
-    if (!goldStats) return 0;
-    const dashboardSnapshot = await invoke<DashboardSnapshot>('get_dashboard_snapshot', {
-      rosterId: $activeRosterId || null
-    });
-    const estimatedGold = calculateTotalEstimatedGold(
-      dashboardSnapshot.characters?.filter(char => !char.hide_from_dashboard) ?? visibleCharacters,
-      dashboardSnapshot.raid_configs_by_character || {}
-    );
-    if (estimatedGold === 0) return 0;
-    return Math.min((goldStats.weekly.totalGold / estimatedGold) * 100, 100);
-  }
 </script>
 
 <div class="dashboard-container" data-guide="dashboard">
@@ -529,7 +529,7 @@
           </div>
           
           <div class="gold-values">
-            <span class="current" style={`--gold-progress: ${Math.min(progressPercentage, 100)}%`}>{goldStats?.weekly?.totalGold?.toLocaleString() ?? 0}</span>
+            <span class="current" style={`--gold-progress: ${Math.min(progressPercentage, 100)}%`}>{actualGoldDisplay.toLocaleString()}</span>
             <span class="divider">/</span>
             <span class="target">{estimatedGoldDisplay.toLocaleString()}</span>
             <span class="unit">Gold</span>
@@ -553,7 +553,7 @@
             {#if mismatchGoldLost > 0}
               <span class="remaining-text mismatch-loss">⚠ {mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
             {:else}
-              <span class="remaining-text">{(estimatedGoldDisplay - (goldStats?.weekly?.totalGold ?? 0)).toLocaleString()} gold remaining</span>
+              <span class="remaining-text">{Math.max(estimatedGoldDisplay - actualGoldDisplay, 0).toLocaleString()} gold remaining</span>
             {/if}
           </div>
         </div>
@@ -562,19 +562,19 @@
           <div class="detail-item">
             <span class="dot bound"></span>
             <span class="label">Bound:</span>
-            <span class="val">{goldStats?.weekly?.boundGold?.toLocaleString() ?? 0}</span>
+            <span class="val">{actualBoundGoldDisplay.toLocaleString()}</span>
           </div>
           <div class="detail-item">
             <span class="dot tradable"></span>
             <span class="label">Tradable:</span>
-            <span class="val">{goldStats?.weekly?.tradableGold?.toLocaleString() ?? 0}</span>
+            <span class="val">{actualTradableGoldDisplay.toLocaleString()}</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Header Stats -->
-    {#if totalRaidsPossible > 0 || totalDailiesPossible > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold) || visibleCharacters.length > 0}
+    {#if totalRaidsPossible > 0 || totalDailiesTracked > 0 || totalWeekliesPossible > 0 || visibleCharacters.some(c => c.earns_gold) || visibleCharacters.length > 0}
     <div class="header-stats">
       {#if totalRaidsPossible > 0}
       <div class="stat-card">
@@ -582,18 +582,38 @@
           <img src="/images/kazeros-raid.webp" alt="Raids" />
         </div>
         <div class="stat-content">
-          <div class="stat-value">{totalRaidsCompleted}/{totalRaidsPossible}</div>
+          <div class="stat-status" class:done={getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}>
+            {#if getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}
+              <span class="stat-status-text">All done</span>
+            {:else}
+              <span class="stat-open-count">{getOpenCount(totalRaidsCompleted, totalRaidsPossible)}</span>
+              <span class="stat-open-label">open</span>
+            {/if}
+          </div>
           <div class="stat-label">Raids</div>
         </div>
       </div>
       {/if}
-      {#if totalDailiesPossible > 0}
+      {#if totalDailiesTracked > 0}
       <div class="stat-card">
         <div class="stat-icon">
           <img src="/images/icons8-last-24-hours-80.png" alt="Dailies" />
         </div>
         <div class="stat-content">
-          <div class="stat-value">{totalDailiesCompleted}/{totalDailiesPossible}</div>
+          <div
+            class="stat-status"
+            class:done={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
+            class:idle={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
+          >
+            {#if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
+              <span class="stat-status-text">Resting</span>
+            {:else if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
+              <span class="stat-status-text">All done</span>
+            {:else}
+              <span class="stat-open-count">{getOpenCount(totalDailiesCompleted, totalDailiesPossible)}</span>
+              <span class="stat-open-label">open</span>
+            {/if}
+          </div>
           <div class="stat-label">Dailies</div>
         </div>
       </div>
@@ -604,7 +624,14 @@
           <img src="images/calendar_7743808.png" alt="Weeklies" />
         </div>
         <div class="stat-content">
-          <div class="stat-value">{totalWeekliesCompleted}/{totalWeekliesPossible}</div>
+          <div class="stat-status" class:done={getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}>
+            {#if getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}
+              <span class="stat-status-text">All done</span>
+            {:else}
+              <span class="stat-open-count">{getOpenCount(totalWeekliesCompleted, totalWeekliesPossible)}</span>
+              <span class="stat-open-label">open</span>
+            {/if}
+          </div>
           <div class="stat-label">Weeklies</div>
         </div>
       </div>
@@ -614,7 +641,20 @@
           <img src={getCurrentCalendarEventIcon()} alt="Calendar Event" />
         </div>
         <div class="stat-content">
-          <div class="stat-value">{totalCalendarEventsCompleted}/{totalCalendarEventsPossible}</div>
+          <div
+            class="stat-status"
+            class:done={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
+            class:empty={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
+          >
+            {#if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
+              <span class="stat-status-text">No event</span>
+            {:else if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
+              <span class="stat-status-text">All done</span>
+            {:else}
+              <span class="stat-open-count">{getOpenCount(totalCalendarEventsCompleted, totalCalendarEventsPossible)}</span>
+              <span class="stat-open-label">open</span>
+            {/if}
+          </div>
           <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
         </div>
       </div>
@@ -659,12 +699,14 @@
       {#each Object.entries(charactersByRoster) as [rosterId, rosterCharacters], index}
         <div class="roster-section roster-{rosterId}">
           <h3 class="roster-title">
-            {#each $rosters as roster}
-              {#if roster.id === rosterId}
-                {roster.roster_name}
-              {/if}
-            {/each}
-            <span class="character-count">({rosterCharacters.length})</span>
+            <span class="roster-title-text">
+              {#each $rosters as roster}
+                {#if roster.id === rosterId}
+                  {roster.roster_name}
+                {/if}
+              {/each}
+              <span class="character-count">({rosterCharacters.length})</span>
+            </span>
           </h3>
           
           <div class="characters-list" class:compact-list={dashboardView === 'compact'}>
@@ -972,8 +1014,9 @@
 
   /* Header Stats */
   .header-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 0.5rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
@@ -981,32 +1024,29 @@
   }
 
   .stat-card {
-    min-width: 0;
+    flex: 0 1 154px;
+    min-width: 132px;
+    max-width: 172px;
     box-sizing: border-box;
     background: var(--surface-variant);
-    border-radius: 10px;
-    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(255, 140, 0, 0.25);
+    border-radius: 8px;
+    padding: 0.52rem 0.65rem;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   }
 
   .stat-icon {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--primary);
-    border-radius: 12px;
+    border-radius: 8px;
   }
 
   .stat-icon img {
@@ -1029,6 +1069,59 @@
     white-space: nowrap;
   }
 
+  .stat-status {
+    min-height: 1.35rem;
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    line-height: 1;
+    color: var(--on-surface);
+    white-space: nowrap;
+  }
+
+  .stat-open-count {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--on-surface);
+  }
+
+  .stat-open-label {
+    color: var(--on-surface-variant);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
+  .stat-status.done,
+  .stat-status.idle,
+  .stat-status.empty {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .stat-status.done .stat-status-text {
+    color: color-mix(in srgb, #36d399 72%, var(--on-surface));
+  }
+
+  .stat-status.idle .stat-status-text,
+  .stat-status.empty .stat-status-text {
+    color: var(--on-surface-variant);
+  }
+
+  .stat-status-text {
+    color: var(--on-surface);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+
   .stat-label {
     font-size: 0.72rem;
     color: var(--on-surface-variant);
@@ -1038,7 +1131,7 @@
   }
 
   .stat-label.event-name {
-    font-size: clamp(0.82rem, 1.15vw, 1.05rem);
+    font-size: 0.72rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1131,7 +1224,7 @@
     box-sizing: border-box;
     background: var(--surface-variant);
     border-radius: 8px;
-    padding: 0.85rem 0.75rem 0.75rem;
+    padding: 0.7rem 0.75rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     border: 1px solid var(--roster-border-color);
@@ -1169,25 +1262,34 @@
   }
 
   .roster-title {
-    margin: 0;
+    margin: 0 0 0.65rem;
     color: var(--roster-border-color);
     font-size: 0.68rem;
     line-height: 1;
     font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    position: absolute;
-    top: -0.38rem;
-    left: 0.65rem;
-    padding: 0 0.3rem;
-    background: var(--surface-variant);
-    border: 0;
+    justify-content: center;
+    width: 100%;
     text-transform: uppercase;
     letter-spacing: 0;
   }
 
+  .roster-title-text {
+    flex: 0 1 auto;
+    max-width: min(70%, 22rem);
+    min-width: 0;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.25rem;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .character-count {
+    flex: 0 0 auto;
     background: transparent;
     color: inherit;
     padding: 0;
@@ -1234,7 +1336,11 @@
     }
 
     .header-stats {
-      grid-template-columns: repeat(2, 1fr);
+      gap: 0.45rem;
+    }
+
+    .stat-card {
+      flex-basis: 148px;
     }
 
     .characters-list {
@@ -1256,8 +1362,8 @@
   }
 
   @media (max-width: 480px) {
-    .header-stats {
-      grid-template-columns: 1fr;
+    .stat-card {
+      flex-basis: min(100%, 154px);
     }
   }
 </style>

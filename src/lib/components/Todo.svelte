@@ -556,23 +556,6 @@
               contentId,
               completed: newGateState
             });
-            
-            // If unchecking the raid (setting to false), delete the associated gold logs
-            if (!newGateState) {
-              console.log(`Deleting gold logs for character ${characterId}, raid ${contentId}, gate ${gateId}`);
-              try {
-                const difficulty = raidConfigMap.get(raidId)?.get(characterId) || 'Normal';
-                const deleteResult = await invoke('delete_gold_logs_for_raid', {
-                  charId: characterId,
-                  contentId: contentId,
-                  difficulty: difficulty,
-                  sessionId: `${raidId}_${gateId}`
-                });
-                console.log('Gold log deletion result:', deleteResult);
-              } catch (deleteErr) {
-                console.error('Failed to delete gold logs:', deleteErr);
-              }
-            }
           } catch (invokeErr) {
             console.error('Failed to update raid gate status:', invokeErr);
             // Revert local state if backend fails

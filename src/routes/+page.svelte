@@ -17,7 +17,6 @@
   import { GAME_CLASSES } from '$lib/data/classes';
 
   import { testSyncRoster } from '$lib/store';
-  import { initializeGoldLogging } from '$lib/init/gold-logging-init';
   import { listen } from '@tauri-apps/api/event';
 
   let activeTab = 'dashboard';
@@ -71,9 +70,6 @@
       await loadSystemPreferences();
       appReady = true;
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
-
-      // Initialize gold logging system
-      initializeGoldLogging();
 
       // Update rested values immediately on app start
       try {
@@ -204,16 +200,15 @@
     const diff = reset.getTime() - now.getTime();
 
     if (diff > 0) {
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      const totalMinutes = Math.ceil(diff / (1000 * 60));
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const formatTimePart = (value: number) => value.toString().padStart(2, '0');
 
       if (hours > 0) {
-        resetCountdown = `Next daily reset in: ${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        resetCountdown = `Next daily reset in: ${minutes}m ${seconds}s`;
+        resetCountdown = `Next daily reset in: ${formatTimePart(hours)}H ${formatTimePart(minutes)}M`;
       } else {
-        resetCountdown = `Next daily reset in: ${seconds}s`;
+        resetCountdown = `Next daily reset in: ${formatTimePart(minutes)}M`;
       }
     } else {
       resetCountdown = 'Daily reset should have occurred!';

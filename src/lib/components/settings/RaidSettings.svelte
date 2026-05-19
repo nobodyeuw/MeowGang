@@ -634,19 +634,9 @@
       });
       console.log('update_raid_gate_config completed');
       
-      // Trigger gold processing to update dashboard immediately
-      try {
-        console.log('Triggering gold processing after buy box change...');
-        const goldResult = await invoke('trigger_gold_processing');
-        console.log('Gold processing result:', goldResult);
-        
-        // Dispatch event to refresh dashboard
-        console.log('DEBUG: Dispatching raid-settings-updated event');
-        dispatchEvent(new CustomEvent('raid-settings-updated'));
-        console.log('DEBUG: Event dispatched successfully');
-      } catch (goldError) {
-        console.error('Failed to trigger gold processing:', goldError);
-      }
+      console.log('DEBUG: Dispatching raid-settings-updated event');
+      dispatchEvent(new CustomEvent('raid-settings-updated'));
+      console.log('DEBUG: Event dispatched successfully');
       
       // Update only this character's gold values without full reload
       const raidGroupIndex = raidMatrix.findIndex(r => r.content_id === contentId);

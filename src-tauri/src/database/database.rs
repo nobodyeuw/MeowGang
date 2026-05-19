@@ -113,20 +113,6 @@ impl DatabaseManager {
                 )",
             ),
             (
-                "gold_logs",
-                "CREATE TABLE IF NOT EXISTS gold_logs (
-                    timestamp INTEGER NOT NULL,
-                    rowid INTEGER,
-                    char_id INTEGER NOT NULL,
-                    source TEXT,
-                    gold_value_total INTEGER NOT NULL,
-                    gold_bound INTEGER,
-                    gold_tradable INTEGER,
-                    notes TEXT,
-                    PRIMARY KEY(rowid AUTOINCREMENT)
-                )",
-            ),
-            (
                 "conf_tracking",
                 "CREATE TABLE IF NOT EXISTS conf_tracking (
                     roster_id TEXT,
@@ -266,12 +252,6 @@ impl DatabaseManager {
             "CREATE INDEX IF NOT EXISTS idx_conf_tracking_roster_char_content ON conf_tracking(roster_id, char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_rested_values_char_content ON rested_values(char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_conf_raid_char_content_gate_diff ON conf_raid(char_id, content_id, gate, difficulty)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_char_content ON gold_logs (char_id, source)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_char_id ON gold_logs(char_id)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_char_timestamp ON gold_logs(char_id, timestamp)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_notes ON gold_logs(notes)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_source ON gold_logs(source)",
-            "CREATE INDEX IF NOT EXISTS idx_gold_logs_timestamp ON gold_logs(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_character_engravings_char ON character_engravings(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_equipment_char ON character_equipment(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_gems_char ON character_gems(character_id)",

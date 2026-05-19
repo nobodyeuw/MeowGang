@@ -1,4 +1,3 @@
-use crate::database::repositories::gold_repository::GoldRepository;
 use crate::models::*;
 use anyhow::Result;
 use r2d2::Pool;

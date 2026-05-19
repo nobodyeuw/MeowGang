@@ -8,13 +8,7 @@
 
     {
       "severity": "Low Priority",
-      "description": "Auto-starting the app on system boot may not work correctly. May delete that option in future if it can't be reliably fixed since I dont want to have 'admin rights required' for LOA Tracker. The workaround is to manually start the app after booting until a fix can be implemented."
-    },
-
-    {
-      "severity": "Low Priority",
-      "description": "App may show 'Update available' notification before the latest version is actually available for download. This is due to the update check running before the new release assets are fully propagated on GitHub. The workaround is to simply ignore the notification and check for updates again after a few minutes, at which point the latest version should be correctly detected and available for download."
+      "description": "Some UI glitches when using the Set-up guide + when swapping from dashboard to ToDo tab by clicking on a character."
     }
-
   ]
 }

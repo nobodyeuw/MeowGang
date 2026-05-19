@@ -128,13 +128,7 @@ pub async fn clear_user_data(pool: State<'_, Pool<SqliteConnectionManager>>) -> 
 fn clear_character_data(tx: &Transaction<'_>) -> rusqlite::Result<usize> {
     let deleted_characters: usize = tx.query_row("SELECT COUNT(*) FROM conf_character", [], |row| row.get(0))?;
 
-    for table in [
-        "conf_tracking",
-        "conf_raid",
-        "completion_status",
-        "rested_values",
-        "gold_logs",
-    ] {
+    for table in ["conf_tracking", "conf_raid", "completion_status", "rested_values"] {
         tx.execute(&format!("DELETE FROM {}", table), [])?;
     }
 
@@ -903,12 +897,70 @@ use crate::services::logging_service;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
+const UPDATE_READY_GRACE_PERIOD_SECONDS: i64 = 10 * 60;
+const UPDATE_METADATA_URL: &str = "https://raw.githubusercontent.com/nobodyeuw/MeowGang/main/latest.json";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
     pub current_version: String,
     pub latest_version: Option<String>,
     pub update_available: bool,
     pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateMetadata {
+    version: String,
+    pub_date: Option<String>,
+}
+
+async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
+    let client = reqwest::Client::new();
+    let metadata = match client
+        .get(UPDATE_METADATA_URL)
+        .header("User-Agent", "LOA Tracker")
+        .send()
+        .await
+    {
+        Ok(response) => match response.json::<UpdateMetadata>().await {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                logging_service::warn(&format!("Failed to parse update metadata for delay check: {}", e));
+                return None;
+            }
+        },
+        Err(e) => {
+            logging_service::warn(&format!("Failed to fetch update metadata for delay check: {}", e));
+            return None;
+        }
+    };
+
+    if metadata.version.trim_start_matches('v') != version.trim_start_matches('v') {
+        return None;
+    }
+
+    let Some(pub_date) = metadata.pub_date else {
+        return None;
+    };
+
+    let published_at = match chrono::DateTime::parse_from_rfc3339(&pub_date) {
+        Ok(date) => date.with_timezone(&chrono::Utc),
+        Err(e) => {
+            logging_service::warn(&format!("Failed to parse update pub_date for delay check: {}", e));
+            return None;
+        }
+    };
+
+    let elapsed_seconds = chrono::Utc::now()
+        .signed_duration_since(published_at)
+        .num_seconds()
+        .max(0);
+
+    if elapsed_seconds < UPDATE_READY_GRACE_PERIOD_SECONDS {
+        Some(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
+    } else {
+        None
+    }
 }
 
 #[tauri::command]
@@ -920,6 +972,19 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     match app.updater() {
         Ok(updater) => match updater.check().await {
             Ok(Some(update)) => {
+                if let Some(remaining_seconds) = update_delay_remaining_seconds(&update.version).await {
+                    logging_service::info(&format!(
+                        "Update {} detected but hidden for {} more seconds while release artifacts settle",
+                        update.version, remaining_seconds
+                    ));
+                    return Ok(UpdateInfo {
+                        current_version,
+                        latest_version: None,
+                        update_available: false,
+                        body: None,
+                    });
+                }
+
                 logging_service::info(&format!("Update available: {}", update.version));
                 Ok(UpdateInfo {
                     current_version,
@@ -957,6 +1022,19 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
         Ok(updater) => {
             match updater.check().await {
                 Ok(Some(update)) => {
+                    if let Some(remaining_seconds) = update_delay_remaining_seconds(&update.version).await {
+                        let remaining_minutes = ((remaining_seconds as f64) / 60.0).ceil() as i64;
+                        logging_service::info(&format!(
+                            "Install blocked because update {} is still in release grace period",
+                            update.version
+                        ));
+                        return Err(format!(
+                            "Update is still being prepared. Please try again in about {} minute{}.",
+                            remaining_minutes,
+                            if remaining_minutes == 1 { "" } else { "s" }
+                        ));
+                    }
+
                     logging_service::info(&format!("Downloading and installing update: {}", update.version));
 
                     // Download and install in one step like loa-logs-master

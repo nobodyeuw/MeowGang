@@ -66,45 +66,9 @@ impl ResetService {
     /// Perform the reset using the repository pattern
     pub async fn perform_reset(&self) -> Result<String> {
         let reset_repo = crate::database::repositories::ResetRepository::new(self.pool.clone());
-        let gold_repo = crate::database::repositories::GoldRepository::new(self.pool.clone());
 
         // Get game tasks from data manager
         let tasks = crate::database::data_manager::DataManager::get_game_tasks()?;
-
-        // Check if weekly reset is happening and clean old gold logs
-        let conn = self.pool.get()?;
-        let (last_daily, last_weekly): (i64, i64) = conn
-            .query_row(
-                "SELECT last_daily_reset, last_weekly_reset FROM app_state LIMIT 1",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .unwrap_or((0, 0));
-
-        let now = chrono::Utc::now();
-
-        // Calculate weekly reset time (Wednesday 10:00 UTC)
-        let weekly_reset_time = {
-            let mut reset_date = now.date_naive();
-            while reset_date.weekday().num_days_from_sunday() != 3 {
-                // Wednesday
-                reset_date = reset_date - chrono::Duration::days(1);
-            }
-            let mut reset_time = reset_date.and_hms_opt(10, 0, 0).unwrap().and_utc();
-            if now < reset_time {
-                reset_time = reset_time - chrono::Duration::weeks(1);
-            }
-            reset_time.timestamp_millis()
-        };
-
-        // If weekly reset is happening, delete old gold logs
-        if last_weekly < weekly_reset_time {
-            crate::log_info!("Weekly reset detected, cleaning old gold logs");
-            match gold_repo.delete_old_gold_logs(weekly_reset_time) {
-                Ok(count) => crate::log_info!("Deleted {} old gold log entries", count),
-                Err(e) => crate::log_error!("Failed to delete old gold logs: {}", e),
-            }
-        }
 
         // Perform reset using repository
         reset_repo.reset_tasks_by_schedule(&tasks)?;

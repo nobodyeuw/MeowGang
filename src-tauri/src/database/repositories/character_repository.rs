@@ -26,6 +26,7 @@ pub struct CompletionStatus {
 pub struct CharacterRaidConfig {
     pub char_id: i64,
     pub content_id: String,
+    pub gate: String,
     pub take_gold: i64,
     pub difficulty: String,
     pub buy_box: i64,
@@ -309,7 +310,7 @@ impl CharacterRepository {
         let mut conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT char_id, content_id, take_gold, difficulty, buy_box
+            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box
              FROM conf_raid 
              WHERE char_id = ?1",
         )?;
@@ -318,9 +319,10 @@ impl CharacterRepository {
             Ok(CharacterRaidConfig {
                 char_id: row.get(0)?,
                 content_id: row.get(1)?,
-                take_gold: row.get(2)?,
-                difficulty: row.get(3)?,
-                buy_box: row.get(4)?,
+                gate: row.get(2)?,
+                take_gold: row.get(3)?,
+                difficulty: row.get(4)?,
+                buy_box: row.get(5)?,
             })
         })?;
 
@@ -370,7 +372,6 @@ impl CharacterRepository {
             params![character_id],
         )?;
         tx.execute("DELETE FROM rested_values WHERE char_id = ?1", params![character_id])?;
-        tx.execute("DELETE FROM gold_logs WHERE char_id = ?1", params![character_id])?;
 
         // Delete character
         tx.execute("DELETE FROM conf_character WHERE char_id = ?1", params![character_id])?;
@@ -471,7 +472,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT char_id, content_id, take_gold, difficulty, buy_box FROM conf_raid WHERE char_id IN ({})",
+            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box FROM conf_raid WHERE char_id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -479,9 +480,10 @@ impl CharacterRepository {
             Ok(CharacterRaidConfig {
                 char_id: row.get(0)?,
                 content_id: row.get(1)?,
-                take_gold: row.get(2)?,
-                difficulty: row.get(3)?,
-                buy_box: row.get(4)?,
+                gate: row.get(2)?,
+                take_gold: row.get(3)?,
+                difficulty: row.get(4)?,
+                buy_box: row.get(5)?,
             })
         })?;
         let mut map: HashMap<i64, Vec<CharacterRaidConfig>> = HashMap::new();

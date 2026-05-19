@@ -9,7 +9,6 @@ pub mod models;
 pub mod roster;
 pub mod services;
 pub mod settings;
-pub mod state;
 pub mod sync;
 pub mod validation;
 pub mod version;
@@ -21,7 +20,7 @@ pub use std::sync::Arc;
 
 // Tauri application setup
 use database::repositories::{
-    CharacterRepository, GoldRepository, ProgressionRepository, RaidRepository, RosterRepository, TrackingRepository,
+    CharacterRepository, ProgressionRepository, RaidRepository, RosterRepository, TrackingRepository,
 };
 use dirs;
 use tauri::{
@@ -178,7 +177,6 @@ pub fn run() {
             let tracking_repo = TrackingRepository::new(db_manager.pool.clone());
             let raid_repo = RaidRepository::new(db_manager.pool.clone());
             let character_repo = CharacterRepository::new(db_manager.pool.clone());
-            let gold_repo = GoldRepository::new(db_manager.pool.clone());
             let progression_repo = ProgressionRepository::new(db_manager.pool.clone());
             crate::log_info!("All repositories initialized successfully");
 
@@ -187,9 +185,6 @@ pub fn run() {
             let scraper = roster::HumanizedScraper::new(String::new(), String::new());
             crate::log_debug!("Roster scraper initialized");
 
-            // Initialize raid data state for frontend-driven gold logging
-            let raid_data_state = state::RaidDataState::new();
-
             // Initialize logging system with Tauri path resolution
             crate::log_info!("Initializing logging system");
             services::logging_service::init_logging_with_app_handle(app.handle()).map_err(|e| {
@@ -197,17 +192,6 @@ pub fn run() {
                 format!("Failed to initialize logging: {}", e)
             })?;
             crate::log_info!("Logging system initialized successfully");
-
-            // Initialize gold logging service
-            let gold_service =
-                services::gold_logging_service::GoldLoggingService::new(Arc::new(db_manager.pool.clone()));
-
-            // Clean up any existing duplicate gold log entries on startup
-            match gold_service.clean_all_duplicate_gold_logs() {
-                Ok(count) if count > 0 => crate::log_info!("Cleaned {} duplicate gold log entries on startup", count),
-                Ok(_) => {}
-                Err(e) => crate::log_warn!("Failed to clean duplicate gold logs: {}", e),
-            }
 
             // Manage the application state
             app.manage(app_context.clone());
@@ -219,10 +203,7 @@ pub fn run() {
             app.manage(raid_repo);
             app.manage(character_repo);
             app.manage(progression_repo);
-            app.manage(gold_repo);
             app.manage(scraper);
-            app.manage(raid_data_state);
-            app.manage(gold_service);
             app.manage(market_db);
 
             // Create and manage TodoRepository
@@ -246,7 +227,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 9;
+            const TARGET_VERSION: i32 = 10;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -494,15 +475,6 @@ pub fn run() {
             handlers::reset_handlers::get_next_reset_time,
             handlers::reset_handlers::update_rested_values_now,
             handlers::reset_handlers::get_next_daily_reset_time,
-            // Gold service handlers
-            handlers::gold_service_handlers::update_raid_data_state,
-            handlers::gold_service_handlers::trigger_gold_processing,
-            handlers::gold_service_handlers::process_pending_gold_logs,
-            handlers::gold_service_handlers::check_and_process_recent_completions,
-            handlers::gold_service_handlers::get_weekly_gold_stats,
-            handlers::gold_service_handlers::delete_gold_logs_for_raid,
-            handlers::gold_service_handlers::clean_duplicate_gold_logs,
-            handlers::gold_service_handlers::clean_all_duplicate_gold_logs,
             // Encounters watcher handlers
             sync::encounters_watcher::force_encounters_sync,
             sync::encounters_watcher::start_encounters_file_watcher,

@@ -272,6 +272,10 @@ impl DataManager {
             tx.execute("ALTER TABLE conf_tracking ADD COLUMN lazy_daily INTEGER DEFAULT 0", [])?;
         }
 
+        if current_version < 10 {
+            tx.execute("DROP TABLE IF EXISTS gold_logs", [])?;
+        }
+
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;
         println!(
