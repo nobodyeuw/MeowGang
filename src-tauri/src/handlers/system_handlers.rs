@@ -2,7 +2,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 use sysinfo::System;
 use tauri::State;
 
@@ -935,6 +935,12 @@ struct UpdateMetadata {
     pub_date: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct SeenUpdateState {
+    version: String,
+    first_seen_at: i64,
+}
+
 async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
     let client = reqwest::Client::new();
     let metadata = match client
@@ -984,6 +990,50 @@ async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
     }
 }
 
+fn update_first_seen_delay_remaining_seconds(app: &AppHandle, version: &str) -> Option<i64> {
+    let now = chrono::Utc::now().timestamp();
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(path) => path,
+        Err(e) => {
+            logging_service::warn(&format!("Failed to resolve app data dir for update delay: {}", e));
+            return Some(UPDATE_READY_GRACE_PERIOD_SECONDS);
+        }
+    };
+
+    if let Err(e) = fs::create_dir_all(&app_data_dir) {
+        logging_service::warn(&format!("Failed to create app data dir for update delay: {}", e));
+        return Some(UPDATE_READY_GRACE_PERIOD_SECONDS);
+    }
+
+    let state_path = app_data_dir.join("update_first_seen.json");
+    let stored_state = fs::read_to_string(&state_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<SeenUpdateState>(&content).ok());
+
+    let state = match stored_state {
+        Some(state) if state.version.trim_start_matches('v') == version.trim_start_matches('v') => state,
+        _ => {
+            let state = SeenUpdateState {
+                version: version.to_string(),
+                first_seen_at: now,
+            };
+            if let Ok(content) = serde_json::to_string_pretty(&state) {
+                if let Err(e) = fs::write(&state_path, content) {
+                    logging_service::warn(&format!("Failed to persist update first-seen state: {}", e));
+                }
+            }
+            state
+        }
+    };
+
+    let elapsed_seconds = (now - state.first_seen_at).max(0);
+    if elapsed_seconds < UPDATE_READY_GRACE_PERIOD_SECONDS {
+        Some(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     logging_service::info("Checking for updates");
@@ -993,7 +1043,11 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     match app.updater() {
         Ok(updater) => match updater.check().await {
             Ok(Some(update)) => {
-                if let Some(remaining_seconds) = update_delay_remaining_seconds(&update.version).await {
+                let first_seen_remaining = update_first_seen_delay_remaining_seconds(&app, &update.version);
+                let pub_date_remaining = update_delay_remaining_seconds(&update.version).await;
+                let remaining_delay = first_seen_remaining.into_iter().chain(pub_date_remaining).max();
+
+                if let Some(remaining_seconds) = remaining_delay {
                     logging_service::info(&format!(
                         "Update {} detected but hidden for {} more seconds while release artifacts settle",
                         update.version, remaining_seconds
