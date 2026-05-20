@@ -26,6 +26,7 @@
     loadLocalPartyPlan,
     loadPartyPlanFromSheet,
     saveLocalPartyPlan,
+    saveMergedPartyPlanToSheet,
     savePartyPlanSnapshotsToSheet,
     savePartyPlanToSheet,
     type PartyPlanAssignment,
@@ -1357,6 +1358,27 @@
     };
   }
 
+  function getLocallyOwnedPlanMemberIds(plan: PartyPlanData): Set<string> {
+    const ownerIds = new Set<string>();
+    for (const character of plan.characters) {
+      ownerIds.add(character.discordId);
+    }
+    ownerIds.add(getLocalMemberId());
+    return ownerIds;
+  }
+
+  function buildOwnerScopedRemotePlan(currentPlan: PartyPlanData, localSnapshotPlan: PartyPlanData, ownerIds: Set<string>): PartyPlanData {
+    const isLocalOwner = (ownerId: string) => ownerIds.has(ownerId);
+
+    return {
+      ...currentPlan,
+      characters: localSnapshotPlan.characters.filter((character) => isLocalOwner(character.discordId)),
+      raidConfigSnapshots: (localSnapshotPlan.raidConfigSnapshots ?? []).filter((snapshot) => isLocalOwner(snapshot.discordId)),
+      completionSnapshots: (localSnapshotPlan.completionSnapshots ?? []).filter((snapshot) => isLocalOwner(snapshot.discordId)),
+      encounterSnapshots: (localSnapshotPlan.encounterSnapshots ?? []).filter((snapshot) => isLocalOwner(snapshot.discordId))
+    };
+  }
+
   async function deleteCurrentGroup() {
     if (!groupId || !window.confirm(`Delete "${groupName || 'this group'}" for everyone?`)) return;
 
@@ -1453,7 +1475,11 @@
     persistRemoteEndpoint();
 
     try {
-      const remotePlan = await savePartyPlanToSheet(buildCurrentPlan(), config);
+      const currentPlan = buildCurrentPlan();
+      const localSnapshotPlan = buildLocalSnapshotPlan(currentPlan.updatedAt);
+      const ownerIds = getLocallyOwnedPlanMemberIds(localSnapshotPlan);
+      const ownerScopedPlan = buildOwnerScopedRemotePlan(currentPlan, localSnapshotPlan, ownerIds);
+      const remotePlan = await saveMergedPartyPlanToSheet(ownerScopedPlan, config, Array.from(ownerIds));
       applyPlan(remotePlan);
       await saveCurrentPlan();
       lastSnapshotFingerprint = getSnapshotFingerprint(buildLocalSnapshotPlan());

@@ -471,14 +471,20 @@ interface PartyPlanRemoteSyncResponse {
   error?: string;
 }
 
-async function syncPartyPlanRemote(action: 'load' | 'save' | 'saveSnapshots' | 'delete', config: PartyPlanRemoteSyncConfig, plan?: PartyPlanData) {
+async function syncPartyPlanRemote(
+  action: 'load' | 'save' | 'saveMerged' | 'saveSnapshots' | 'delete',
+  config: PartyPlanRemoteSyncConfig,
+  plan?: PartyPlanData,
+  mergeOwnerIds: string[] = []
+) {
   return invoke<PartyPlanRemoteSyncResponse>('sync_party_plan_remote', {
     request: {
       endpointUrl: config.endpointUrl,
       action,
       groupId: config.groupId,
       groupSecret: config.groupSecret,
-      plan
+      plan,
+      mergeOwnerIds
     }
   });
 }
@@ -491,6 +497,15 @@ export async function loadPartyPlanFromSheet(config: PartyPlanRemoteSyncConfig):
 export async function savePartyPlanToSheet(plan: PartyPlanData, config: PartyPlanRemoteSyncConfig): Promise<PartyPlanData> {
   partyPlanToSheetTables(plan);
   const response = await syncPartyPlanRemote('save', config, plan);
+  return response.plan ?? plan;
+}
+
+export async function saveMergedPartyPlanToSheet(
+  plan: PartyPlanData,
+  config: PartyPlanRemoteSyncConfig,
+  mergeOwnerIds: string[]
+): Promise<PartyPlanData> {
+  const response = await syncPartyPlanRemote('saveMerged', config, plan, mergeOwnerIds);
   return response.plan ?? plan;
 }
 

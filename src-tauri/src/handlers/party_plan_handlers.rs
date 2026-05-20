@@ -126,6 +126,8 @@ pub struct PartyPlanRemoteSyncRequest {
     pub group_id: String,
     pub group_secret: String,
     pub plan: Option<PartyPlanData>,
+    #[serde(default)]
+    pub merge_owner_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,10 +241,10 @@ pub async fn sync_party_plan_remote(request: PartyPlanRemoteSyncRequest) -> Resu
     if request.group_id.trim().is_empty() || request.group_secret.trim().is_empty() {
         return Err("Party Plan remote sync requires group id and group secret".to_string());
     }
-    if request.action != "load" && request.action != "save" && request.action != "saveSnapshots" && request.action != "delete" {
-        return Err("Party Plan remote sync action must be load, save, saveSnapshots, or delete".to_string());
+    if request.action != "load" && request.action != "save" && request.action != "saveMerged" && request.action != "saveSnapshots" && request.action != "delete" {
+        return Err("Party Plan remote sync action must be load, save, saveMerged, saveSnapshots, or delete".to_string());
     }
-    if (request.action == "save" || request.action == "saveSnapshots") && request.plan.is_none() {
+    if (request.action == "save" || request.action == "saveMerged" || request.action == "saveSnapshots") && request.plan.is_none() {
         return Err("Party Plan remote save requires a plan payload".to_string());
     }
 
