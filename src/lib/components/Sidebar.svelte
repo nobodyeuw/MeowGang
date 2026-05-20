@@ -34,6 +34,15 @@
       <span class="nav-text">Progression Planner</span>
     </button>
 
+    <button
+      class="nav-item"
+      class:active={activeTab === 'party-plan'}
+      on:click={() => switchTab('party-plan')}
+    >
+      <span class="nav-icon">GP</span>
+      <span class="nav-text">Party Plan</span>
+    </button>
+
     <div class="nav-spacer"></div>
 
     <button 

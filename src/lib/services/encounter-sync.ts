@@ -16,6 +16,7 @@ export interface EncounterPreview {
   difficulty: string;
   fight_start: number;
   cleared: boolean;
+  players: string[];
 }
 
 export interface EncounterMappingResult {

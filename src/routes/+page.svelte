@@ -8,6 +8,7 @@
   import UpdateTab from '$lib/components/UpdateTab.svelte';
   import EncounterSyncStatus from '$lib/components/EncounterSyncStatus.svelte';
   import ProgressionPlanner from '$lib/components/ProgressionPlanner.svelte';
+  import PartyPlan from '$lib/components/PartyPlan.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import SetupGuide from '$lib/components/SetupGuide.svelte';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters } from '$lib/store';
@@ -604,6 +605,8 @@
         <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e: CustomEvent<string>) => activeSettingsTab = e.detail} />
       {:else if activeTab === 'progression'}
         <ProgressionPlanner activeProgressionTab={activeProgressionTab} on:tabChange={(e: CustomEvent<string>) => activeProgressionTab = e.detail} />
+      {:else if activeTab === 'party-plan'}
+        <PartyPlan />
       {:else if activeTab === 'updates'}
         <UpdateTab />
       {:else if activeTab === 'encounters'}

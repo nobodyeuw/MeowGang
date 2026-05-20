@@ -1,118 +1,123 @@
 {
   "versions": [
     {
-      "version": "1.1.10",
-      "date": "2026-05-19",
+      "version": "1.1.11",
+      "date": "2026-05-20",
       "changes": [
         {
+          "type": "Added",
+          "description": "Party Plan was added as a restricted testing feature.",
+          "details": "A new Party Plan tab was added below Progression Planner for selected testers, with entry options to create a new group or join an existing shared group."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan groups can be saved and reopened.",
+          "details": "Created or joined groups are remembered locally, so users can return to existing Party Plan groups without pasting the invite link again."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan supports group members and whitelist friend search.",
+          "details": "Users can add friends from the Discord whitelist search, assign each member a color, and configure which local or test roster characters are included in the plan."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan group configuration and raid board tabs were added.",
+          "details": "The feature now separates character/raid setup from the raid planning board, with compact roster character lists, selectable planned raids, and collapsible member runner lists."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan raid assignments were added.",
+          "details": "Characters or whole members can be selected and assigned into raid lanes, with iLvl eligibility checks preventing characters from being added to raids they cannot enter."
+        },
+        {
+          "type": "Added",
+          "description": "Static run connections were added to Party Plan.",
+          "details": "Assigned characters can be connected as planned static runs. Connections are limited to one character per member/roster and are shown with connection lines between adjacent character labels."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan can sync through a Google Apps Script sheet backend.",
+          "details": "Party Plan data can be saved to and loaded from a shared Google Sheet through an Apps Script web app, including groups, members, characters, planned raids, assignments, completion snapshots, encounter snapshots, and raid config snapshots."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan shares weekly completion snapshots.",
+          "details": "Each member can publish current-week completion_status data so other group members can see whether characters cleared a raid solo, publicly, or together."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan shares encounter player snapshots.",
+          "details": "Recent encounters.db player lists are included in snapshots so shared raid clears can be detected even when another member's local LOA Logs tracking missed the run."
+        },
+        {
+          "type": "Added",
+          "description": "Party Plan shares planned raid difficulties.",
+          "details": "Each member's local conf_raid difficulty settings are synced as raid config snapshots, including mixed gate setups, so other members can see planned difficulty information for friend characters."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan UI was refined for dense group planning.",
+          "details": "Member lists, character labels, raid lanes, runner chips, and action buttons were tightened and restyled to match the app's quieter dashboard/settings controls."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan labels now use member colors consistently.",
+          "details": "Runner and assigned character labels keep the color selected for their owner, making it easier to identify which member a character belongs to on the raid board."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan supports wider planning layouts.",
+          "details": "The configuration and raid board sections can scroll horizontally when member or raid content needs more room, instead of compressing labels too aggressively."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan feedback now uses toast messages.",
+          "details": "Load, sync, assignment, warning, and error feedback now appears as bottom-right toast messages matching the System Settings style and disappears automatically."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan raid board instructions were moved into the header.",
+          "details": "Left-click and right-click behavior is now shown with compact mouse icons in the raid board header, while character tooltips focus on owner and raid status information."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan remote sync is less noisy.",
+          "details": "Background snapshot syncing now only posts to the sheet when local completion state changes, while full group configuration sync remains tied to explicit Load/Sync actions."
+        },
+        {
           "type": "Changed",
-          "description": "LOA Logs auto-start was temporarily disabled.",
-          "details": "The app no longer force-starts LOA Logs.exe as a workaround for cases where LOA Logs would launch but not function correctly when started by LOA Tracker."
-        },
-        {
-          "type": "Added",
-          "description": "LOA Logs reminder banners were added.",
-          "details": "When LOA Logs is not running, the app now warns users to start it for full tracking support. The warning clears automatically once LOA Logs is detected."
-        },
-        {
-          "type": "Fixed",
-          "description": "The app now prevents duplicate running instances.",
-          "details": "Starting the executable again while LOA Tracker is already open should focus/show the existing app instead of creating another tray icon and second running instance."
-        },
-        {
-          "type": "Improved",
-          "description": "Dashboard card and list layouts were reworked.",
-          "details": "Character cards now use tighter spacing, centered roster card grids, reduced dashboard side padding, and better responsive behavior between full card view and list view."
-        },
-        {
-          "type": "Improved",
-          "description": "Chaos and Guardian status is visible again.",
-          "details": "Cards and list rows show Chaos Dungeon and Guardian Raid state even when lazy behavior is active, greying the icons out when completed or currently resting."
-        },
-        {
-          "type": "Improved",
-          "description": "Daily progress is shown in compact contexts.",
-          "details": "Card-view mini cards and wide list rows now show compact Chaos and Guardian rested progress bars when there is enough space, while narrower layouts fall back to icons only."
-        },
-        {
-          "type": "Added",
-          "description": "Non-gold earners can show tracked raid progress.",
-          "details": "Characters that do not earn gold now show their latest tracked raids in a blue tracked-raid style, including gate progress and completion state."
-        },
-        {
-          "type": "Added",
-          "description": "Weekly fallback tasks were added for non-raid characters.",
-          "details": "Characters without tracked raids can show weekly tasks instead of looking empty. In list view, weekly-only rows can display up to four tracked weeklies side by side."
-        },
-        {
-          "type": "Improved",
-          "description": "Tracked weekly tasks now appear as compact icons.",
-          "details": "Tracked weeklies can appear as small icons in card and list views, with completed tasks greyed out and tooltips showing whether each task is open or done."
-        },
-        {
-          "type": "Improved",
-          "description": "Card-view top status icons were reorganized.",
-          "details": "Card view now places weekly shop/guild icons between the character info and Chaos/Guardian status icons, with Chaos and Guardian stacked in the top-right area."
-        },
-        {
-          "type": "Improved",
-          "description": "List view alignment was tightened.",
-          "details": "The list view now keeps raid difficulty visible for longer while resizing, reduces the character-name-to-stat gap first, and aligns iLvl and CP fields with fixed tabular widths."
+          "description": "Party Plan access is temporarily restricted.",
+          "details": "The new tab is limited to selected Discord IDs for testing. Other users see a restricted area message and Party Plan background work does not start for them."
         },
         {
           "type": "Changed",
-          "description": "Combat Power formatting is now consistent.",
-          "details": "CP values now always render with two decimal places, matching the item level format and preventing row segments from shifting because of different decimal lengths."
+          "description": "Party Plan endpoint configuration moved out of public frontend code.",
+          "details": "The Apps Script endpoint is now loaded from PARTY_PLAN_ENDPOINT_URL through the Tauri backend, matching the private build-secret pattern used for the Discord whitelist URL."
+        },
+        {
+          "type": "Changed",
+          "description": "Party Plan development docs are ignored by git.",
+          "details": "The docs folder was added to .gitignore because the Apps Script template is only used for development/setup reference."
         },
         {
           "type": "Fixed",
-          "description": "Roster-wide task tracking is now scoped per roster.",
-          "details": "Chaos Gate and Field Boss tracking/completion now use roster-level state instead of relying on an arbitrary character row, with a migration that normalizes existing roster-wide task data."
-        },
-        {
-          "type": "Added",
-          "description": "Guardian Raid clears can sync from LOA Logs encounters.",
-          "details": "Known Guardian Raid bosses in encounters.db now auto-complete the character's Guardian Raid daily for the current reset day. Argeos is intentionally excluded because the winter event is tracked manually."
-        },
-        {
-          "type": "Added",
-          "description": "Temporary roster events are supported.",
-          "details": "The Argeos Winter Event was added as a manually completed roster-wide event with 3 weekly completions and a 1-per-day limit. It can be disabled again from the roster-wide task toggle in Tracking settings."
-        },
-        {
-          "type": "Improved",
-          "description": "Roster event progress can be corrected manually.",
-          "details": "Tracking settings now includes a 0-3 weekly completion input for the Argeos event, so users can enter already completed event runs if they did them while the app was closed."
+          "description": "Party Plan group deletion clears sheet data.",
+          "details": "Deleting a group removes all rows for that group across the sheet-backed Party Plan tables, including raid config, completion, and encounter snapshot data."
         },
         {
           "type": "Fixed",
-          "description": "Roster event completions no longer duplicate rows.",
-          "details": "Toggling the event completion during the same daily cycle now updates the existing completion_status row instead of inserting a new one every time. Existing duplicate daily event rows are ignored by progress counts and cleaned up on the next toggle."
+          "description": "Leaving a Party Plan group cleans up member data.",
+          "details": "When a member leaves a shared group, their member row, characters, raid config snapshots, completion snapshots, and encounter snapshots are removed from the shared plan."
         },
         {
-          "type": "Improved",
-          "description": "Roster event state stays synced across tabs.",
-          "details": "Event changes from the Todo tab, Tracking tab, and dashboard now refresh each other so the weekly input, completion button, and dashboard label all follow the same completion_status data."
+          "type": "Fixed",
+          "description": "Party Plan drag-and-drop was replaced with click assignment.",
+          "details": "The unreliable native drag-and-drop flow was removed. Users now select a member or character and click Assign selected here on a raid lane for predictable behavior."
         },
         {
-          "type": "Added",
-          "description": "The dashboard now shows an Argeos event label.",
-          "details": "A Stoopid Argeos dashboard label was added with the event icon, showing how many tracked rosters are open today, done today, or fully done for the week."
-        },
-        {
-          "type": "Improved",
-          "description": "Reset countdown wording now highlights weekly reset.",
-          "details": "After the Tuesday 10:00 UTC daily reset, the header countdown switches to Next weekly reset in until Wednesday 10:00 UTC, then returns to the normal next daily reset wording."
-        },
-        {
-          "type": "Improved",
-          "description": "Roster selection now uses ordered buttons.",
-          "details": "Todo, Tracking, and Raid settings now use compact roster buttons instead of a dropdown. Buttons follow the user's roster order and use the same active styling as the header settings buttons."
-        },
-        {
-          "type": "Improved",
-          "description": "Task icons were updated for events and Paradise.",
-          "details": "Event tasks now use the new event_quest.webp icon, and Paradise tasks use the new paradise.webp icon in dashboard and Todo task displays."
+          "type": "Fixed",
+          "description": "Party Plan friend removal controls no longer disrupt alignment.",
+          "details": "Friend remove buttons now sit above the color picker, keeping member color fields aligned between local and friend rows."
         }
       ]
     }

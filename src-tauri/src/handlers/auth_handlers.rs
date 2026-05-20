@@ -28,6 +28,12 @@ pub struct DiscordAuthResult {
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct WhitelistMember {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct DiscordCodePayload {
     code: String,
@@ -93,6 +99,22 @@ pub async fn verify_stored_discord_auth(app: tauri::AppHandle) -> Result<Discord
     };
 
     verify_discord_id_against_whitelist(&app, &discord_id, &whitelist_url).await
+}
+
+#[tauri::command]
+pub async fn get_discord_whitelist_members() -> Result<Vec<WhitelistMember>, String> {
+    let whitelist_url = discord_whitelist_url()?;
+    let whitelist = fetch_whitelist(&whitelist_url).await?;
+    let mut members: Vec<WhitelistMember> = whitelist
+        .into_iter()
+        .map(|(id, name)| WhitelistMember {
+            name: name.unwrap_or_else(|| id.clone()),
+            id,
+        })
+        .collect();
+
+    members.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(members)
 }
 
 async fn verify_token_against_whitelist(

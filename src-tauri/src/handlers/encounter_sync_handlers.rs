@@ -23,6 +23,7 @@ pub struct EncounterPreview {
     pub difficulty: String,
     pub fight_start: i64,
     pub cleared: bool,
+    pub players: Vec<String>,
 }
 
 pub fn sync_encounters_to_completions_internal(
@@ -204,7 +205,7 @@ fn get_cleared_encounters(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, current_boss, local_player, difficulty, fight_start, cleared
+            "SELECT id, current_boss, local_player, difficulty, fight_start, cleared, COALESCE(players, '')
          FROM encounter_preview
          WHERE cleared = 1 AND fight_start >= ?
          ORDER BY fight_start DESC",
@@ -213,6 +214,8 @@ fn get_cleared_encounters(
 
     let encounters_iter = stmt
         .query_map([weekly_reset_ts], |row| {
+            let players_raw: String = row.get(6).unwrap_or_default();
+
             Ok(EncounterPreview {
                 id: row.get(0).unwrap_or(0),
                 current_boss: row.get(1).unwrap_or_else(|_| "Unknown".to_string()),
@@ -220,6 +223,7 @@ fn get_cleared_encounters(
                 difficulty: row.get(3).unwrap_or_else(|_| "Unknown".to_string()),
                 fight_start: row.get(4).unwrap_or(0),
                 cleared: row.get::<_, i64>(5).unwrap_or(0) == 1,
+                players: parse_encounter_players(&players_raw),
             })
         })
         .map_err(|e| format!("Failed to query encounters: {}", e))?;
@@ -232,6 +236,25 @@ fn get_cleared_encounters(
     crate::log_debug!("Found {} cleared encounters since last weekly reset", encounters.len());
 
     Ok(encounters)
+}
+
+fn parse_encounter_players(players: &str) -> Vec<String> {
+    players
+        .split(',')
+        .filter_map(|entry| {
+            let name = entry
+                .split_once(':')
+                .map(|(_, name)| name)
+                .unwrap_or(entry)
+                .trim();
+
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.to_string())
+            }
+        })
+        .collect()
 }
 
 fn process_encounter(

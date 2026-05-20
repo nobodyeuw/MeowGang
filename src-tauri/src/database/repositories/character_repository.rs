@@ -20,6 +20,7 @@ pub struct CompletionStatus {
     pub is_completed: i64,
     pub details: Option<String>,
     pub session_id: Option<String>,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,7 +284,7 @@ impl CharacterRepository {
     pub fn get_character_completion_status(&self, character_id: i64) -> Result<Vec<CompletionStatus>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT char_id, content_id, is_completed, details, session_id 
+            "SELECT char_id, content_id, is_completed, details, session_id, COALESCE(timestamp, 0)
              FROM completion_status 
              WHERE char_id = ?1",
         )?;
@@ -295,6 +296,7 @@ impl CharacterRepository {
                 is_completed: row.get(2)?,
                 details: row.get::<_, Option<String>>(3)?,
                 session_id: row.get::<_, Option<String>>(4)?,
+                timestamp: row.get(5)?,
             })
         })?;
 
@@ -415,7 +417,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT char_id, content_id, is_completed, details, session_id FROM completion_status WHERE char_id IN ({})",
+            "SELECT char_id, content_id, is_completed, details, session_id, COALESCE(timestamp, 0) FROM completion_status WHERE char_id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -426,6 +428,7 @@ impl CharacterRepository {
                 is_completed: row.get(2)?,
                 details: row.get::<_, Option<String>>(3)?,
                 session_id: row.get::<_, Option<String>>(4)?,
+                timestamp: row.get(5)?,
             })
         })?;
         let mut map: HashMap<i64, Vec<CompletionStatus>> = HashMap::new();

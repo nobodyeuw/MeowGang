@@ -16,4 +16,5 @@ src-tauri/gen/
 
 /tests
 /scripts
+/docs
 /.github

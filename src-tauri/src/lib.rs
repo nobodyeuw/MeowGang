@@ -394,6 +394,7 @@ pub fn run() {
             // Auth handlers
             handlers::auth_handlers::authenticate_discord,
             handlers::auth_handlers::verify_stored_discord_auth,
+            handlers::auth_handlers::get_discord_whitelist_members,
             // System handlers
             handlers::system_handlers::get_app_version,
             handlers::system_handlers::get_system_settings,
@@ -477,6 +478,13 @@ pub fn run() {
             handlers::encounter_sync_handlers::sync_encounters_to_completions,
             handlers::encounter_sync_handlers::get_encounters_preview,
             handlers::encounter_sync_handlers::test_boss_mapping,
+            // Party plan handlers
+            handlers::party_plan_handlers::save_party_plan,
+            handlers::party_plan_handlers::load_party_plan,
+            handlers::party_plan_handlers::list_party_plans,
+            handlers::party_plan_handlers::delete_party_plan,
+            handlers::party_plan_handlers::get_party_plan_endpoint_url,
+            handlers::party_plan_handlers::sync_party_plan_remote,
             // Entity sync handlers
             handlers::entity_sync_handlers::sync_entity_data,
             handlers::entity_sync_handlers::sync_all_recent_entities,
