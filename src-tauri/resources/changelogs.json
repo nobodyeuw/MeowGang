@@ -51,6 +51,11 @@
         },
         {
           "type": "Improved",
+          "description": "Party Plan remote status now tracks separate update categories.",
+          "details": "The sheet backend reports separate timestamps for group configuration, roster data, assignments, snapshots, and related member groups so the app can refresh only the data that actually changed."
+        },
+        {
+          "type": "Improved",
           "description": "Party Plan upload now saves locally first.",
           "details": "The Upload/Update flow now combines local saving and remote syncing, preventing remote upload errors caused by unsaved local changes."
         },

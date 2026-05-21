@@ -125,6 +125,11 @@ pub struct PartyPlanRemoteStatus {
     pub group_id: String,
     pub updated_at: String,
     pub sheet_version: i64,
+    pub group_config_updated_at: Option<String>,
+    pub roster_updated_at: Option<String>,
+    pub assignment_updated_at: Option<String>,
+    pub snapshot_updated_at: Option<String>,
+    pub related_members_updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -39,6 +39,7 @@
     type PartyPlanData,
     type PartyPlanEncounterSnapshot,
     type PartyPlanMemberClear,
+    type PartyPlanRemoteStatus,
     type PartyPlanStaticReservation
   } from '$lib/services/party-plan';
 
@@ -84,6 +85,11 @@
   let lastCompletionWatchFingerprint = '';
   let lastRemoteSnapshotFingerprint = '';
   let lastRemotePlanUpdatedAt = '';
+  let lastRemoteGroupConfigUpdatedAt = '';
+  let lastRemoteRosterUpdatedAt = '';
+  let lastRemoteAssignmentUpdatedAt = '';
+  let lastRemoteSnapshotUpdatedAt = '';
+  let lastRemoteRelatedMembersUpdatedAt = '';
   let pendingRemotePlanUpdatedAt = '';
   let lastPlanUpdatedAt = '';
   let activeGroupTab: 'configuration' | 'raid-board' = 'configuration';
@@ -1776,6 +1782,11 @@
     remoteSyncMessage = '';
     lastPlanUpdatedAt = '';
     lastRemotePlanUpdatedAt = '';
+    lastRemoteGroupConfigUpdatedAt = '';
+    lastRemoteRosterUpdatedAt = '';
+    lastRemoteAssignmentUpdatedAt = '';
+    lastRemoteSnapshotUpdatedAt = '';
+    lastRemoteRelatedMembersUpdatedAt = '';
     pendingRemotePlanUpdatedAt = '';
     remoteUpdatePending = false;
     activeGroupTab = 'configuration';
@@ -1917,6 +1928,33 @@
     snapshotSyncInFlight = false;
   }
 
+  function rememberRemoteStatus(status: PartyPlanRemoteStatus | null | undefined, fallbackUpdatedAt = '') {
+    const updatedAt = status?.updatedAt || fallbackUpdatedAt;
+    if (!updatedAt) return;
+
+    lastRemotePlanUpdatedAt = updatedAt;
+    lastRemoteGroupConfigUpdatedAt = status?.groupConfigUpdatedAt || updatedAt;
+    lastRemoteRosterUpdatedAt = status?.rosterUpdatedAt || updatedAt;
+    lastRemoteAssignmentUpdatedAt = status?.assignmentUpdatedAt || updatedAt;
+    lastRemoteSnapshotUpdatedAt = status?.snapshotUpdatedAt || updatedAt;
+    lastRemoteRelatedMembersUpdatedAt = status?.relatedMembersUpdatedAt || updatedAt;
+  }
+
+  function hasRemoteGroupControlledChange(status: PartyPlanRemoteStatus): boolean {
+    if (!lastRemotePlanUpdatedAt) return true;
+    return (
+      (status.groupConfigUpdatedAt || status.updatedAt) !== lastRemoteGroupConfigUpdatedAt ||
+      (status.rosterUpdatedAt || status.updatedAt) !== lastRemoteRosterUpdatedAt ||
+      (status.assignmentUpdatedAt || status.updatedAt) !== lastRemoteAssignmentUpdatedAt
+    );
+  }
+
+  function hasRemoteSnapshotOnlyChange(status: PartyPlanRemoteStatus): boolean {
+    if (!lastRemotePlanUpdatedAt) return false;
+    const snapshotChanged = (status.snapshotUpdatedAt || status.updatedAt) !== lastRemoteSnapshotUpdatedAt;
+    return snapshotChanged && !hasRemoteGroupControlledChange(status);
+  }
+
   async function loadRemotePlan() {
     const config = getRemoteSyncConfig();
     if (!config) {
@@ -1942,7 +1980,7 @@
       await saveCurrentPlan();
       lastSnapshotFingerprint = getSnapshotFingerprint(buildLocalSnapshotPlan());
       applyRemoteSnapshots(remotePlan);
-      lastRemotePlanUpdatedAt = remotePlan.updatedAt;
+      rememberRemoteStatus(null, remotePlan.updatedAt);
       pendingRemotePlanUpdatedAt = '';
       remoteUpdatePending = false;
       await refreshRemoteMemberClears(config);
@@ -2013,7 +2051,7 @@
       await saveCurrentPlan();
       lastSnapshotFingerprint = getSnapshotFingerprint(buildLocalSnapshotPlan());
       applyRemoteSnapshots(remotePlan);
-      lastRemotePlanUpdatedAt = remotePlan.updatedAt;
+      rememberRemoteStatus(null, remotePlan.updatedAt);
       pendingRemotePlanUpdatedAt = '';
       remoteUpdatePending = false;
       localRosterUploaded = true;
@@ -2046,10 +2084,20 @@
     snapshotSyncInFlight = true;
     try {
       const remoteStatus = await loadPartyPlanStatusFromSheet(config);
+      const relatedMembersChanged = Boolean(
+        remoteStatus?.relatedMembersUpdatedAt &&
+        remoteStatus.relatedMembersUpdatedAt !== lastRemoteRelatedMembersUpdatedAt
+      );
       if (remoteStatus?.updatedAt && remoteStatus.updatedAt !== lastRemotePlanUpdatedAt) {
+        const groupControlledChange = hasRemoteGroupControlledChange(remoteStatus);
+        const snapshotOnlyChange = hasRemoteSnapshotOnlyChange(remoteStatus);
         const remotePlan = await loadPartyPlanFromSheet(config);
         if (dirty) {
-          if (remoteStatus.updatedAt !== pendingRemotePlanUpdatedAt) {
+          if (snapshotOnlyChange && remotePlan) {
+            applyRemoteSnapshots(remotePlan);
+            rememberRemoteStatus(remoteStatus);
+            setRemoteSyncMessage('synced', 'Snapshot data updated.');
+          } else if (groupControlledChange && remoteStatus.updatedAt !== pendingRemotePlanUpdatedAt) {
             pendingRemotePlanUpdatedAt = remoteStatus.updatedAt;
             remoteUpdatePending = true;
             setRemoteSyncMessage('idle', 'Remote changes detected. Save & merge when ready.');
@@ -2058,12 +2106,16 @@
           applyPlan(remotePlan);
           await saveCurrentPlan();
           applyRemoteSnapshots(remotePlan);
-          lastRemotePlanUpdatedAt = remotePlan.updatedAt;
+          rememberRemoteStatus(remoteStatus);
           pendingRemotePlanUpdatedAt = '';
           remoteUpdatePending = false;
-          await refreshRemoteMemberClears(config);
           setRemoteSyncMessage('synced', 'Group data updated.');
         }
+      }
+
+      if (relatedMembersChanged && remoteStatus?.relatedMembersUpdatedAt) {
+        await refreshRemoteMemberClears(config);
+        lastRemoteRelatedMembersUpdatedAt = remoteStatus.relatedMembersUpdatedAt;
       }
 
       await loadCompletionSnapshots();
@@ -2087,6 +2139,7 @@
       if (savedSnapshotPlan) {
         applyRemoteSnapshots(savedSnapshotPlan);
         lastRemotePlanUpdatedAt = savedSnapshotPlan.updatedAt;
+        lastRemoteSnapshotUpdatedAt = savedSnapshotPlan.updatedAt;
       }
       lastCompletionWatchFingerprint = nextCompletionFingerprint;
       lastSnapshotFingerprint = nextFingerprint;

@@ -130,7 +130,11 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'sheet_version',
     'created_at',
     'updated_at',
-    'group_mode'
+    'group_mode',
+    'group_config_updated_at',
+    'roster_updated_at',
+    'assignment_updated_at',
+    'snapshot_updated_at'
   ],
   Members: [
     'group_id',
@@ -263,7 +267,11 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
     numberCell(plan.sheetVersion),
     plan.createdAt,
     plan.updatedAt,
-    plan.groupMode ?? 'group'
+    plan.groupMode ?? 'group',
+    plan.updatedAt,
+    plan.updatedAt,
+    plan.updatedAt,
+    plan.updatedAt
   ]);
 
   tables.Members.push(...plan.members.map((member) => [
@@ -463,6 +471,11 @@ export interface PartyPlanRemoteStatus {
   groupId: string;
   updatedAt: string;
   sheetVersion: number;
+  groupConfigUpdatedAt?: string;
+  rosterUpdatedAt?: string;
+  assignmentUpdatedAt?: string;
+  snapshotUpdatedAt?: string;
+  relatedMembersUpdatedAt?: string;
 }
 
 async function syncPartyPlanRemote(
