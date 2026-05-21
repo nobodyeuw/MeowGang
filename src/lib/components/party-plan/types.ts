@@ -15,7 +15,7 @@ export interface DiscordAuthResult {
 export interface PlannedMember {
   id: string;
   name: string;
-  type: 'self' | 'friend';
+  type: 'owner' | 'friend';
   testRosterId?: string;
   color?: string;
 }

@@ -355,9 +355,32 @@ impl TodoRepository {
     pub fn get_task_completed(&self, char_id: i64, task_id: &str) -> Result<bool> {
         let conn = self.pool.get()?;
 
+        if task_id == "chaos" || task_id == "guardian" {
+            let daily_reset_ms = Self::current_daily_reset_ms();
+            let completed = conn
+                .query_row(
+                    "SELECT COALESCE(MAX(is_completed), 0)
+                     FROM completion_status
+                     WHERE char_id = ?1
+                       AND content_id = ?2
+                       AND timestamp >= ?3",
+                    params![char_id, task_id, daily_reset_ms],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0);
+
+            return Ok(completed == 1);
+        }
+
         // First try to find regular task entry
         let mut stmt = conn.prepare(
-            "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id IS NOT NULL"
+            "SELECT is_completed
+             FROM completion_status
+             WHERE char_id = ?1
+               AND content_id = ?2
+               AND session_id IS NOT NULL
+             ORDER BY timestamp DESC, rowid DESC
+             LIMIT 1"
         )?;
 
         match stmt.query_row(params![char_id, task_id], |row| row.get::<_, i64>(0)) {
@@ -365,7 +388,13 @@ impl TodoRepository {
             Err(_) => {
                 // If not found, try roster task entry (session_id IS NULL)
                 let mut stmt = conn.prepare(
-                    "SELECT is_completed FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND session_id IS NULL"
+                    "SELECT is_completed
+                     FROM completion_status
+                     WHERE char_id = ?1
+                       AND content_id = ?2
+                       AND session_id IS NULL
+                     ORDER BY timestamp DESC, rowid DESC
+                     LIMIT 1"
                 )?;
 
                 match stmt.query_row(params![char_id, task_id], |row| row.get::<_, i64>(0)) {

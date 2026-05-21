@@ -671,12 +671,17 @@
     const handleRosterEventProgressUpdated = () => {
       loadMatrix();
     };
+    const handleRaidCompleted = () => {
+      loadMatrix();
+    };
 
     window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+    window.addEventListener('raid-completed', handleRaidCompleted);
     loadMatrix();
 
     return () => {
       window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+      window.removeEventListener('raid-completed', handleRaidCompleted);
     };
   });
   

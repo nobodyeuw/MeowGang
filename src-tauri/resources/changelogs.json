@@ -1,123 +1,148 @@
 {
   "versions": [
     {
-      "version": "1.1.12",
-      "date": "2026-05-20",
+      "version": "1.1.13",
+      "date": "2026-05-21",
       "changes": [
         {
           "type": "Added",
-          "description": "Party Plan was added as a restricted testing feature.",
-          "details": "A new Party Plan tab was added below Progression Planner for selected testers, with entry options to create a new group or join an existing shared group."
+          "description": "Party Plan now separates owner and friend member roles.",
+          "details": "Group ownership is tracked by owner_discord_id and member type owner/friend instead of relying on a generic self marker, so friend uploads no longer override the owner's local roster identity."
         },
         {
           "type": "Added",
-          "description": "Party Plan groups can be saved and reopened.",
-          "details": "Created or joined groups are remembered locally, so users can return to existing Party Plan groups without pasting the invite link again."
+          "description": "Party Plan now stores shared rosters per Discord ID.",
+          "details": "Shared character data is written to per-member Discord ID sheets and character inclusion is tracked by included_group_ids, allowing the same character data to be reused across multiple groups without duplicating character rows."
         },
         {
           "type": "Added",
-          "description": "Party Plan supports group members and whitelist friend search.",
-          "details": "Users can add friends from the Discord whitelist search, assign each member a color, and configure which local or test roster characters are included in the plan."
+          "description": "Party Plan group modes were added.",
+          "details": "Groups can now run in Non-Static mode for weekly availability tracking or Static mode for preserving assigned characters as planned static raid runs."
         },
         {
           "type": "Added",
-          "description": "Party Plan group configuration and raid board tabs were added.",
-          "details": "The feature now separates character/raid setup from the raid planning board, with compact roster character lists, selectable planned raids, and collapsible member runner lists."
+          "description": "Static reservations now protect assigned characters across groups.",
+          "details": "When a character is assigned to a raid in a Static group, that character is reserved for that static run and cannot be assigned to the same raid from another group. Reserved characters stay visible but are greyed out with a tooltip naming the static group and raid."
         },
         {
           "type": "Added",
-          "description": "Party Plan raid assignments were added.",
-          "details": "Characters or whole members can be selected and assigned into raid lanes, with iLvl eligibility checks preventing characters from being added to raids they cannot enter."
+          "description": "Party Plan now detects cross-group clears.",
+          "details": "If a member clears a raid with another saved or sheet-backed group, other groups can show whether the clear happened with members from that group or with a named Static group."
         },
         {
           "type": "Added",
-          "description": "Static run connections were added to Party Plan.",
-          "details": "Assigned characters can be connected as planned static runs. Connections are limited to one character per member/roster and are shown with connection lines between adjacent character labels."
+          "description": "Party Plan encounter snapshots now store gate information.",
+          "details": "Encounter snapshot rows include a gate field so raid completion can be matched against the expected gates instead of marking a whole raid complete after only one gate."
         },
         {
           "type": "Added",
-          "description": "Party Plan can sync through a Google Apps Script sheet backend.",
-          "details": "Party Plan data can be saved to and loaded from a shared Google Sheet through an Apps Script web app, including groups, members, characters, planned raids, assignments, completion snapshots, encounter snapshots, and raid config snapshots."
+          "description": "Party Plan now shows pending raid clears.",
+          "details": "Characters that cleared only part of a multi-gate raid now show a pending state until all expected gates for that raid and difficulty are complete."
         },
         {
           "type": "Added",
-          "description": "Party Plan shares weekly completion snapshots.",
-          "details": "Each member can publish current-week completion_status data so other group members can see whether characters cleared a raid solo, publicly, or together."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan shares encounter player snapshots.",
-          "details": "Recent encounters.db player lists are included in snapshots so shared raid clears can be detected even when another member's local LOA Logs tracking missed the run."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan shares planned raid difficulties.",
-          "details": "Each member's local conf_raid difficulty settings are synced as raid config snapshots, including mixed gate setups, so other members can see planned difficulty information for friend characters."
+          "description": "Party Plan now shows last updated information.",
+          "details": "Active groups display their last updated timestamp so members can see when the local or remote Party Plan data was last refreshed."
         },
         {
           "type": "Improved",
-          "description": "Party Plan UI was refined for dense group planning.",
-          "details": "Member lists, character labels, raid lanes, runner chips, and action buttons were tightened and restyled to match the app's quieter dashboard/settings controls."
+          "description": "Party Plan remote sync now checks status before loading full group data.",
+          "details": "The sheet backend exposes a lightweight status action, and the app only performs a full remote load when the group's updated_at value changes."
         },
         {
           "type": "Improved",
-          "description": "Party Plan labels now use member colors consistently.",
-          "details": "Runner and assigned character labels keep the color selected for their owner, making it easier to identify which member a character belongs to on the raid board."
+          "description": "Party Plan upload now saves locally first.",
+          "details": "The Upload/Update flow now combines local saving and remote syncing, preventing remote upload errors caused by unsaved local changes."
         },
         {
           "type": "Improved",
-          "description": "Party Plan supports wider planning layouts.",
-          "details": "The configuration and raid board sections can scroll horizontally when member or raid content needs more room, instead of compressing labels too aggressively."
+          "description": "Party Plan remote errors are logged more clearly.",
+          "details": "Remote sync failures, invalid endpoint responses, parse errors, and Apps Script redirects are now reported through the local log path with truncated response bodies for easier debugging."
         },
         {
           "type": "Improved",
-          "description": "Party Plan feedback now uses toast messages.",
-          "details": "Load, sync, assignment, warning, and error feedback now appears as bottom-right toast messages matching the System Settings style and disappears automatically."
+          "description": "Party Plan handles Google Apps Script redirects more reliably.",
+          "details": "The Tauri sync handler now follows Apps Script redirects manually and keeps POST requests intact for redirect types that require it, reducing 405 and HTML response failures."
         },
         {
           "type": "Improved",
-          "description": "Party Plan raid board instructions were moved into the header.",
-          "details": "Left-click and right-click behavior is now shown with compact mouse icons in the raid board header, while character tooltips focus on owner and raid status information."
+          "description": "Party Plan raid board run counts now show open group runs.",
+          "details": "The number badge on each raid lane now represents remaining possible group runs based on available assigned characters per member and raid capacity, including Serca and Behemoth capacity exceptions."
         },
         {
           "type": "Improved",
-          "description": "Party Plan remote sync is less noisy.",
-          "details": "Background snapshot syncing now only posts to the sheet when local completion state changes, while full group configuration sync remains tied to explicit Load/Sync actions."
+          "description": "Party Plan UI was tightened again for active group use.",
+          "details": "The active group toolbar, invite link area, tab buttons, delete button, raid lane spacing, assignment count badge, and runner lists were made more compact."
+        },
+        {
+          "type": "Improved",
+          "description": "Party Plan invite links are now owner-focused.",
+          "details": "The invite link input and copy controls are only shown to the group owner, while non-invited users get a friendly message telling them which owner to ask for an invite."
         },
         {
           "type": "Changed",
-          "description": "Party Plan access is temporarily restricted.",
-          "details": "The new tab is limited to selected Discord IDs for testing. Other users see a restricted area message and Party Plan background work does not start for them."
+          "description": "Party Plan group controls are now owner-only.",
+          "details": "Only the group owner can add or remove friends, change group mode, configure planned raids, manage raid assignments, upload group-controlled changes, or delete the group."
         },
         {
           "type": "Changed",
-          "description": "Party Plan endpoint configuration moved out of public frontend code.",
-          "details": "The Apps Script endpoint is now loaded from PARTY_PLAN_ENDPOINT_URL through the Tauri backend, matching the private build-secret pattern used for the Discord whitelist URL."
+          "description": "Party Plan friend members now control only their own roster selection.",
+          "details": "Friends can choose which of their own characters are included in the group and upload or update those roster choices without changing owner-controlled group settings."
         },
         {
           "type": "Changed",
-          "description": "Party Plan development docs are ignored by git.",
-          "details": "The docs folder was added to .gitignore because the Apps Script template is only used for development/setup reference."
+          "description": "Party Plan invite flow now requires owner-added members.",
+          "details": "Joining a group from an invite link now checks whether the local Discord ID is already listed as a group member. Users who were not added by the owner are blocked from joining."
+        },
+        {
+          "type": "Changed",
+          "description": "Party Plan no longer uses raid config snapshots.",
+          "details": "The RaidConfigSnapshots table and related plan data were removed from the Apps Script and app sync model because Party Plan no longer needs that snapshot data."
+        },
+        {
+          "type": "Changed",
+          "description": "Party Plan raid board no longer shows planned-to-run text per character.",
+          "details": "Raid lane character notes now focus on eligibility and clear state instead of repeating planned-to-run information that is already implied by iLvl and assignments."
         },
         {
           "type": "Fixed",
-          "description": "Party Plan group deletion clears sheet data.",
-          "details": "Deleting a group removes all rows for that group across the sheet-backed Party Plan tables, including raid config, completion, and encounter snapshot data."
+          "description": "Party Plan owner detection now works after sync and reload.",
+          "details": "Owner permissions now resolve from owner_discord_id and normalized member roles, fixing cases where the UI displayed Owner but still blocked group configuration."
         },
         {
           "type": "Fixed",
-          "description": "Leaving a Party Plan group cleans up member data.",
-          "details": "When a member leaves a shared group, their member row, characters, raid config snapshots, completion snapshots, and encounter snapshots are removed from the shared plan."
+          "description": "Party Plan remote group merges preserve member-owned data.",
+          "details": "Remote saves now merge by the saving member's Discord ID so one member's upload does not wipe another member's characters, completions, encounters, or group-controlled owner fields."
         },
         {
           "type": "Fixed",
-          "description": "Party Plan drag-and-drop was replaced with click assignment.",
-          "details": "The unreliable native drag-and-drop flow was removed. Users now select a member or character and click Assign selected here on a raid lane for predictable behavior."
+          "description": "Party Plan already-assigned static reservations are removed from old raid frames.",
+          "details": "If a character becomes reserved by a Static group after already being assigned elsewhere, the stale assignment is hidden from that raid frame and is not written back on the next save."
         },
         {
           "type": "Fixed",
-          "description": "Party Plan friend removal controls no longer disrupt alignment.",
-          "details": "Friend remove buttons now sit above the color picker, keeping member color fields aligned between local and friend rows."
+          "description": "Party Plan completion state now waits for all expected gates.",
+          "details": "Characters are no longer marked as fully cleared for a raid after only one gate. Completion and encounter snapshots are grouped by raid, difficulty, reset cycle, and expected gate set."
+        },
+        {
+          "type": "Fixed",
+          "description": "Party Plan together-clear detection no longer treats solo owner data as a group clear.",
+          "details": "A raid is only labeled as cleared together when the encounter includes the required group members that have characters in the current plan."
+        },
+        {
+          "type": "Fixed",
+          "description": "Party Plan delete controls are restricted to owners.",
+          "details": "The Delete button is only visible for the group owner and is styled as a compact red destructive action."
+        },
+        {
+          "type": "Fixed",
+          "description": "Party Plan Apps Script GET requests now return JSON.",
+          "details": "The Apps Script template includes a doGet handler so accidental browser visits or GET redirects return a structured JSON response instead of a missing doGet HTML error page."
+        },
+        {
+          "type": "Fixed",
+          "description": "Guardian clears from encounter sync now update the To Do tab.",
+          "details": "Encounter-synced guardian completions now resolve against the current daily reset in the To Do matrix, and the To Do tab refreshes when encounter sync marks a task completed."
         }
       ]
     }

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export interface PartyPlanMember {
   id: string;
   name: string;
-  type: 'self' | 'friend';
+  type: 'owner' | 'friend';
   testRosterId?: string;
   color?: string;
 }
@@ -57,6 +57,7 @@ export interface PartyPlanEncounterSnapshot {
   contentId: string;
   raidName: string;
   difficulty: string;
+  gate?: string;
   cleared: boolean;
   fightStart: number;
   players: string[];
@@ -65,21 +66,11 @@ export interface PartyPlanEncounterSnapshot {
   updatedAt: string;
 }
 
-export interface PartyPlanRaidConfigSnapshot {
-  discordId: string;
-  rosterId: string;
-  charId: number;
-  charName: string;
-  contentId: string;
-  gate: string;
-  difficulty: string;
-  updatedAt: string;
-}
-
 export interface PartyPlanData {
   groupId: string;
   groupSecret: string;
   groupName: string;
+  groupMode?: 'group' | 'static';
   ownerDiscordId?: string;
   sheetUrl: string;
   sheetVersion: number;
@@ -87,11 +78,32 @@ export interface PartyPlanData {
   characters: PartyPlanCharacter[];
   plannedRaids: PartyPlanRaid[];
   assignments: PartyPlanAssignment[];
-  raidConfigSnapshots: PartyPlanRaidConfigSnapshot[];
   completionSnapshots: PartyPlanCompletionSnapshot[];
   encounterSnapshots: PartyPlanEncounterSnapshot[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PartyPlanMemberClear {
+  groupId: string;
+  groupName: string;
+  groupMode: 'group' | 'static';
+  discordId: string;
+  charId: number;
+  contentId: string;
+  difficulty?: string;
+  sessionId?: string;
+  gate?: string;
+  resetCycle: string;
+}
+
+export interface PartyPlanStaticReservation {
+  groupId: string;
+  groupName: string;
+  discordId: string;
+  charId: number;
+  raidId: string;
+  raidName: string;
 }
 
 export const PARTY_PLAN_SHEET_NAMES = [
@@ -100,7 +112,6 @@ export const PARTY_PLAN_SHEET_NAMES = [
   'Characters',
   'PlannedRaids',
   'Assignments',
-  'RaidConfigSnapshots',
   'CompletionSnapshots',
   'EncounterSnapshots'
 ] as const;
@@ -118,7 +129,8 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'sheet_url',
     'sheet_version',
     'created_at',
-    'updated_at'
+    'updated_at',
+    'group_mode'
   ],
   Members: [
     'group_id',
@@ -129,7 +141,6 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'color'
   ],
   Characters: [
-    'group_id',
     'char_id',
     'discord_id',
     'roster_id',
@@ -139,7 +150,7 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'icon_id',
     'item_level',
     'combat_power',
-    'included',
+    'included_group_ids',
     'display_order'
   ],
   PlannedRaids: [
@@ -156,17 +167,6 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'assignment_type',
     'target_id',
     'slot_order'
-  ],
-  RaidConfigSnapshots: [
-    'group_id',
-    'discord_id',
-    'roster_id',
-    'char_id',
-    'char_name',
-    'content_id',
-    'gate',
-    'difficulty',
-    'updated_at'
   ],
   CompletionSnapshots: [
     'group_id',
@@ -189,6 +189,7 @@ export const PARTY_PLAN_SHEET_HEADERS: Record<PartyPlanSheetName, string[]> = {
     'content_id',
     'raid_name',
     'difficulty',
+    'gate',
     'cleared',
     'fight_start',
     'players_json',
@@ -230,6 +231,12 @@ function parseJsonCell<T>(value: string | undefined, fallback: T): T {
   }
 }
 
+function parseGroupIdsCell(value: string | undefined): Set<string> {
+  const normalized = (value ?? '').trim();
+  if (!normalized || normalized.toLowerCase() === 'null') return new Set();
+  return new Set(normalized.split(',').map((entry) => entry.trim()).filter(Boolean));
+}
+
 function rowsWithoutHeader(rows: string[][] | undefined): string[][] {
   return rows?.slice(1).filter((row) => row.some((cell) => cell.trim() !== '')) ?? [];
 }
@@ -255,7 +262,8 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
     plan.sheetUrl,
     numberCell(plan.sheetVersion),
     plan.createdAt,
-    plan.updatedAt
+    plan.updatedAt,
+    plan.groupMode ?? 'group'
   ]);
 
   tables.Members.push(...plan.members.map((member) => [
@@ -268,7 +276,6 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
   ]));
 
   tables.Characters.push(...plan.characters.map((character) => [
-    plan.groupId,
     numberCell(character.charId),
     character.discordId,
     character.rosterId,
@@ -278,7 +285,7 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
     optionalCell(character.iconId),
     numberCell(character.itemLevel),
     numberCell(character.combatPower),
-    boolCell(character.included),
+    character.included ? plan.groupId : 'NULL',
     numberCell(character.displayOrder)
   ]));
 
@@ -297,18 +304,6 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
     assignment.assignmentType,
     assignment.targetId,
     numberCell(assignment.slotOrder)
-  ]));
-
-  tables.RaidConfigSnapshots.push(...(plan.raidConfigSnapshots ?? []).map((snapshot) => [
-    plan.groupId,
-    snapshot.discordId,
-    snapshot.rosterId,
-    numberCell(snapshot.charId),
-    snapshot.charName,
-    snapshot.contentId,
-    snapshot.gate,
-    snapshot.difficulty,
-    snapshot.updatedAt
   ]));
 
   tables.CompletionSnapshots.push(...plan.completionSnapshots.map((snapshot) => [
@@ -333,6 +328,7 @@ export function partyPlanToSheetTables(plan: PartyPlanData): PartyPlanSheetTable
     snapshot.contentId,
     snapshot.raidName,
     snapshot.difficulty,
+    optionalCell(snapshot.gate),
     boolCell(snapshot.cleared),
     numberCell(snapshot.fightStart),
     JSON.stringify(snapshot.players),
@@ -356,6 +352,7 @@ export function partyPlanFromSheetTables(tables: Partial<PartyPlanSheetTables>):
     groupId,
     groupSecret: group.group_secret,
     groupName: group.group_name || 'Imported group',
+    groupMode: group.group_mode === 'static' ? 'static' : 'group',
     ownerDiscordId: group.owner_discord_id || undefined,
     sheetUrl: group.sheet_url || '',
     sheetVersion: parseNumberCell(group.sheet_version) || 1,
@@ -365,13 +362,12 @@ export function partyPlanFromSheetTables(tables: Partial<PartyPlanSheetTables>):
       .map((row) => ({
         id: row.discord_id,
         name: row.name,
-        type: row.type === 'friend' ? 'friend' : 'self',
+        type: row.type === 'friend' ? 'friend' : 'owner',
         testRosterId: row.test_roster_id || undefined,
         color: row.color || undefined
       })),
     characters: rowsWithoutHeader(tables.Characters)
       .map((row) => rowToObject(PARTY_PLAN_SHEET_HEADERS.Characters, row))
-      .filter((row) => row.group_id === groupId)
       .map((row) => ({
         charId: parseNumberCell(row.char_id),
         discordId: row.discord_id,
@@ -382,9 +378,10 @@ export function partyPlanFromSheetTables(tables: Partial<PartyPlanSheetTables>):
         iconId: row.icon_id || undefined,
         itemLevel: parseNumberCell(row.item_level),
         combatPower: parseNumberCell(row.combat_power),
-        included: parseBoolCell(row.included),
+        included: parseGroupIdsCell(row.included_group_ids).has(groupId),
         displayOrder: parseNumberCell(row.display_order)
-      })),
+      }))
+      .filter((character) => character.included),
     plannedRaids: rowsWithoutHeader(tables.PlannedRaids)
       .map((row) => rowToObject(PARTY_PLAN_SHEET_HEADERS.PlannedRaids, row))
       .filter((row) => row.group_id === groupId)
@@ -407,19 +404,6 @@ export function partyPlanFromSheetTables(tables: Partial<PartyPlanSheetTables>):
             : 'character',
         targetId: row.target_id,
         slotOrder: parseNumberCell(row.slot_order)
-      })),
-    raidConfigSnapshots: rowsWithoutHeader(tables.RaidConfigSnapshots)
-      .map((row) => rowToObject(PARTY_PLAN_SHEET_HEADERS.RaidConfigSnapshots, row))
-      .filter((row) => row.group_id === groupId)
-      .map((row) => ({
-        discordId: row.discord_id,
-        rosterId: row.roster_id,
-        charId: parseNumberCell(row.char_id),
-        charName: row.char_name,
-        contentId: row.content_id,
-        gate: row.gate,
-        difficulty: row.difficulty,
-        updatedAt: row.updated_at
       })),
     completionSnapshots: rowsWithoutHeader(tables.CompletionSnapshots)
       .map((row) => rowToObject(PARTY_PLAN_SHEET_HEADERS.CompletionSnapshots, row))
@@ -446,6 +430,7 @@ export function partyPlanFromSheetTables(tables: Partial<PartyPlanSheetTables>):
         contentId: row.content_id,
         raidName: row.raid_name,
         difficulty: row.difficulty,
+        gate: row.gate || undefined,
         cleared: parseBoolCell(row.cleared),
         fightStart: parseNumberCell(row.fight_start),
         players: parseJsonCell<string[]>(row.players_json, []),
@@ -467,15 +452,25 @@ export interface PartyPlanRemoteSyncConfig {
 interface PartyPlanRemoteSyncResponse {
   ok: boolean;
   plan?: PartyPlanData | null;
+  status?: PartyPlanRemoteStatus | null;
+  memberClears?: PartyPlanMemberClear[];
+  staticReservations?: PartyPlanStaticReservation[];
   message: string;
   error?: string;
 }
 
+export interface PartyPlanRemoteStatus {
+  groupId: string;
+  updatedAt: string;
+  sheetVersion: number;
+}
+
 async function syncPartyPlanRemote(
-  action: 'load' | 'save' | 'saveMerged' | 'saveSnapshots' | 'delete',
+  action: 'load' | 'status' | 'loadMemberClears' | 'loadStaticReservations' | 'save' | 'saveMerged' | 'saveSnapshots' | 'delete',
   config: PartyPlanRemoteSyncConfig,
   plan?: PartyPlanData,
-  mergeOwnerIds: string[] = []
+  mergeOwnerIds: string[] = [],
+  memberDiscordId = ''
 ) {
   return invoke<PartyPlanRemoteSyncResponse>('sync_party_plan_remote', {
     request: {
@@ -484,7 +479,8 @@ async function syncPartyPlanRemote(
       groupId: config.groupId,
       groupSecret: config.groupSecret,
       plan,
-      mergeOwnerIds
+      mergeOwnerIds,
+      memberDiscordId
     }
   });
 }
@@ -492,6 +488,27 @@ async function syncPartyPlanRemote(
 export async function loadPartyPlanFromSheet(config: PartyPlanRemoteSyncConfig): Promise<PartyPlanData | null> {
   const response = await syncPartyPlanRemote('load', config);
   return response.plan ?? null;
+}
+
+export async function loadPartyPlanStatusFromSheet(config: PartyPlanRemoteSyncConfig): Promise<PartyPlanRemoteStatus | null> {
+  const response = await syncPartyPlanRemote('status', config);
+  return response.status ?? null;
+}
+
+export async function loadPartyPlanMemberClearsFromSheet(
+  config: PartyPlanRemoteSyncConfig,
+  memberDiscordId: string
+): Promise<PartyPlanMemberClear[]> {
+  const response = await syncPartyPlanRemote('loadMemberClears', config, undefined, [], memberDiscordId);
+  return response.memberClears ?? [];
+}
+
+export async function loadPartyPlanStaticReservationsFromSheet(
+  config: PartyPlanRemoteSyncConfig,
+  memberDiscordId: string
+): Promise<PartyPlanStaticReservation[]> {
+  const response = await syncPartyPlanRemote('loadStaticReservations', config, undefined, [], memberDiscordId);
+  return response.staticReservations ?? [];
 }
 
 export async function savePartyPlanToSheet(plan: PartyPlanData, config: PartyPlanRemoteSyncConfig): Promise<PartyPlanData> {

@@ -73,6 +73,7 @@ pub struct PartyPlanEncounterSnapshot {
     pub content_id: String,
     pub raid_name: String,
     pub difficulty: String,
+    pub gate: Option<String>,
     pub cleared: bool,
     pub fight_start: i64,
     pub players: Vec<String>,
@@ -83,24 +84,12 @@ pub struct PartyPlanEncounterSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PartyPlanRaidConfigSnapshot {
-    pub discord_id: String,
-    pub roster_id: String,
-    pub char_id: i64,
-    pub char_name: String,
-    pub content_id: String,
-    pub gate: String,
-    pub difficulty: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PartyPlanData {
     pub group_id: String,
     #[serde(default)]
     pub group_secret: String,
     pub group_name: String,
+    pub group_mode: Option<String>,
     pub owner_discord_id: Option<String>,
     pub sheet_url: String,
     pub sheet_version: i64,
@@ -108,8 +97,6 @@ pub struct PartyPlanData {
     pub characters: Vec<PartyPlanCharacter>,
     pub planned_raids: Vec<PartyPlanRaid>,
     pub assignments: Vec<PartyPlanAssignment>,
-    #[serde(default)]
-    pub raid_config_snapshots: Vec<PartyPlanRaidConfigSnapshot>,
     #[serde(default)]
     pub completion_snapshots: Vec<PartyPlanCompletionSnapshot>,
     #[serde(default)]
@@ -128,6 +115,42 @@ pub struct PartyPlanRemoteSyncRequest {
     pub plan: Option<PartyPlanData>,
     #[serde(default)]
     pub merge_owner_ids: Vec<String>,
+    #[serde(default)]
+    pub member_discord_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyPlanRemoteStatus {
+    pub group_id: String,
+    pub updated_at: String,
+    pub sheet_version: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyPlanMemberClear {
+    pub group_id: String,
+    pub group_name: String,
+    pub group_mode: String,
+    pub discord_id: String,
+    pub char_id: i64,
+    pub content_id: String,
+    pub difficulty: Option<String>,
+    pub session_id: Option<String>,
+    pub gate: Option<String>,
+    pub reset_cycle: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyPlanStaticReservation {
+    pub group_id: String,
+    pub group_name: String,
+    pub discord_id: String,
+    pub char_id: i64,
+    pub raid_id: String,
+    pub raid_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +159,11 @@ pub struct PartyPlanRemoteSyncResponse {
     #[serde(default)]
     pub ok: bool,
     pub plan: Option<PartyPlanData>,
+    pub status: Option<PartyPlanRemoteStatus>,
+    #[serde(default)]
+    pub member_clears: Vec<PartyPlanMemberClear>,
+    #[serde(default)]
+    pub static_reservations: Vec<PartyPlanStaticReservation>,
     #[serde(default)]
     pub message: String,
     pub error: Option<String>,
@@ -238,11 +266,14 @@ pub async fn sync_party_plan_remote(request: PartyPlanRemoteSyncRequest) -> Resu
     if !endpoint_url.starts_with("https://") {
         return Err("Party Plan remote sync endpoint must use HTTPS".to_string());
     }
+    if endpoint_url.contains("docs.google.com") || endpoint_url.contains("drive.google.com") {
+        return Err("Party Plan remote sync endpoint must be the Apps Script web app URL, not a Google Sheet or Drive URL".to_string());
+    }
     if request.group_id.trim().is_empty() || request.group_secret.trim().is_empty() {
         return Err("Party Plan remote sync requires group id and group secret".to_string());
     }
-    if request.action != "load" && request.action != "save" && request.action != "saveMerged" && request.action != "saveSnapshots" && request.action != "delete" {
-        return Err("Party Plan remote sync action must be load, save, saveMerged, saveSnapshots, or delete".to_string());
+    if request.action != "load" && request.action != "status" && request.action != "loadMemberClears" && request.action != "loadStaticReservations" && request.action != "save" && request.action != "saveMerged" && request.action != "saveSnapshots" && request.action != "delete" {
+        return Err("Party Plan remote sync action must be load, status, loadMemberClears, loadStaticReservations, save, saveMerged, saveSnapshots, or delete".to_string());
     }
     if (request.action == "save" || request.action == "saveMerged" || request.action == "saveSnapshots") && request.plan.is_none() {
         return Err("Party Plan remote save requires a plan payload".to_string());
@@ -250,31 +281,114 @@ pub async fn sync_party_plan_remote(request: PartyPlanRemoteSyncRequest) -> Resu
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
-        .map_err(|e| format!("Failed to create Party Plan sync client: {}", e))?;
+        .map_err(|e| {
+            let message = format!("Failed to create Party Plan sync client: {}", e);
+            crate::log_error!("{}", message);
+            message
+        })?;
 
-    let response = client
-        .post(endpoint_url)
-        .json(&request)
-        .send()
-        .await
-        .map_err(|e| format!("Party Plan remote sync request failed: {}", e))?;
+    let mut next_url = endpoint_url.to_string();
+    let mut next_method_is_get = false;
+    let mut response = None;
+
+    for redirect_count in 0..=5 {
+        let request_builder = if next_method_is_get {
+            client.get(&next_url)
+        } else {
+            client.post(&next_url).json(&request)
+        };
+
+        let current_response = request_builder.send().await.map_err(|e| {
+            let message = format!("Party Plan remote sync request failed: {}", e);
+            crate::log_error!("{}", message);
+            message
+        })?;
+
+        if current_response.status().is_redirection() {
+            let status = current_response.status();
+            let location = current_response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| {
+                    let message = "Party Plan remote sync redirected without a Location header".to_string();
+                    crate::log_error!("{}", message);
+                    message
+                })?;
+
+            next_url = current_response
+                .url()
+                .join(location)
+                .map_err(|e| {
+                    let message = format!("Party Plan remote sync redirect URL is invalid: {}", e);
+                    crate::log_error!("{}", message);
+                    message
+                })?
+                .to_string();
+
+            next_method_is_get = matches!(
+                status,
+                reqwest::StatusCode::MOVED_PERMANENTLY
+                    | reqwest::StatusCode::FOUND
+                    | reqwest::StatusCode::SEE_OTHER
+            );
+
+            if redirect_count == 5 {
+                let message = "Party Plan remote sync redirected too many times".to_string();
+                crate::log_error!("{}", message);
+                return Err(message);
+            }
+
+            continue;
+        }
+
+        response = Some(current_response);
+        break;
+    }
+
+    let response = response.ok_or_else(|| {
+        let message = "Party Plan remote sync did not return a response".to_string();
+        crate::log_error!("{}", message);
+        message
+    })?;
 
     let status = response.status();
     let body = response
         .text()
         .await
-        .map_err(|e| format!("Failed to read Party Plan remote sync response: {}", e))?;
+        .map_err(|e| {
+            let message = format!("Failed to read Party Plan remote sync response: {}", e);
+            crate::log_error!("{}", message);
+            message
+        })?;
 
     if !status.is_success() {
-        return Err(format!("Party Plan remote sync failed with HTTP {}: {}", status, body));
+        let message = format!(
+            "Party Plan remote sync failed with HTTP {}: {}",
+            status,
+            truncate_response_body(&body)
+        );
+        crate::log_error!("{}", message);
+        return Err(message);
     }
 
     let parsed: PartyPlanRemoteSyncResponse = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse Party Plan remote sync response: {} ({})", e, body))?;
+        .map_err(|e| {
+            let message = format!(
+                "Failed to parse Party Plan remote sync response: {} ({})",
+                e,
+                truncate_response_body(&body)
+            );
+            crate::log_error!("{}", message);
+            message
+        })?;
 
     if !parsed.ok {
-        return Err(parsed.error.clone().unwrap_or_else(|| parsed.message.clone()));
+        let message = parsed.error.clone().unwrap_or_else(|| parsed.message.clone());
+        crate::log_error!("Party Plan remote sync rejected: {}", message);
+        return Err(message);
     }
 
     Ok(parsed)
@@ -285,4 +399,13 @@ fn configured_value(key: &str, build_value: Option<&'static str>) -> Option<Stri
         .ok()
         .filter(|value| !value.trim().is_empty())
         .or_else(|| build_value.map(str::to_string).filter(|value| !value.trim().is_empty()))
+}
+
+fn truncate_response_body(body: &str) -> String {
+    const MAX_RESPONSE_BODY_LENGTH: usize = 800;
+    if body.chars().count() <= MAX_RESPONSE_BODY_LENGTH {
+        return body.to_string();
+    }
+
+    format!("{}...", body.chars().take(MAX_RESPONSE_BODY_LENGTH).collect::<String>())
 }
