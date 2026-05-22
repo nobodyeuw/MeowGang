@@ -484,6 +484,16 @@
     }
   }
 
+  async function toggleMeowConnect(char: any) {
+    const newStatus = !char.meow_connect_enabled;
+    try {
+      await updateCharacter(char.char_id, { meow_connect_enabled: newStatus });
+      console.log(`FRONTEND: Set meow_connect_enabled=${newStatus} for ${char.char_name}`);
+    } catch (err) {
+      console.error("FRONTEND: MeowConnect toggle failed:", err);
+    }
+  }
+
   async function updateCharacterEarnsGold(charId: number, earnsGold: boolean) {
     try {
       await invoke('update_character_earns_gold', { charId, earnsGold });
@@ -636,6 +646,15 @@
                 on:click|stopPropagation={() => toggleHideFromDashboard(char)}
               >
                 {char.hide_from_dashboard ? 'HIDDEN' : 'SHOW ON DASHBOARD'}
+              </button>
+              <button
+                class="toggle-btn connect"
+                class:active={char.meow_connect_enabled}
+                on:click|stopPropagation={() => toggleMeowConnect(char)}
+                title="Include this character in MeowConnect shared availability"
+              >
+                <span class="connect-icon" aria-hidden="true"></span>
+                <span>{char.meow_connect_enabled ? 'CONNECT' : 'OFF'}</span>
               </button>
             </div>
           </div>
@@ -991,10 +1010,56 @@
     pointer-events: auto;
   }
 
+  .toggle-btn.connect {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 76px;
+  }
+
+  .connect-icon {
+    position: relative;
+    width: 18px;
+    height: 10px;
+    flex: 0 0 auto;
+  }
+
+  .connect-icon::before,
+  .connect-icon::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    box-sizing: border-box;
+  }
+
+  .connect-icon::before {
+    left: 0;
+  }
+
+  .connect-icon::after {
+    right: 0;
+  }
+
+  .toggle-btn.connect .connect-icon {
+    border-top: 2px solid currentColor;
+    transform: translateY(4px);
+  }
+
   .toggle-btn.gold.active {
     border-color: var(--md-sys-color-tertiary);
     background: var(--md-sys-color-tertiary-container);
     color: var(--md-sys-color-on-tertiary-container);
+  }
+
+  .toggle-btn.connect.active {
+    border-color: rgba(251, 146, 60, 0.62);
+    background: rgba(251, 146, 60, 0.18);
+    color: #fdba74;
   }
 
   .toggle-btn:hover {

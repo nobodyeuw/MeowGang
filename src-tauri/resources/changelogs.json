@@ -1,153 +1,88 @@
 {
   "versions": [
     {
-      "version": "1.1.13",
-      "date": "2026-05-21",
+      "version": "1.2.0",
+      "date": "2026-05-22",
       "changes": [
         {
-          "type": "Added",
-          "description": "Party Plan now separates owner and friend member roles.",
-          "details": "Group ownership is tracked by owner_discord_id and member type owner/friend instead of relying on a generic self marker, so friend uploads no longer override the owner's local roster identity."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan now stores shared rosters per Discord ID.",
-          "details": "Shared character data is written to per-member Discord ID sheets and character inclusion is tracked by included_group_ids, allowing the same character data to be reused across multiple groups without duplicating character rows."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan group modes were added.",
-          "details": "Groups can now run in Non-Static mode for weekly availability tracking or Static mode for preserving assigned characters as planned static raid runs."
-        },
-        {
-          "type": "Added",
-          "description": "Static reservations now protect assigned characters across groups.",
-          "details": "When a character is assigned to a raid in a Static group, that character is reserved for that static run and cannot be assigned to the same raid from another group. Reserved characters stay visible but are greyed out with a tooltip naming the static group and raid."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan now detects cross-group clears.",
-          "details": "If a member clears a raid with another saved or sheet-backed group, other groups can show whether the clear happened with members from that group or with a named Static group."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan encounter snapshots now store gate information.",
-          "details": "Encounter snapshot rows include a gate field so raid completion can be matched against the expected gates instead of marking a whole raid complete after only one gate."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan now shows pending raid clears.",
-          "details": "Characters that cleared only part of a multi-gate raid now show a pending state until all expected gates for that raid and difficulty are complete."
-        },
-        {
-          "type": "Added",
-          "description": "Party Plan now shows last updated information.",
-          "details": "Active groups display their last updated timestamp so members can see when the local or remote Party Plan data was last refreshed."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan remote sync now checks status before loading full group data.",
-          "details": "The sheet backend exposes a lightweight status action, and the app only performs a full remote load when the group's updated_at value changes."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan remote status now tracks separate update categories.",
-          "details": "The sheet backend reports separate timestamps for group configuration, roster data, assignments, snapshots, and related member groups so the app can refresh only the data that actually changed."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan upload now saves locally first.",
-          "details": "The Upload/Update flow now combines local saving and remote syncing, preventing remote upload errors caused by unsaved local changes."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan remote errors are logged more clearly.",
-          "details": "Remote sync failures, invalid endpoint responses, parse errors, and Apps Script redirects are now reported through the local log path with truncated response bodies for easier debugging."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan handles Google Apps Script redirects more reliably.",
-          "details": "The Tauri sync handler now follows Apps Script redirects manually and keeps POST requests intact for redirect types that require it, reducing 405 and HTML response failures."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan raid board run counts now show open group runs.",
-          "details": "The number badge on each raid lane now represents remaining possible group runs based on available assigned characters per member and raid capacity, including Serca and Behemoth capacity exceptions."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan UI was tightened again for active group use.",
-          "details": "The active group toolbar, invite link area, tab buttons, delete button, raid lane spacing, assignment count badge, and runner lists were made more compact."
-        },
-        {
-          "type": "Improved",
-          "description": "Party Plan invite links are now owner-focused.",
-          "details": "The invite link input and copy controls are only shown to the group owner, while non-invited users get a friendly message telling them which owner to ask for an invite."
-        },
-        {
           "type": "Changed",
-          "description": "Party Plan group controls are now owner-only.",
-          "details": "Only the group owner can add or remove friends, change group mode, configure planned raids, manage raid assignments, upload group-controlled changes, or delete the group."
+          "description": "Party Planner has been replaced by MeowConnect.",
+          "details": "The old Google Sheets and Apps Script based Party Planner has been removed from the app. MeowConnect is now the shared raid availability feature, focused on seeing who can still run selected raids with you."
         },
         {
-          "type": "Changed",
-          "description": "Party Plan friend members now control only their own roster selection.",
-          "details": "Friends can choose which of their own characters are included in the group and upload or update those roster choices without changing owner-controlled group settings."
+          "type": "Added",
+          "description": "MeowConnect adds shared friend raid availability through Supabase.",
+          "details": "Users can connect with Discord, consent to sharing selected character data, add friends, and see raid availability through the cloud-hosted MeowGangConnect database."
         },
         {
-          "type": "Changed",
-          "description": "Party Plan invite flow now requires owner-added members.",
-          "details": "Joining a group from an invite link now checks whether the local Discord ID is already listed as a group member. Users who were not added by the owner are blocked from joining."
+          "type": "Added",
+          "description": "Raid Together view added for planning runs with friends.",
+          "details": "The MeowConnect overview now focuses on how many matching open runs you and each friend can still do for selected raids, with profile sections that can be expanded to inspect individual characters."
         },
         {
-          "type": "Changed",
-          "description": "Party Plan no longer uses raid config snapshots.",
-          "details": "The RaidConfigSnapshots table and related plan data were removed from the Apps Script and app sync model because Party Plan no longer needs that snapshot data."
+          "type": "Added",
+          "description": "MeowConnect logs show recent clear activity.",
+          "details": "The logs view can show clears from LOA Logs encounter data and manual completion status, including source labels so users can tell whether the clear came from LOA Logs or manual tracking."
         },
         {
-          "type": "Changed",
-          "description": "Party Plan raid board no longer shows planned-to-run text per character.",
-          "details": "Raid lane character notes now focus on eligibility and clear state instead of repeating planned-to-run information that is already implied by iLvl and assignments."
+          "type": "Added",
+          "description": "Character-level MeowConnect opt-in was added.",
+          "details": "Roster settings now include a MeowConnect toggle per character. Characters stay hidden from MeowConnect until the user explicitly enables them."
+        },
+        {
+          "type": "Added",
+          "description": "Static reservation sharing was added.",
+          "details": "Raid settings can mark a character as reserved for static or friend runs per raid and difficulty. Static friends can be granted visibility into the reserved character while other friends only see that the character is reserved."
+        },
+        {
+          "type": "Added",
+          "description": "MeowConnect settings were added to System Settings.",
+          "details": "Users can enable or disable MeowConnect locally and separately control real-time raid completion syncing with the cloud database."
+        },
+        {
+          "type": "Added",
+          "description": "MeowConnect status is visible in the app header.",
+          "details": "The header now shows whether MeowConnect is active, connecting, offline, login required, or inactive. The status reacts to Supabase realtime connection events and sync failures."
+        },
+        {
+          "type": "Improved",
+          "description": "Raid availability now respects difficulty lockouts.",
+          "details": "If a character clears a raid on one difficulty, MeowConnect treats that character as locked for the raid instead of showing it as available for another difficulty of the same raid."
+        },
+        {
+          "type": "Improved",
+          "description": "Friend search and profile display were refined.",
+          "details": "The friend flow now uses a tighter settings UI, whitelist name preview, pending requests, profile avatars for users who have connected through MeowConnect, and local favorites for focusing important friends or characters."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect sync is throttled and event-driven.",
+          "details": "Character and completion data syncs on app start, after successful daily roster scraping, and after raid completions when real-time syncing is enabled. Manual sync remains available but is rate limited."
+        },
+        {
+          "type": "Improved",
+          "description": "Update release notes now render as formatted text.",
+          "details": "The update dialog now formats headings, bullet lists, paragraphs, and bold text from latest.json notes instead of showing the raw Markdown text."
+        },
+        {
+          "type": "Removed",
+          "description": "Legacy Party Planner code and Apps Script template were removed.",
+          "details": "The PartyPlan component, frontend Party Plan service, Tauri Party Plan commands, Rust handler module, Party Plan styles, and local Apps Script development template were removed. Existing party_plans.json files are now inert legacy data."
+        },
+        {
+          "type": "Security",
+          "description": "MeowConnect database access is protected by Supabase RLS.",
+          "details": "Profiles, characters, completions, reservations, encounters, and friend connections use row-level security so users can write only their own data and read only their own or accepted friends' shared data."
         },
         {
           "type": "Fixed",
-          "description": "Party Plan owner detection now works after sync and reload.",
-          "details": "Owner permissions now resolve from owner_discord_id and normalized member roles, fixing cases where the UI displayed Owner but still blocked group configuration."
+          "description": "Favorites now apply per character instead of per profile.",
+          "details": "Marking one character as a favorite no longer marks every character from that same profile."
         },
         {
           "type": "Fixed",
-          "description": "Party Plan remote group merges preserve member-owned data.",
-          "details": "Remote saves now merge by the saving member's Discord ID so one member's upload does not wipe another member's characters, completions, encounters, or group-controlled owner fields."
-        },
-        {
-          "type": "Fixed",
-          "description": "Party Plan already-assigned static reservations are removed from old raid frames.",
-          "details": "If a character becomes reserved by a Static group after already being assigned elsewhere, the stale assignment is hidden from that raid frame and is not written back on the next save."
-        },
-        {
-          "type": "Fixed",
-          "description": "Party Plan completion state now waits for all expected gates.",
-          "details": "Characters are no longer marked as fully cleared for a raid after only one gate. Completion and encounter snapshots are grouped by raid, difficulty, reset cycle, and expected gate set."
-        },
-        {
-          "type": "Fixed",
-          "description": "Party Plan together-clear detection no longer treats solo owner data as a group clear.",
-          "details": "A raid is only labeled as cleared together when the encounter includes the required group members that have characters in the current plan."
-        },
-        {
-          "type": "Fixed",
-          "description": "Party Plan delete controls are restricted to owners.",
-          "details": "The Delete button is only visible for the group owner and is styled as a compact red destructive action."
-        },
-        {
-          "type": "Fixed",
-          "description": "Party Plan Apps Script GET requests now return JSON.",
-          "details": "The Apps Script template includes a doGet handler so accidental browser visits or GET redirects return a structured JSON response instead of a missing doGet HTML error page."
-        },
-        {
-          "type": "Fixed",
-          "description": "Guardian clears from encounter sync now update the To Do tab.",
-          "details": "Encounter-synced guardian completions now resolve against the current daily reset in the To Do matrix, and the To Do tab refreshes when encounter sync marks a task completed."
+          "description": "MeowConnect can recover from old or disabled tab URLs.",
+          "details": "Opening an old Party Planner tab URL or disabled MeowConnect URL now redirects back to Dashboard instead of leaving the app on an empty view."
         }
       ]
     }

@@ -95,6 +95,63 @@
     return version.startsWith('v') ? version : `v${version}`;
   }
 
+  function escapeHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderInlineMarkdown(value: string) {
+    return escapeHtml(value).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function renderReleaseNotes(notes: string) {
+    const lines = notes.replace(/\r\n/g, '\n').split('\n');
+    const html: string[] = [];
+    let listOpen = false;
+
+    const closeList = () => {
+      if (listOpen) {
+        html.push('</ul>');
+        listOpen = false;
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        closeList();
+        continue;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        closeList();
+        html.push(`<h3>${renderInlineMarkdown(trimmed.slice(4))}</h3>`);
+      } else if (trimmed.startsWith('#### ')) {
+        closeList();
+        html.push(`<h4>${renderInlineMarkdown(trimmed.slice(5))}</h4>`);
+      } else if (trimmed.startsWith('## ')) {
+        closeList();
+        html.push(`<h3>${renderInlineMarkdown(trimmed.slice(3))}</h3>`);
+      } else if (trimmed.startsWith('- ')) {
+        if (!listOpen) {
+          html.push('<ul>');
+          listOpen = true;
+        }
+        html.push(`<li>${renderInlineMarkdown(trimmed.slice(2))}</li>`);
+      } else {
+        closeList();
+        html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+      }
+    }
+
+    closeList();
+    return html.join('');
+  }
+
   function openVersionDetails(version: any) {
     detailsTitle = `v${version.version} — Details`;
     // Build HTML content combining all changes
@@ -126,7 +183,7 @@
         {#if updateInfo}
           <div class="modal-details">
             <h4>Release Notes</h4>
-            <p>{updateInfo}</p>
+            <div class="release-notes">{@html renderReleaseNotes(updateInfo)}</div>
           </div>
         {/if}
         <div class="modal-actions">
@@ -730,6 +787,38 @@
 
   .modal-details p {
     margin: 0;
+  }
+
+  .release-notes {
+    display: grid;
+    gap: 0.65rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .release-notes :global(h3),
+  .release-notes :global(h4),
+  .release-notes :global(p),
+  .release-notes :global(ul) {
+    margin: 0;
+  }
+
+  .release-notes :global(h3) {
+    color: var(--md-sys-color-on-surface);
+    font-size: 1.05rem;
+  }
+
+  .release-notes :global(h4) {
+    color: var(--md-sys-color-primary);
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
+
+  .release-notes :global(ul) {
+    padding-left: 1.1rem;
+  }
+
+  .release-notes :global(li) {
+    margin: 0.25rem 0;
   }
 
   .modal-actions {

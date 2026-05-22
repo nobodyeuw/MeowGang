@@ -96,8 +96,8 @@ impl DataManager {
     pub fn set_schema_version(pool: &Pool<SqliteConnectionManager>, version: i32) -> Result<()> {
         let conn = pool.get()?;
         conn.execute(
-            "INSERT OR REPLACE INTO app_metadata (key, value, timestamp, app_version) VALUES ('schema_version', ?1, ?2, '1.0.0')",
-            params![version.to_string(), chrono::Utc::now().timestamp_millis()],
+            "INSERT OR REPLACE INTO app_metadata (key, value, timestamp, app_version) VALUES ('schema_version', ?1, ?2, ?3)",
+            params![version.to_string(), chrono::Utc::now().timestamp_millis(), crate::version::APP_VERSION],
         )?;
         Ok(())
     }
@@ -390,6 +390,27 @@ impl DataManager {
             Self::normalize_roster_wide_tasks(&tx)?;
         }
 
+        if current_version < 12 && !Self::column_exists(&tx, "conf_raid", "reserved_for_static") {
+            tx.execute(
+                "ALTER TABLE conf_raid ADD COLUMN reserved_for_static INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
+
+        if current_version < 13 && !Self::column_exists(&tx, "conf_character", "meow_connect_enabled") {
+            tx.execute(
+                "ALTER TABLE conf_character ADD COLUMN meow_connect_enabled BOOLEAN DEFAULT 0",
+                [],
+            )?;
+        }
+
+        if current_version < 14 && !Self::column_exists(&tx, "conf_character", "class_display_name") {
+            tx.execute(
+                "ALTER TABLE conf_character ADD COLUMN class_display_name TEXT",
+                [],
+            )?;
+        }
+
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;
         println!(
@@ -420,8 +441,8 @@ impl DataManager {
 
         // Initialize app_metadata
         tx.execute(
-            "INSERT OR REPLACE INTO app_metadata (key, value, timestamp, app_version) VALUES ('initial_setup', 'completed', ?1, '1.0.0')",
-            params![chrono::Utc::now().timestamp_millis()],
+            "INSERT OR REPLACE INTO app_metadata (key, value, timestamp, app_version) VALUES ('initial_setup', 'completed', ?1, ?2)",
+            params![chrono::Utc::now().timestamp_millis(), crate::version::APP_VERSION],
         )?;
 
         tx.commit()?;

@@ -82,6 +82,7 @@ pub async fn scrape_roster(
             display_order: char.display_order,
             earns_gold: char.earns_gold,
             hide_from_dashboard: false,
+            meow_connect_enabled: char.meow_connect_enabled,
             class_display_name: char.class_display_name,
         })
         .collect();

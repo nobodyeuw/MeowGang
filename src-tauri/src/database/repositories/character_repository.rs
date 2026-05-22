@@ -31,6 +31,7 @@ pub struct CharacterRaidConfig {
     pub take_gold: i64,
     pub difficulty: String,
     pub buy_box: i64,
+    pub reserved_for_static: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,7 +55,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold, hide_from_dashboard
+                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled
              FROM conf_character 
              WHERE roster_id = ?1
              ORDER BY CAST(display_order AS INTEGER)",
@@ -72,6 +73,7 @@ impl CharacterRepository {
                 display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
+                meow_connect_enabled: row.get(10)?,
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
@@ -88,7 +90,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold, hide_from_dashboard, class_display_name
+                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name
              FROM conf_character 
              WHERE char_id = ?1",
         )?;
@@ -105,6 +107,7 @@ impl CharacterRepository {
                 display_order: row.get::<_, String>(7)?.parse().unwrap_or(0),
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
+                meow_connect_enabled: row.get(10)?,
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
@@ -120,7 +123,7 @@ impl CharacterRepository {
         let mut stmt = conn.prepare(
             "SELECT c.char_id, c.char_name, c.class_id, c.class_display_name, 
                     c.item_level, c.combat_power, c.roster_name, 
-                    c.display_order, c.earns_gold, c.hide_from_dashboard
+                    c.display_order, c.earns_gold, c.hide_from_dashboard, c.meow_connect_enabled
              FROM conf_character c
              ORDER BY CAST(c.display_order AS INTEGER), c.char_name",
         )?;
@@ -136,6 +139,7 @@ impl CharacterRepository {
                 roster_name: row.get(6)?,
                 last_active: None, // Not in conf_character table
                 earns_gold: row.get(8)?,
+                meow_connect_enabled: row.get(10)?,
                 display_order: row.get(7)?,
             })
         })?;
@@ -165,6 +169,11 @@ impl CharacterRepository {
         if let Some(hide_from_dashboard) = settings.hide_from_dashboard {
             set_clauses.push("hide_from_dashboard = ?".to_string());
             params.push(hide_from_dashboard.into());
+        }
+
+        if let Some(meow_connect_enabled) = settings.meow_connect_enabled {
+            set_clauses.push("meow_connect_enabled = ?".to_string());
+            params.push(meow_connect_enabled.into());
         }
 
         if set_clauses.is_empty() {
@@ -219,8 +228,8 @@ impl CharacterRepository {
         conn.execute(
             "INSERT INTO conf_character 
              (char_id, char_name, roster_id, roster_name, class_id, item_level, 
-              combat_power, display_order, earns_gold, hide_from_dashboard, class_display_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+              combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(char_id) DO UPDATE SET
                char_name = excluded.char_name,
                roster_id = excluded.roster_id,
@@ -242,6 +251,7 @@ impl CharacterRepository {
                 character.display_order,
                 character.earns_gold,
                 false,
+                character.meow_connect_enabled,
                 character.class_display_name
             ],
         )?;
@@ -312,7 +322,7 @@ impl CharacterRepository {
         let mut conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box
+            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box, reserved_for_static
              FROM conf_raid 
              WHERE char_id = ?1",
         )?;
@@ -325,6 +335,7 @@ impl CharacterRepository {
                 take_gold: row.get(3)?,
                 difficulty: row.get(4)?,
                 buy_box: row.get(5)?,
+                reserved_for_static: row.get(6)?,
             })
         })?;
 
@@ -475,7 +486,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box FROM conf_raid WHERE char_id IN ({})",
+            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box, reserved_for_static FROM conf_raid WHERE char_id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -487,6 +498,7 @@ impl CharacterRepository {
                 take_gold: row.get(3)?,
                 difficulty: row.get(4)?,
                 buy_box: row.get(5)?,
+                reserved_for_static: row.get(6)?,
             })
         })?;
         let mut map: HashMap<i64, Vec<CharacterRaidConfig>> = HashMap::new();

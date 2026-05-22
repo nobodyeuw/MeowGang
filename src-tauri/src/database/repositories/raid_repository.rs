@@ -41,7 +41,7 @@ impl RaidRepository {
 
         // Get all raid configurations for this character, grouped by content_id
         let mut stmt = conn.prepare(
-            "SELECT content_id, gate, difficulty, take_gold, buy_box 
+            "SELECT content_id, gate, difficulty, take_gold, buy_box, reserved_for_static
              FROM conf_raid WHERE char_id = ?1 ORDER BY content_id, gate",
         )?;
 
@@ -52,19 +52,21 @@ impl RaidRepository {
                 row.get::<_, String>(2)?,   // difficulty
                 row.get::<_, i64>(3)? == 1, // take_gold
                 row.get::<_, i64>(4)? == 1, // buy_box
+                row.get::<_, i64>(5)? == 1, // reserved_for_static
             ))
         })?;
 
         // Group gates by content_id
         let mut raid_configs: std::collections::HashMap<String, Vec<RaidGateConfig>> = std::collections::HashMap::new();
         for result in raid_gate_iter {
-            let (content_id, gate, difficulty, take_gold, buy_box) = result?;
+            let (content_id, gate, difficulty, take_gold, buy_box, reserved_for_static) = result?;
 
             let gate_config = RaidGateConfig {
                 gate,
                 difficulty,
                 take_gold,
                 buy_box,
+                reserved_for_static,
             };
 
             raid_configs
@@ -104,8 +106,8 @@ impl RaidRepository {
         for config in configs {
             for gate_config in &config.gates {
                 tx.execute(
-                    "INSERT INTO conf_raid (roster_id, char_id, content_id, gate, difficulty, take_gold, buy_box) 
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "INSERT INTO conf_raid (roster_id, char_id, content_id, gate, difficulty, take_gold, buy_box, reserved_for_static)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
                         "default", // TODO: Get actual roster_id from context
                         character_id,
@@ -113,7 +115,8 @@ impl RaidRepository {
                         gate_config.gate,
                         gate_config.difficulty,
                         if gate_config.take_gold { 1 } else { 0 },
-                        if gate_config.buy_box { 1 } else { 0 }
+                        if gate_config.buy_box { 1 } else { 0 },
+                        if gate_config.reserved_for_static { 1 } else { 0 }
                     ],
                 )?;
             }
@@ -146,8 +149,8 @@ impl RaidRepository {
         for config in configs {
             for gate_config in &config.gates {
                 tx.execute(
-                    "INSERT INTO conf_raid (roster_id, char_id, content_id, gate, difficulty, take_gold, buy_box) 
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "INSERT INTO conf_raid (roster_id, char_id, content_id, gate, difficulty, take_gold, buy_box, reserved_for_static)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
                         roster_id,
                         character_id,
@@ -155,7 +158,8 @@ impl RaidRepository {
                         gate_config.gate,
                         gate_config.difficulty,
                         if gate_config.take_gold { 1 } else { 0 },
-                        if gate_config.buy_box { 1 } else { 0 }
+                        if gate_config.buy_box { 1 } else { 0 },
+                        if gate_config.reserved_for_static { 1 } else { 0 }
                     ],
                 )?;
             }

@@ -13,6 +13,7 @@ pub struct DashboardCharacter {
     pub roster_name: String,
     pub last_active: Option<String>,
     pub earns_gold: bool,
+    pub meow_connect_enabled: bool,
     pub display_order: i64,
 }
 
@@ -282,6 +283,7 @@ pub struct TaskSettingsStruct {
 pub struct CharacterSettings {
     pub earns_gold: Option<bool>,
     pub hide_from_dashboard: Option<bool>,
+    pub meow_connect_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

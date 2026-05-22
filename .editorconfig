@@ -1,5 +1,7 @@
 root = true
 
+# Shared editor formatting rules for this repo.
+# Keeps line endings and indentation consistent across Windows, Rust, Svelte, and TypeScript editors.
 [*]
 end_of_line = lf
 insert_final_newline = true

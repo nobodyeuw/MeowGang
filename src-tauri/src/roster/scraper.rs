@@ -46,6 +46,7 @@ pub struct Character {
     pub display_order: i64,
     pub earns_gold: bool,
     pub hide_from_dashboard: bool,
+    pub meow_connect_enabled: bool,
     pub class_display_name: Option<String>,
 }
 
@@ -359,6 +360,7 @@ impl HumanizedScraper {
                     display_order: (i + 1) as i64,
                     earns_gold: false,
                     hide_from_dashboard: false,
+                    meow_connect_enabled: false,
                     class_display_name: None,
                 });
             }

@@ -8,9 +8,24 @@
   import UpdateTab from '$lib/components/UpdateTab.svelte';
   import EncounterSyncStatus from '$lib/components/EncounterSyncStatus.svelte';
   import ProgressionPlanner from '$lib/components/ProgressionPlanner.svelte';
-  import PartyPlan from '$lib/components/PartyPlan.svelte';
+  import MeowConnect from '$lib/components/MeowConnect.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import SetupGuide from '$lib/components/SetupGuide.svelte';
+  import {
+    getStoredSupabaseDiscordAuth,
+    signInWithSupabaseDiscord,
+    type DiscordAuthResult
+  } from '$lib/services/supabase-auth';
+  import {
+    hasMeowConnectConsent,
+    isMeowConnectFeatureEnabled,
+    isMeowConnectRealtimeEnabled,
+    markMeowConnectActive,
+    markMeowConnectConnecting,
+    markMeowConnectFailure,
+    meowConnectStatus,
+    uploadMeowConnectSnapshotIfNeeded
+  } from '$lib/services/meow-connect';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
   import { GAME_TASKS } from '$lib/data/tasks';
@@ -20,20 +35,17 @@
   import { testSyncRoster } from '$lib/store';
   import { listen } from '@tauri-apps/api/event';
 
-  type DiscordAuthState = 'checking' | 'login' | 'authorizing' | 'welcome' | 'approved' | 'denied' | 'error';
+  const VALID_TABS = new Set(['dashboard', 'todo', 'settings', 'progression', 'meow-connect', 'updates', 'encounters']);
 
-  interface DiscordAuthResult {
-    approved: boolean;
-    user_id?: string;
-    username?: string;
-    message: string;
-  }
+  type DiscordAuthState = 'checking' | 'login' | 'authorizing' | 'welcome' | 'approved' | 'denied' | 'error';
+  type MeowConnectSection = 'together' | 'logs' | 'settings';
 
   let activeTab = 'dashboard';
   let sidebarOpen = false;
   let headerContent = '';
   let activeSettingsTab = 'roster';
   let activeProgressionTab = 'market_prices';
+  let activeMeowConnectTab: MeowConnectSection = 'together';
   let nextResetTime = '';
   let resetCountdown = '';
   let appReady = false;
@@ -47,6 +59,12 @@
   let discordAuthMessage = 'Checking Discord access...';
   let discordAuthUser = '';
   let appInitializationStarted = false;
+  let meowConnectHeaderState: 'inactive' | 'connecting' | 'active' | 'offline' | 'login_required' = 'inactive';
+  let meowConnectHeaderMessage = 'MeowConnect is inactive.';
+  let meowConnectHeaderLabel = 'Inactive';
+  let meowConnectFeatureEnabled = true;
+  let meowConnectRealtimeEnabled = true;
+  let meowConnectCompletionUploadTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Handle URL parameters
   $: urlParams = new URLSearchParams($page.url.search);
@@ -55,7 +73,14 @@
 
   // Update active tab when URL changes
   $: if (tabFromUrl !== activeTab) {
-    activeTab = tabFromUrl;
+    activeTab = VALID_TABS.has(tabFromUrl) ? tabFromUrl : 'dashboard';
+    if (activeTab !== tabFromUrl) {
+      goto('/?tab=dashboard');
+    }
+  }
+
+  $: if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
+    switchTab('dashboard');
   }
 
   // Update active filter character when URL changes
@@ -74,10 +99,40 @@
       const customEvent = event as CustomEvent<boolean>;
       showSetupGuideButton = customEvent.detail;
     };
+    const handleMeowConnectConsentChanged = () => {
+      refreshMeowConnectHeaderStatus();
+    };
+    const handleMeowConnectFeatureChanged = () => {
+      refreshMeowConnectFeatureSettings();
+      if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
+        switchTab('dashboard');
+      }
+    };
+    const handleMeowConnectRealtimeChanged = () => {
+      refreshMeowConnectFeatureSettings();
+    };
+    const handleMeowConnectCompletionChanged = () => {
+      scheduleMeowConnectCompletionUpload();
+    };
+    const unsubscribeMeowConnectStatus = meowConnectStatus.subscribe((status) => {
+      meowConnectHeaderState = status.state;
+      meowConnectHeaderMessage = status.message;
+      meowConnectHeaderLabel = getMeowConnectHeaderLabel(status.state);
+    });
+    let unlistenMeowConnectScrape: (() => void) | null = null;
 
     window.addEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
+    window.addEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
+    window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
+    window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+    window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
+    refreshMeowConnectFeatureSettings();
+    refreshMeowConnectHeaderStatus();
 
     (async () => {
+      unlistenMeowConnectScrape = await listen('meow-connect-roster-scrape-complete', () => {
+        void syncMeowConnectAfterRosterScrape();
+      });
       await loadSystemPreferences();
       await checkStoredDiscordAuth();
       if (discordAuthState !== 'approved') {
@@ -94,7 +149,14 @@
 
     // Cleanup on unmount
     return () => {
+      unlistenMeowConnectScrape?.();
+      unsubscribeMeowConnectStatus();
+      if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
+      window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
+      window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
+      window.removeEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+      window.removeEventListener('raid-completed', handleMeowConnectCompletionChanged);
       clearInterval(countdownInterval);
       clearInterval(resetRefreshInterval);
       clearInterval(loaLogsStatusInterval);
@@ -103,8 +165,15 @@
 
   async function checkStoredDiscordAuth() {
     try {
-      const result = await invoke<DiscordAuthResult>('verify_stored_discord_auth');
-      handleDiscordAuthResult(result);
+      const result = await getStoredSupabaseDiscordAuth();
+      if (result) {
+        handleDiscordAuthResult(result);
+        return;
+      }
+
+      discordAuthState = 'login';
+      discordAuthMessage = 'Sign in with Discord to access LOA Tracker.';
+      discordAuthUser = '';
     } catch (error) {
       discordAuthState = 'login';
       discordAuthMessage = `Discord auth could not be checked: ${error}`;
@@ -115,7 +184,7 @@
     try {
       discordAuthState = 'authorizing';
       discordAuthMessage = 'Opening Discord login in your browser...';
-      const result = await invoke<DiscordAuthResult>('authenticate_discord');
+      const result = await signInWithSupabaseDiscord();
       handleDiscordAuthResult(result);
 
       if (result.approved && !showAuthWelcome) {
@@ -179,6 +248,7 @@
     try {
       await initializeApp();
       await loadSystemPreferences();
+      refreshMeowConnectHeaderStatus();
       appReady = true;
       await showLoaLogsReminderIfNeeded();
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
@@ -226,12 +296,59 @@
           console.error('?? Encounters sync failed:', syncError);
         }
 
+        await syncMeowConnectOnAppStart();
       } catch (error) {
         console.error('?? Data completeness check failed:', error);
       }
     } catch (error) {
       appInitializationStarted = false;
       console.error('Failed to initialize authorized app:', error);
+    }
+  }
+
+  async function syncMeowConnectOnAppStart() {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+      refreshMeowConnectHeaderStatus();
+      return;
+    }
+
+    try {
+      markMeowConnectConnecting('Checking MeowConnect startup sync.');
+      const result = await uploadMeowConnectSnapshotIfNeeded();
+      markMeowConnectActive(
+        result.uploaded
+          ? 'MeowConnect startup sync succeeded.'
+          : 'MeowConnect is connected.'
+      );
+      console.log(
+        result.uploaded
+          ? `MeowConnect startup sync uploaded ${result.snapshot.characters.length} characters.`
+          : 'MeowConnect startup sync skipped; local snapshot unchanged.'
+      );
+    } catch (error) {
+      markMeowConnectFailure(error);
+      console.warn('MeowConnect startup sync failed:', error);
+    }
+  }
+
+  async function syncMeowConnectAfterRosterScrape() {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+      refreshMeowConnectHeaderStatus();
+      return;
+    }
+
+    try {
+      markMeowConnectConnecting('Syncing MeowConnect after roster scrape.');
+      const result = await uploadMeowConnectSnapshotIfNeeded({ force: true });
+      markMeowConnectActive('MeowConnect roster scrape sync succeeded.');
+      console.log(
+        result.uploaded
+          ? `MeowConnect roster scrape sync uploaded ${result.snapshot.characters.length} characters.`
+          : 'MeowConnect roster scrape sync skipped.'
+      );
+    } catch (error) {
+      markMeowConnectFailure(error);
+      console.warn('MeowConnect roster scrape sync failed:', error);
     }
   }
 
@@ -251,6 +368,9 @@
   }
 
   function switchTab(tab: string) {
+    if (tab === 'meow-connect' && !meowConnectFeatureEnabled) {
+      tab = 'dashboard';
+    }
     console.log('Switching to tab:', tab);
     activeTab = tab;
     sidebarOpen = false;
@@ -330,6 +450,55 @@
 
   function setHeaderContent(content: string) {
     headerContent = content;
+  }
+
+  function refreshMeowConnectHeaderStatus() {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+      meowConnectStatus.set({
+        state: 'inactive',
+        message: meowConnectFeatureEnabled ? 'MeowConnect is inactive.' : 'MeowConnect is disabled.',
+        updatedAt: Date.now()
+      });
+    }
+  }
+
+  function refreshMeowConnectFeatureSettings() {
+    meowConnectFeatureEnabled = isMeowConnectFeatureEnabled();
+    meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
+    refreshMeowConnectHeaderStatus();
+  }
+
+  function scheduleMeowConnectCompletionUpload() {
+    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
+    if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
+    meowConnectCompletionUploadTimer = setTimeout(() => {
+      void syncMeowConnectAfterCompletionChange();
+    }, 1200);
+  }
+
+  async function syncMeowConnectAfterCompletionChange() {
+    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
+
+    try {
+      markMeowConnectConnecting('Syncing MeowConnect completion update.');
+      const result = await uploadMeowConnectSnapshotIfNeeded({ force: true });
+      markMeowConnectActive(
+        result.uploaded
+          ? 'MeowConnect completion update synced.'
+          : 'MeowConnect completion update checked.'
+      );
+    } catch (error) {
+      markMeowConnectFailure(error);
+      console.warn('MeowConnect completion sync failed:', error);
+    }
+  }
+
+  function getMeowConnectHeaderLabel(state: typeof meowConnectHeaderState): string {
+    if (state === 'active') return 'Active';
+    if (state === 'connecting') return 'Connecting';
+    if (state === 'offline') return 'Offline';
+    if (state === 'login_required') return 'Login required';
+    return 'Inactive';
   }
 
   function toggleSidebar() {
@@ -487,7 +656,7 @@
 {:else}
 <div class="app">
   <!-- Sidebar -->
-  <Sidebar {activeTab} {switchTab} isOpen={sidebarOpen} {discordAuthUser} />
+  <Sidebar {activeTab} {switchTab} isOpen={sidebarOpen} {discordAuthUser} showMeowConnect={meowConnectFeatureEnabled} />
 
   <!-- Overlay for mobile -->
   {#if sidebarOpen}
@@ -507,6 +676,19 @@
           <h1>LOA Tracker</h1>
           {#if resetCountdown}
             <div class="reset-countdown">{resetCountdown}</div>
+          {/if}
+          {#if meowConnectFeatureEnabled}
+            <div
+              class="meowconnect-header-status"
+              class:active={meowConnectHeaderState === 'active'}
+              class:connecting={meowConnectHeaderState === 'connecting'}
+              class:inactive={meowConnectHeaderState === 'inactive'}
+              class:offline={meowConnectHeaderState === 'offline' || meowConnectHeaderState === 'login_required'}
+              title={meowConnectHeaderMessage}
+            >
+              <img src="/images/meowconnect_status.png" alt="" />
+              <span>MeowConnect: {meowConnectHeaderLabel}</span>
+            </div>
           {/if}
           {#if showSetupGuideButton}
             <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>
@@ -593,6 +775,33 @@
           </button>
         </div>
       {/if}
+
+      <!-- MeowConnect Sub-Tabs (only shown when MeowConnect tab is active) -->
+      {#if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
+        <div class="settings-sub-tabs">
+          <button
+            class="settings-tab-button"
+            class:active={activeMeowConnectTab === 'together'}
+            on:click={() => activeMeowConnectTab = 'together'}
+          >
+            Raid Together
+          </button>
+          <button
+            class="settings-tab-button"
+            class:active={activeMeowConnectTab === 'logs'}
+            on:click={() => activeMeowConnectTab = 'logs'}
+          >
+            Logs
+          </button>
+          <button
+            class="settings-tab-button"
+            class:active={activeMeowConnectTab === 'settings'}
+            on:click={() => activeMeowConnectTab = 'settings'}
+          >
+            Settings
+          </button>
+        </div>
+      {/if}
     </header>
 
     <!-- Tab Content -->
@@ -605,8 +814,8 @@
         <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e: CustomEvent<string>) => activeSettingsTab = e.detail} />
       {:else if activeTab === 'progression'}
         <ProgressionPlanner activeProgressionTab={activeProgressionTab} on:tabChange={(e: CustomEvent<string>) => activeProgressionTab = e.detail} />
-      {:else if activeTab === 'party-plan'}
-        <PartyPlan />
+      {:else if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
+        <MeowConnect activeSection={activeMeowConnectTab} />
       {:else if activeTab === 'updates'}
         <UpdateTab />
       {:else if activeTab === 'encounters'}
@@ -954,6 +1163,47 @@
     margin: 0;
     letter-spacing: 0.3px;
     text-transform: uppercase;
+  }
+
+  .meowconnect-header-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .meowconnect-header-status img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .meowconnect-header-status.active {
+    color: var(--md-sys-color-primary);
+  }
+
+  .meowconnect-header-status.connecting {
+    color: color-mix(in srgb, var(--md-sys-color-primary) 70%, var(--md-sys-color-on-surface-variant));
+    opacity: 0.86;
+  }
+
+  .meowconnect-header-status.inactive,
+  .meowconnect-header-status.offline {
+    color: color-mix(in srgb, #ef4444 55%, var(--md-sys-color-on-surface-variant));
+    opacity: 0.78;
+  }
+
+  .meowconnect-header-status.inactive img,
+  .meowconnect-header-status.offline img {
+    filter: grayscale(1);
+    opacity: 0.46;
   }
 
   .setup-guide-button {

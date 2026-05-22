@@ -61,6 +61,8 @@ pub struct RaidGateConfig {
     pub difficulty: String,
     pub take_gold: bool,
     pub buy_box: bool,
+    #[serde(default)]
+    pub reserved_for_static: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +198,7 @@ pub async fn update_raid_master_config(
     contentId: String,
     takeGold: Option<bool>,
     buyBox: Option<bool>,
+    reservedForStatic: Option<bool>,
     raid_repo: State<'_, RaidRepository>,
 ) -> Result<(), String> {
     // Get current configuration for this character and raid
@@ -221,6 +224,9 @@ pub async fn update_raid_master_config(
             if let Some(buy_box) = buyBox {
                 gate_config.buy_box = buy_box;
             }
+            if let Some(reserved_for_static) = reservedForStatic {
+                gate_config.reserved_for_static = reserved_for_static;
+            }
         }
 
         raid_repo
@@ -240,6 +246,7 @@ pub async fn update_raid_gate_config(
     difficulty: String,
     takeGold: Option<bool>,
     buyBox: Option<bool>,
+    reservedForStatic: Option<bool>,
     raid_repo: State<'_, RaidRepository>,
 ) -> Result<(), String> {
     // Get current configuration for this character and raid
@@ -247,25 +254,53 @@ pub async fn update_raid_gate_config(
         .get_character_raid_configs(charId)
         .map_err(|e| format!("Failed to get current raid config: {}", e))?;
 
-    // Find the raid config
-    if let Some(raid_config) = configs.iter_mut().find(|c| c.content_id == contentId) {
-        // Find the specific gate
-        if let Some(gate_config) = raid_config.gates.iter_mut().find(|g| g.gate == gate) {
-            // Update gate settings
-            gate_config.difficulty = difficulty;
-            if let Some(take_gold) = takeGold {
-                gate_config.take_gold = take_gold;
-            }
-            if let Some(buy_box) = buyBox {
-                gate_config.buy_box = buy_box;
-            }
+    let raid_index = configs
+        .iter()
+        .position(|config| config.content_id == contentId)
+        .unwrap_or_else(|| {
+            configs.push(RaidConfig {
+                content_id: contentId.clone(),
+                gates: Vec::new(),
+                take_gold: false,
+                buy_box: false,
+            });
+            configs.len() - 1
+        });
 
-            // Save the updated configuration with roster_id
-            raid_repo
-                .save_character_raid_configs_with_roster_id(rosterId, charId, &configs)
-                .map_err(|e| format!("Failed to save raid config: {}", e))?;
-        }
+    let raid_config = &mut configs[raid_index];
+    let gate_index = raid_config
+        .gates
+        .iter()
+        .position(|config| config.gate == gate)
+        .unwrap_or_else(|| {
+            raid_config.gates.push(RaidGateConfig {
+                gate: gate.clone(),
+                difficulty: difficulty.clone(),
+                take_gold: false,
+                buy_box: false,
+                reserved_for_static: false,
+            });
+            raid_config.gates.len() - 1
+        });
+
+    let gate_config = &mut raid_config.gates[gate_index];
+    gate_config.difficulty = difficulty;
+    if let Some(take_gold) = takeGold {
+        gate_config.take_gold = take_gold;
     }
+    if let Some(buy_box) = buyBox {
+        gate_config.buy_box = buy_box;
+    }
+    if let Some(reserved_for_static) = reservedForStatic {
+        gate_config.reserved_for_static = reserved_for_static;
+    }
+
+    raid_config.take_gold = raid_config.gates.iter().any(|gate| gate.take_gold);
+    raid_config.buy_box = raid_config.gates.iter().any(|gate| gate.buy_box);
+
+    raid_repo
+        .save_character_raid_configs_with_roster_id(rosterId, charId, &configs)
+        .map_err(|e| format!("Failed to save raid config: {}", e))?;
 
     Ok(())
 }

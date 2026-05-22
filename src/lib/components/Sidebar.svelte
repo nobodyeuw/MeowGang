@@ -3,6 +3,7 @@
   export let switchTab: (tab: string) => void;
   export let isOpen: boolean = false;
   export let discordAuthUser: string = '';
+  export let showMeowConnect: boolean = true;
 </script>
 
 <nav class="sidebar" class:isOpen={isOpen}>
@@ -34,14 +35,18 @@
       <span class="nav-text">Progression Planner</span>
     </button>
 
-    <button
-      class="nav-item"
-      class:active={activeTab === 'party-plan'}
-      on:click={() => switchTab('party-plan')}
-    >
-      <span class="nav-icon">GP</span>
-      <span class="nav-text">Party Plan</span>
-    </button>
+    {#if showMeowConnect}
+      <button
+        class="nav-item"
+        class:active={activeTab === 'meow-connect'}
+        on:click={() => switchTab('meow-connect')}
+      >
+        <span class="nav-icon image-icon">
+          <img src="/images/meowconnect_tab.png" alt="" />
+        </span>
+        <span class="nav-text">MeowConnect</span>
+      </button>
+    {/if}
 
     <div class="nav-spacer"></div>
 
@@ -197,7 +202,19 @@
   .nav-icon {
     font-size: 1.25rem;
     width: 24px;
+    height: 24px;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
+  }
+
+  .nav-icon.image-icon img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    display: block;
   }
 
   .nav-text {
@@ -217,6 +234,13 @@
     .nav-icon {
       font-size: 1.125rem;
       width: 20px;
+      height: 20px;
+      flex-basis: 20px;
+    }
+
+    .nav-icon.image-icon img {
+      width: 20px;
+      height: 20px;
     }
   }
 
@@ -233,6 +257,13 @@
     .nav-icon {
       font-size: 1rem;
       width: 18px;
+      height: 18px;
+      flex-basis: 18px;
+    }
+
+    .nav-icon.image-icon img {
+      width: 18px;
+      height: 18px;
     }
   }
 </style>

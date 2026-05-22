@@ -102,6 +102,8 @@ impl DatabaseManager {
                     roster_display_order INTEGER DEFAULT 0,
                     earns_gold BOOLEAN DEFAULT 0,
                     hide_from_dashboard BOOLEAN DEFAULT 0,
+                    meow_connect_enabled BOOLEAN DEFAULT 0,
+                    class_display_name TEXT,
                     PRIMARY KEY(char_id)
                 )",
             ),
@@ -133,6 +135,7 @@ impl DatabaseManager {
                     difficulty TEXT,
                     take_gold INTEGER DEFAULT 0,
                     buy_box INTEGER DEFAULT 0,
+                    reserved_for_static INTEGER DEFAULT 0,
                     UNIQUE(char_id, content_id, gate)
                 )",
             ),

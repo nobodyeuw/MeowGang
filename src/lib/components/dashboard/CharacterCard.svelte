@@ -12,7 +12,7 @@
   export let viewMode: 'cards' | 'compact' = 'cards';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
   export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
-  export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; is_tracked?: number }> = [];
+  export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; buy_box?: number; reserved_for_static?: number; is_tracked?: number }> = [];
   export let trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }> = [];
 
   // Reactive values
@@ -84,10 +84,14 @@
         content_id: raid.content_id,
         difficulty: raid.difficulty,
         take_gold: Number(raid.take_gold) === 1 ? 1 : 0,
+        reserved_for_static: Number(raid.reserved_for_static) === 1 ? 1 : 0,
         is_tracked: trackedRaidIds.has(raid.content_id) ? 1 : 0
       };
     } else if (Number(raid.take_gold) === 1) {
       groups[key].take_gold = 1;
+    }
+    if (Number(raid.reserved_for_static) === 1) {
+      groups[key].reserved_for_static = 1;
     }
 
     return groups;
@@ -113,6 +117,7 @@
       return {
         ...r,
         isGoldRaid: Number(r.take_gold) === 1 && character.earns_gold,
+        isStaticReserved: Number(r.reserved_for_static) === 1,
         isTrackedRaid: Number(r.is_tracked) === 1 && !character.earns_gold,
         completed: fullyCompleted,   // only true when ALL gates done
         gateProgress,
@@ -352,8 +357,9 @@
               class:completed={raid.completed}
               class:gold-raid={raid.isGoldRaid}
               class:tracked-raid={raid.isTrackedRaid}
+              class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
-              title={raid.completionTooltip ?? ''}
+              title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
             >
               <div class="raid-content">
                 <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
@@ -372,6 +378,9 @@
                 {/if}
                 {#if raid.isGoldRaid}
                   <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                {/if}
+                {#if raid.isStaticReserved}
+                  <span class="static-badge">Static</span>
                 {/if}
               </div>
             </div>
@@ -467,8 +476,9 @@
               class:completed={raid.completed}
               class:gold-raid={raid.isGoldRaid}
               class:tracked-raid={raid.isTrackedRaid}
+              class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
-              title={raid.completionTooltip ?? ''}
+              title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
             >
               <div class="raid-content">
                 <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
@@ -484,6 +494,9 @@
                 {/if}
                 {#if raid.isGoldRaid}
                   <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                {/if}
+                {#if raid.isStaticReserved}
+                  <span class="static-badge">Static</span>
                 {/if}
               </div>
             </div>
@@ -1077,6 +1090,11 @@
     color: #7dd3fc;
   }
 
+  .raid-item.static-reserved {
+    border-color: rgba(251, 146, 60, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.16);
+  }
+
   .raid-item.weekly-task {
     background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), rgba(100, 116, 139, 0.16));
     border: 1px solid rgba(148, 163, 184, 0.24);
@@ -1160,6 +1178,17 @@
     height: 12px;
     border-radius: 2px;
     flex-shrink: 0;
+  }
+
+  .static-badge {
+    flex-shrink: 0;
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+    background: rgba(251, 146, 60, 0.18);
+    color: #fdba74;
+    font-size: 0.58rem;
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .compact-raid-name > span:first-child {

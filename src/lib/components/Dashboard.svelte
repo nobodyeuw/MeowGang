@@ -313,7 +313,7 @@
       console.log('Roster event progress updated, refreshing dashboard...');
       await calculateGlobalStats($characters);
     };
-    
+
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
     window.addEventListener('raid-completed', handleRaidCompleted);
     window.addEventListener('character-data-complete', handleCharacterDataComplete);

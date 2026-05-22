@@ -1,2 +1,33 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalize text files to LF in the working tree and repository.
+* text=auto eol=lf
+
+# Source/config files
+*.js text eol=lf
+*.ts text eol=lf
+*.svelte text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.svg text eol=lf
+
+# Local/database/bundle binaries
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.dll binary
+*.exe binary

@@ -18,6 +18,7 @@ export interface Roster {
 export interface CharacterSettings {
   earns_gold?: boolean;
   hide_from_dashboard?: boolean;
+  meow_connect_enabled?: boolean;
 }
 
 export interface Character {
@@ -31,6 +32,7 @@ export interface Character {
   display_order: number;
   earns_gold: boolean;
   hide_from_dashboard?: boolean;
+  meow_connect_enabled?: boolean;
   icon_id?: string;
   class_display_name?: string;
   last_active?: string;

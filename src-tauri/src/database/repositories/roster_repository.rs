@@ -45,7 +45,7 @@ impl RosterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard
+                    combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard, meow_connect_enabled
              FROM conf_character 
              WHERE roster_id = ?1 
              ORDER BY CAST(display_order AS INTEGER), char_name",
@@ -63,6 +63,7 @@ impl RosterRepository {
                 display_order: row.get(7)?,
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
+                meow_connect_enabled: row.get(10)?,
                 class_display_name: None,
             })
         })?;
@@ -83,10 +84,10 @@ impl RosterRepository {
             tx.execute(
                 "INSERT INTO conf_character 
                  (char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                  combat_power, display_order, roster_display_order, earns_gold, hide_from_dashboard)
+                  combat_power, display_order, roster_display_order, earns_gold, hide_from_dashboard, meow_connect_enabled)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
                          COALESCE((SELECT MIN(roster_display_order) FROM conf_character WHERE roster_id = ?3), 0),
-                         ?9, ?10)
+                         ?9, ?10, ?11)
                  ON CONFLICT(char_id) DO UPDATE SET
                    char_name = excluded.char_name,
                    roster_id = excluded.roster_id,
@@ -106,7 +107,8 @@ impl RosterRepository {
                     character.combat_power,
                     character.display_order,
                     character.earns_gold,
-                    false
+                    false,
+                    character.meow_connect_enabled
                 ],
             )?;
         }

@@ -6,7 +6,7 @@ pub mod data_manager_handlers;
 pub mod encounter_sync_handlers;
 pub mod entity_sync_handlers;
 pub mod market_handlers;
-pub mod party_plan_handlers;
+pub mod meow_connect_handlers;
 pub mod progression_handlers;
 pub mod raid_handlers;
 pub mod raid_todo_handlers;

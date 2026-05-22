@@ -26,6 +26,7 @@ use dirs;
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter,
     Manager,
 };
 
@@ -234,7 +235,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 11;
+            const TARGET_VERSION: i32 = 14;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -301,6 +302,7 @@ pub fn run() {
             // Perform daily roster scraping if needed
             crate::log_info!("Initializing daily roster scraping service");
             let todo_repo_for_scraping = todo_repo_arc.clone();
+            let app_for_scraping = app.handle().clone();
 
             // Run daily scraping in background
             tauri::async_runtime::spawn(async move {
@@ -310,6 +312,8 @@ pub fn run() {
 
                 if let Ok(rosters_needing_scrape) = get_rosters_needing_daily_scrape(&*todo_repo_for_scraping) {
                     crate::log_info!("Found {} rosters needing daily scrape", rosters_needing_scrape.len());
+                    let mut successful_scrapes = 0;
+                    let mut updated_characters = 0;
                     for roster_id in rosters_needing_scrape {
                         // For each roster, create a scraper and update character data
                         let characters = match crate::handlers::sync_metadata_handlers::get_characters_for_roster(
@@ -360,6 +364,8 @@ pub fn run() {
                                         roster_id,
                                         updated_count
                                     );
+                                    successful_scrapes += 1;
+                                    updated_characters += updated_count;
                                 }
                                 Err(e) => {
                                     crate::log_error!("Failed to scrape roster {}: {}", roster_id, e);
@@ -383,6 +389,15 @@ pub fn run() {
                             }
                         }
                     }
+                    if successful_scrapes > 0 {
+                        let _ = app_for_scraping.emit(
+                            "meow-connect-roster-scrape-complete",
+                            serde_json::json!({
+                                "successful_scrapes": successful_scrapes,
+                                "updated_characters": updated_characters
+                            }),
+                        );
+                    }
                 }
             });
 
@@ -393,6 +408,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Auth handlers
             handlers::auth_handlers::authenticate_discord,
+            handlers::auth_handlers::authenticate_supabase_discord,
+            handlers::auth_handlers::verify_discord_profile_auth,
             handlers::auth_handlers::verify_stored_discord_auth,
             handlers::auth_handlers::get_discord_whitelist_members,
             // System handlers
@@ -478,13 +495,8 @@ pub fn run() {
             handlers::encounter_sync_handlers::sync_encounters_to_completions,
             handlers::encounter_sync_handlers::get_encounters_preview,
             handlers::encounter_sync_handlers::test_boss_mapping,
-            // Party plan handlers
-            handlers::party_plan_handlers::save_party_plan,
-            handlers::party_plan_handlers::load_party_plan,
-            handlers::party_plan_handlers::list_party_plans,
-            handlers::party_plan_handlers::delete_party_plan,
-            handlers::party_plan_handlers::get_party_plan_endpoint_url,
-            handlers::party_plan_handlers::sync_party_plan_remote,
+            // MeowConnect handlers
+            handlers::meow_connect_handlers::get_meow_connect_local_snapshot,
             // Entity sync handlers
             handlers::entity_sync_handlers::sync_entity_data,
             handlers::entity_sync_handlers::sync_all_recent_entities,

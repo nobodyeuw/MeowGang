@@ -3,6 +3,12 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import { activeRosterId, characters, loadCharacters, loadRosters, rosters } from '$lib/store';
+  import {
+    isMeowConnectFeatureEnabled,
+    isMeowConnectRealtimeEnabled,
+    setMeowConnectFeatureEnabled,
+    setMeowConnectRealtimeEnabled
+  } from '$lib/services/meow-connect';
 
   // State
   let systemSettings: any = null;
@@ -20,6 +26,8 @@
   let startWithLoaLogs = false;
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
+  let meowConnectEnabled = true;
+  let meowConnectRealtimeEnabled = true;
   let isClearingUserData = false;
   let showClearUserDataDialog = false;
   let isRunning = false;
@@ -69,6 +77,8 @@
       startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
+      meowConnectEnabled = isMeowConnectFeatureEnabled();
+      meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
 
     } catch (err) {
       error = `Failed to load system settings: ${err}`;
@@ -229,6 +239,20 @@
     } catch (err) {
       showError(`Failed to update welcome screen: ${err}`);
     }
+  }
+
+  function toggleMeowConnectEnabled() {
+    const newValue = !meowConnectEnabled;
+    meowConnectEnabled = newValue;
+    setMeowConnectFeatureEnabled(newValue);
+    showSuccess(`MeowConnect ${newValue ? 'enabled' : 'disabled'}!`);
+  }
+
+  function toggleMeowConnectRealtime() {
+    const newValue = !meowConnectRealtimeEnabled;
+    meowConnectRealtimeEnabled = newValue;
+    setMeowConnectRealtimeEnabled(newValue);
+    showSuccess(`MeowConnect real-time sync ${newValue ? 'enabled' : 'disabled'}!`);
   }
 
   function requestClearUserData() {
@@ -471,6 +495,62 @@
               <button class="danger-button" on:click={requestClearUserData} disabled={isClearingUserData}>
                 {isClearingUserData ? 'Clearing...' : 'Clear Data'}
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MeowConnect Section -->
+      <div class="settings-section">
+        <div class="section-header">
+          <div class="section-icon">
+            <img src="/images/meowconnect_tab.png" alt="" class="section-image-icon" />
+          </div>
+          <div>
+            <h3>MeowConnect</h3>
+            <p>Control shared availability and live cloud updates</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon meowconnect-icon">
+                <img src="/images/meowconnect_tab.png" alt="" />
+              </div>
+              <div class="toggle-content">
+                <h4>MeowConnect</h4>
+                <p>Enable or disable the MeowConnect feature</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={meowConnectEnabled}
+                  on:change={toggleMeowConnectEnabled}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card toggle-card" class:disabled-card={!meowConnectEnabled}>
+            <div class="setting-header">
+              <div class="setting-icon meowconnect-icon">
+                <img src="/images/meowconnect_status.png" alt="" />
+              </div>
+              <div class="toggle-content">
+                <h4>Real-time MeowConnect</h4>
+                <p>Enable real-time raid completion syncing with the cloud database</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={meowConnectRealtimeEnabled}
+                  disabled={!meowConnectEnabled}
+                  on:change={toggleMeowConnectRealtime}
+                />
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
         </div>
@@ -1093,6 +1173,13 @@
     font-size: 13px;
   }
 
+  .section-image-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: block;
+  }
+
   /* Settings Grid */
   .settings-grid {
     display: grid;
@@ -1154,6 +1241,21 @@
   .setting-icon.danger {
     background: color-mix(in srgb, var(--md-sys-color-error) 16%, transparent);
     color: var(--md-sys-color-error);
+  }
+
+  .setting-icon.meowconnect-icon {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  }
+
+  .setting-icon.meowconnect-icon img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .disabled-card {
+    opacity: 0.62;
   }
 
   .danger-card {

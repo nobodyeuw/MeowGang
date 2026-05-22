@@ -34,6 +34,11 @@ pub struct WhitelistMember {
     pub name: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SupabaseOAuthCodeResult {
+    pub code: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct DiscordCodePayload {
     code: String,
@@ -84,6 +89,68 @@ pub async fn authenticate_discord(app: tauri::AppHandle) -> Result<DiscordAuthRe
         exchange_discord_code_for_token(&client_id, &redirect_uri, &code_payload.code, &code_verifier).await?;
 
     verify_token_against_whitelist(&app, &access_token, &whitelist_url).await
+}
+
+#[tauri::command]
+pub async fn authenticate_supabase_discord(authUrl: String) -> Result<SupabaseOAuthCodeResult, String> {
+    if !authUrl.starts_with("https://") {
+        return Err("Supabase auth URL must use HTTPS.".to_string());
+    }
+
+    let port = discord_redirect_port();
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .map_err(|e| format!("Failed to start Supabase auth callback server on port {}: {}", port, e))?;
+
+    open_external_url(&authUrl)?;
+
+    let code = tokio::task::spawn_blocking(move || wait_for_supabase_code(listener))
+        .await
+        .map_err(|e| format!("Supabase auth task failed: {}", e))??;
+
+    Ok(SupabaseOAuthCodeResult { code })
+}
+
+#[tauri::command]
+pub async fn verify_discord_profile_auth(
+    app: tauri::AppHandle,
+    discordId: String,
+    username: Option<String>,
+) -> Result<DiscordAuthResult, String> {
+    let whitelist_url = discord_whitelist_url()?;
+    let whitelist = fetch_whitelist(&whitelist_url).await?;
+    let discord_id = discordId.trim();
+
+    if discord_id.is_empty() {
+        return Ok(DiscordAuthResult {
+            approved: false,
+            user_id: None,
+            username,
+            message: "Discord auth did not include a Discord user id.".to_string(),
+        });
+    }
+
+    if let Some(whitelist_name) = whitelist.get(discord_id) {
+        let display_name = whitelist_name
+            .clone()
+            .or(username)
+            .unwrap_or_else(|| "MeowGang member".to_string());
+        write_stored_discord_id(&app, discord_id)?;
+
+        Ok(DiscordAuthResult {
+            approved: true,
+            user_id: Some(discord_id.to_string()),
+            username: Some(display_name.clone()),
+            message: format!("Welcome, {}", display_name),
+        })
+    } else {
+        remove_stored_discord_id(&app);
+        Ok(DiscordAuthResult {
+            approved: false,
+            user_id: Some(discord_id.to_string()),
+            username,
+            message: "Not approved by our Meowtator".to_string(),
+        })
+    }
 }
 
 #[tauri::command]
@@ -275,6 +342,30 @@ fn wait_for_discord_code(listener: TcpListener, expected_state: &str) -> Result<
     Err("Discord login timed out. Please try again.".to_string())
 }
 
+fn wait_for_supabase_code(listener: TcpListener) -> Result<String, String> {
+    listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("Failed to configure Supabase auth callback server: {}", e))?;
+
+    let deadline = Instant::now() + Duration::from_secs(AUTH_TIMEOUT_SECONDS);
+
+    while Instant::now() < deadline {
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                if let Some(code) = handle_supabase_callback_request(&mut stream)? {
+                    return Ok(code);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(e) => return Err(format!("Supabase auth callback failed: {}", e)),
+        }
+    }
+
+    Err("Supabase login timed out. Please try again.".to_string())
+}
+
 fn handle_auth_callback_request(stream: &mut TcpStream) -> Result<Option<DiscordCodePayload>, String> {
     let request = read_http_request(stream)?;
 
@@ -282,6 +373,19 @@ fn handle_auth_callback_request(stream: &mut TcpStream) -> Result<Option<Discord
         let payload = parse_discord_code_payload(&request)?;
         write_http_response(stream, "200 OK", "text/html; charset=utf-8", discord_callback_html())?;
         return Ok(Some(payload));
+    }
+
+    write_http_response(stream, "404 Not Found", "text/plain; charset=utf-8", "Not found")?;
+    Ok(None)
+}
+
+fn handle_supabase_callback_request(stream: &mut TcpStream) -> Result<Option<String>, String> {
+    let request = read_http_request(stream)?;
+
+    if request.starts_with("GET /supabase/callback") {
+        let code = parse_supabase_code_payload(&request)?;
+        write_http_response(stream, "200 OK", "text/html; charset=utf-8", supabase_callback_html())?;
+        return Ok(Some(code));
     }
 
     write_http_response(stream, "404 Not Found", "text/plain; charset=utf-8", "Not found")?;
@@ -321,6 +425,35 @@ fn parse_discord_code_payload(request: &str) -> Result<DiscordCodePayload, Strin
         code: code.ok_or_else(|| "Discord did not return an auth code.".to_string())?,
         state: state.ok_or_else(|| "Discord did not return an auth state.".to_string())?,
     })
+}
+
+fn parse_supabase_code_payload(request: &str) -> Result<String, String> {
+    let request_target = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .ok_or_else(|| "Supabase callback request was malformed.".to_string())?;
+    let query = request_target
+        .split_once('?')
+        .map(|(_, query)| query)
+        .unwrap_or_default();
+
+    for pair in query.split('&') {
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        let decoded_value = urlencoding::decode(value)
+            .map_err(|e| format!("Failed to decode Supabase callback value: {}", e))?
+            .into_owned();
+
+        match key {
+            "code" => return Ok(decoded_value),
+            "error" => return Err(format!("Supabase login failed: {}", decoded_value)),
+            _ => {}
+        }
+    }
+
+    Err("Supabase did not return an auth code.".to_string())
 }
 
 fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
@@ -405,6 +538,28 @@ fn discord_callback_html() -> &'static str {
   <body>
     <main>
       <h1>Discord login received</h1>
+      <p>Login complete. You can close this tab and return to LOA Tracker.</p>
+    </main>
+  </body>
+</html>"#
+}
+
+fn supabase_callback_html() -> &'static str {
+    r#"<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>LOA Tracker MeowConnect Login</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #161618; color: #f4f0ea; }
+      main { max-width: 420px; padding: 28px; text-align: center; }
+      h1 { font-size: 22px; margin: 0 0 10px; }
+      p { color: #c9c1b7; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MeowConnect login received</h1>
       <p>Login complete. You can close this tab and return to LOA Tracker.</p>
     </main>
   </body>

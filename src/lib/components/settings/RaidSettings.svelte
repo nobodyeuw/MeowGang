@@ -33,6 +33,7 @@
     gates: any[];
     take_gold: boolean;
     buy_box: boolean;
+    reserved_for_static: boolean;
   }
 
   interface CharacterRaidConfig {
@@ -785,7 +786,7 @@
   }
 
   // Helper function to check if master row is active (all gates have the same status)
-  function isMasterActive(char: any, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box'): boolean {
+  function isMasterActive(char: any, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static'): boolean {
     if (!char || !char.raid_configs) return false;
     
     const raidConfig = char.raid_configs.find((r: any) => r.content_id === raidId);
@@ -796,14 +797,14 @@
   }
 
   // Reactive version of isMasterActive that triggers on checkboxUpdateTrigger
-  function isMasterActiveReactive(char: any, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box'): boolean {
+  function isMasterActiveReactive(char: any, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static'): boolean {
     // This forces reactivity when checkboxUpdateTrigger changes
     checkboxUpdateTrigger;
     return isMasterActive(char, raidId, difficulty, type);
   }
 
   // Helper function to get master raid state from gates
-  function getMasterRaidState(char: any, raidId: string, type: 'take_gold' | 'buy_box'): boolean {
+  function getMasterRaidState(char: any, raidId: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static'): boolean {
     if (!char || !char.raid_configs) return false;
     
     const config = char.raid_configs.find((r: any) => r.content_id === raidId);
@@ -861,7 +862,7 @@
   }
 
   // Toggle master raid settings - Optimized for Svelte 5
-  async function toggleMasterRaid(charId: number, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'difficulty') {
+  async function toggleMasterRaid(charId: number, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static' | 'difficulty') {
     // Find character across all raid groups
     const characterRaids = raidMatrix
       .flatMap(raidGroup => raidGroup.characters)
@@ -908,7 +909,8 @@
             content_id: raidId, 
             gates: [], 
             take_gold: false, 
-            buy_box: false 
+            buy_box: false,
+            reserved_for_static: false
           };
           char.raid_configs.push(config);
         }
@@ -919,7 +921,8 @@
             gate: gateDef.gate,
             difficulty: difficulty,
             take_gold: false,
-            buy_box: false
+            buy_box: false,
+            reserved_for_static: false
           };
           config.gates.push(gateConfig);
         } else {
@@ -968,7 +971,8 @@
           content_id: raidId, 
           gates: [], 
           take_gold: false, 
-          buy_box: false 
+          buy_box: false,
+          reserved_for_static: false
         };
         char.raid_configs.push(config);
       }
@@ -979,7 +983,8 @@
           gate: gateDef.gate,
           difficulty: difficulty,
           take_gold: targetValue,
-          buy_box: targetValue
+          buy_box: type === 'buy_box' ? targetValue : false,
+          reserved_for_static: type === 'reserved_for_static' ? targetValue : false
         };
         config.gates.push(gateConfig);
       } else {
@@ -1042,7 +1047,8 @@
           gate: gateDef.gate,
           difficulty: difficulty,
           takeGold: type === 'take_gold' ? targetValue : undefined,
-          buyBox: type === 'buy_box' ? targetValue : undefined
+          buyBox: type === 'buy_box' ? targetValue : undefined,
+          reservedForStatic: type === 'reserved_for_static' ? targetValue : undefined
         });
       }
     } catch (err) {
@@ -1104,7 +1110,8 @@
           content_id: raidId, 
           gates: [], 
           take_gold: false, 
-          buy_box: false 
+          buy_box: false,
+          reserved_for_static: false
         };
         char.raid_configs.push(config);
       }
@@ -1113,7 +1120,8 @@
         gate: gate,
         difficulty: difficulty,
         take_gold: false,
-        buy_box: false
+        buy_box: false,
+        reserved_for_static: false
       };
       config.gates.push(gateConfig);
     }
@@ -1285,6 +1293,15 @@
                         
                         <!-- Gold/Box Options (Bottom) -->
                         <div class="options-row">
+                          <label class="option-toggle static-option" title="Mark this character as reserved for a static or friend run for this raid">
+                            <input
+                              type="checkbox"
+                              checked={isMasterActiveReactive(char, raid.content_id, char.master_difficulty, 'reserved_for_static')}
+                              on:change={() => toggleMasterRaid(char.char_id, raid.content_id, char.master_difficulty, 'reserved_for_static')}
+                            />
+                            <span class="option-label">Static/Friends</span>
+                          </label>
+
                           <!-- Take Gold (only for gold earners) -->
                           {#if char.earns_gold}
                             {@const raidGoldValues = getRaidGoldValues(char, raid.content_id)}

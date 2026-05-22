@@ -6,6 +6,27 @@ node_modules
 .env
 .env.*
 !.env.example
+
+# Local credentials / private keys
+*.pem
+*.p12
+*.pfx
+*.key
+*.secret
+*service-role*
+
+# Local app data / databases
+*.db
+*.sqlite
+*.sqlite3
+meowgang_auth.txt
+party_plans.json
+userlogs.db
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Rust / Tauri
