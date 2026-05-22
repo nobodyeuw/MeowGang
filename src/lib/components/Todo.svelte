@@ -3,12 +3,13 @@
   import { invoke } from '@tauri-apps/api/core';
   import { isTaskAvailable } from '../utils/availability';
   import Countdown from './Countdown.svelte';
-  import { activeRosterId, activeFilterCharId } from '$lib/store';
+  import { activeRosterId, activeFilterCharId, rosters } from '$lib/store';
   import { GAME_TASKS } from '$lib/data/tasks';
   import { RAIDS } from '$lib/data/raids';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { encounterMap } from '$lib/data/encounters';
   import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
+  import { splitRatTodoView } from '$lib/services/todo-preferences';
   
   export let highlightCharId: number | null = null;
   
@@ -79,6 +80,12 @@
     completed: boolean;
   }
 
+  interface RaidConfigEntry {
+    char_id: number;
+    content_id: string;
+    difficulty: string;
+  }
+
   interface RosterEventProgress {
     task_id: string;
     completed_this_week: number;
@@ -94,17 +101,46 @@
   let raidConfigMap: Map<string, Map<number, string>> = new Map();
   let loading = true;
   let error = '';
+  let selectedTodoRosterId = '';
+  let lastActiveRosterId = '';
+
+  const VIRTUAL_RAT_ROSTER_ID = '__todo_virtual_rat__';
+
+  $: todoRosterOptions = $splitRatTodoView
+    ? [{ id: VIRTUAL_RAT_ROSTER_ID, roster_name: 'RAT' }]
+    : [];
+  $: effectiveTodoRosterId = $splitRatTodoView
+    ? (selectedTodoRosterId || $activeRosterId)
+    : $activeRosterId;
+  $: rosterCount = $rosters.length;
+
+  $: if ($activeRosterId && (!selectedTodoRosterId || (selectedTodoRosterId === lastActiveRosterId && $activeRosterId !== lastActiveRosterId))) {
+    selectedTodoRosterId = $activeRosterId;
+    lastActiveRosterId = $activeRosterId;
+  }
+
+  $: if (!$splitRatTodoView && selectedTodoRosterId === VIRTUAL_RAT_ROSTER_ID) {
+    selectedTodoRosterId = $activeRosterId;
+  }
   
   // Functions
   async function loadMatrix() {
     try {
       loading = true;
       error = '';
-      
-      const baseMatrix = await invoke<TodoMatrixResponse>('get_todo_matrix', { rosterId: $activeRosterId });
-      
-      // Load raid configurations for tooltips
-      const raidConfigs = await invoke<Array<{char_id: number, content_id: string, difficulty: string}>>('get_raid_configs_for_roster', { rosterId: $activeRosterId });
+      const rosterId = effectiveTodoRosterId;
+      const isRatView = $splitRatTodoView && rosterId === VIRTUAL_RAT_ROSTER_ID;
+      let { baseMatrix, raidConfigs } = isRatView
+        ? await loadRatTodoMatrixSources()
+        : {
+            baseMatrix: await invoke<TodoMatrixResponse>('get_todo_matrix', { rosterId }),
+            raidConfigs: await invoke<RaidConfigEntry[]>('get_raid_configs_for_roster', { rosterId })
+          };
+      if ($splitRatTodoView && !isRatView) {
+        const goldCharacterIds = new Set(baseMatrix.characters.filter((character) => character.earns_gold).map((character) => character.id));
+        baseMatrix = filterTodoMatrixCharacters(baseMatrix, goldCharacterIds);
+        raidConfigs = raidConfigs.filter((config) => goldCharacterIds.has(config.char_id));
+      }
       
       // Initialize raid config map
       raidConfigMap = new Map();
@@ -137,16 +173,18 @@
         }
       });
 
-      const rosterEvents = Object.values(GAME_TASKS).filter((task: any) => isRosterEventTask(task.id));
-      await Promise.all(rosterEvents.map(async (task: any) => {
-        const progress = await invoke<RosterEventProgress>('get_roster_event_progress', {
-          rosterId: $activeRosterId,
-          taskId: task.id
-        });
-        rosterEventProgress[task.id] = progress;
-        rosterTaskStates[task.id] = progress.completed_this_week >= progress.weekly_limit;
-      }));
-      rosterEventProgress = { ...rosterEventProgress };
+      if (!isRatView) {
+        const rosterEvents = Object.values(GAME_TASKS).filter((task: any) => isRosterEventTask(task.id));
+        await Promise.all(rosterEvents.map(async (task: any) => {
+          const progress = await invoke<RosterEventProgress>('get_roster_event_progress', {
+            rosterId,
+            taskId: task.id
+          });
+          rosterEventProgress[task.id] = progress;
+          rosterTaskStates[task.id] = progress.completed_this_week >= progress.weekly_limit;
+        }));
+        rosterEventProgress = { ...rosterEventProgress };
+      }
       
       raidConfigs.forEach(config => {
         if (!raidConfigMap.has(config.content_id)) {
@@ -191,7 +229,7 @@
       // Categorize tasks and filter out fully untracked ones
       const isAnyCharTracked = (task: any) => task.character_states.some((s: any) => s.tracked);
       const dailyTasks = allTasks.filter(task => task.reset_schedule === 'daily' && task.category === 'character' && isAnyCharTracked(task));
-      const rosterTasks = allTasks.filter(task => task.category === 'roster' && isAnyCharTracked(task));
+      const rosterTasks = isRatView ? [] : allTasks.filter(task => task.category === 'roster' && isAnyCharTracked(task));
       const weeklyTasks = allTasks.filter(task => task.reset_schedule === 'weekly' && task.category === 'character' && isAnyCharTracked(task));
       
       // Transform raids from RAIDS - only show raids that at least one character tracks
@@ -357,6 +395,74 @@
     };
     
     return iconMap[taskId] || '/images/daily.webp';
+  }
+
+  async function loadRatTodoMatrixSources(): Promise<{ baseMatrix: TodoMatrixResponse; raidConfigs: RaidConfigEntry[] }> {
+    const rosterIds = $rosters.map((roster) => roster.id).filter(Boolean);
+    const rosterPayloads = await Promise.all(rosterIds.map(async (rosterId) => {
+      const [matrix, raidConfigs] = await Promise.all([
+        invoke<TodoMatrixResponse>('get_todo_matrix', { rosterId }),
+        invoke<RaidConfigEntry[]>('get_raid_configs_for_roster', { rosterId })
+      ]);
+      return { matrix, raidConfigs };
+    }));
+
+    const ratCharacters = rosterPayloads.flatMap(({ matrix }) =>
+      (matrix.characters || []).filter((character) => !character.earns_gold)
+    );
+    const ratCharacterIds = new Set(ratCharacters.map((character) => character.id));
+    const characterStates: Record<string, any> = {};
+    const restedEntries: Array<[number, string, number]> = [];
+    const todoEntries: Array<[number, string, boolean]> = [];
+
+    for (const { matrix } of rosterPayloads) {
+      for (const [key, state] of Object.entries(matrix.character_states || {})) {
+        const charId = Number(key.split('_')[0]);
+        if (ratCharacterIds.has(charId)) characterStates[key] = state;
+      }
+      restedEntries.push(...(matrix.rested_entries || []).filter(([charId]) => ratCharacterIds.has(charId)));
+      todoEntries.push(...(matrix.todo_entries || []).filter(([charId]) => ratCharacterIds.has(charId)));
+    }
+
+    return {
+      baseMatrix: {
+        characters: ratCharacters,
+        daily_tasks: [],
+        roster_tasks: [],
+        weekly_tasks: [],
+        raids: [],
+        character_states: characterStates,
+        rested_entries: restedEntries,
+        todo_entries: todoEntries
+      },
+      raidConfigs: rosterPayloads
+        .flatMap(({ raidConfigs }) => raidConfigs)
+        .filter((config) => ratCharacterIds.has(config.char_id))
+    };
+  }
+
+  function filterTodoMatrixCharacters(matrix: TodoMatrixResponse, characterIds: Set<number>): TodoMatrixResponse {
+    const characterStates: Record<string, any> = {};
+    for (const [key, state] of Object.entries(matrix.character_states || {})) {
+      const charId = Number(key.split('_')[0]);
+      if (characterIds.has(charId)) characterStates[key] = state;
+    }
+
+    return {
+      ...matrix,
+      characters: matrix.characters.filter((character) => characterIds.has(character.id)),
+      character_states: characterStates,
+      rested_entries: (matrix.rested_entries || []).filter(([charId]) => characterIds.has(charId)),
+      todo_entries: (matrix.todo_entries || []).filter(([charId]) => characterIds.has(charId))
+    };
+  }
+
+  function selectTodoRoster(event: CustomEvent<string>) {
+    selectedTodoRosterId = event.detail;
+    if (event.detail !== VIRTUAL_RAT_ROSTER_ID) {
+      activeRosterId.set(event.detail);
+      lastActiveRosterId = event.detail;
+    }
   }
 
   function isRosterEventTask(taskId: string): boolean {
@@ -685,7 +791,7 @@
     };
   });
   
-  $: if ($activeRosterId) {
+  $: if (effectiveTodoRosterId && (effectiveTodoRosterId !== VIRTUAL_RAT_ROSTER_ID || rosterCount > 0)) {
     loadMatrix();
   }
 </script>
@@ -704,7 +810,11 @@
     </div>
   {:else if matrixData && matrixData.characters.length > 0}
     <div class="matrix-content">
-      <RosterButtonGroup />
+      <RosterButtonGroup
+        selectedRosterId={effectiveTodoRosterId}
+        extraRosters={todoRosterOptions}
+        on:select={selectTodoRoster}
+      />
       
       <table class="todo-matrix">
         <thead>

@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { flip } from 'svelte/animate';
   import { GAME_CLASSES } from '$lib/data/classes';
+  import { markMeowConnectUnsyncedChanges } from '$lib/services/meow-connect';
 
   let showAddRosterDialog = false;
   let showRenameRosterDialog = false;
@@ -437,6 +438,7 @@
       
       console.log('Sending character updates:', characterUpdates);
       await invoke('update_character_order', { characters: characterUpdates });
+      markMeowConnectUnsyncedChanges('Character display order changed.');
     } catch (error) {
       console.error('Failed to update character order:', error);
     }
@@ -467,6 +469,7 @@
     try {
       // Use the new updateCharacter function from store
       await updateCharacter(char.char_id, { earns_gold: newStatus });
+      markMeowConnectUnsyncedChanges(`${char.char_name} gold earner setting changed.`);
       
       console.log(`FRONTEND: Successfully toggled gold for ${char.char_name} to ${newStatus}`);
     } catch (err) {
@@ -478,6 +481,7 @@
     const newStatus = !char.hide_from_dashboard;
     try {
       await updateCharacter(char.char_id, { hide_from_dashboard: newStatus });
+      markMeowConnectUnsyncedChanges(`${char.char_name} dashboard visibility changed.`);
       console.log(`FRONTEND: Set hide_from_dashboard=${newStatus} for ${char.char_name}`);
     } catch (err) {
       console.error("FRONTEND: Hide toggle failed:", err);
@@ -488,6 +492,7 @@
     const newStatus = !char.meow_connect_enabled;
     try {
       await updateCharacter(char.char_id, { meow_connect_enabled: newStatus });
+      markMeowConnectUnsyncedChanges(`${char.char_name} MeowConnect sharing changed.`);
       console.log(`FRONTEND: Set meow_connect_enabled=${newStatus} for ${char.char_name}`);
     } catch (err) {
       console.error("FRONTEND: MeowConnect toggle failed:", err);
@@ -649,6 +654,7 @@
               </button>
               <button
                 class="toggle-btn connect"
+                data-guide="meow-connect-toggle"
                 class:active={char.meow_connect_enabled}
                 on:click|stopPropagation={() => toggleMeowConnect(char)}
                 title="Include this character in MeowConnect shared availability"

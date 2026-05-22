@@ -1157,6 +1157,24 @@ pub async fn clear_log() -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn write_frontend_log(level: String, message: String) -> Result<(), String> {
+    let trimmed_message = message.trim();
+    if trimmed_message.is_empty() {
+        return Ok(());
+    }
+
+    let log_message = format!("Frontend: {}", trimmed_message);
+    match level.trim().to_lowercase().as_str() {
+        "error" => logging_service::error(&log_message),
+        "warn" | "warning" => logging_service::warn(&log_message),
+        "debug" => logging_service::debug(&log_message),
+        _ => logging_service::info(&log_message),
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     use std::fs;
     use std::path::PathBuf;

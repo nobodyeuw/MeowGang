@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+
+  const RELEASES_URL = 'https://github.com/nobodyeuw/MeowGang/releases';
 
   let currentVersion = '';
   let latestVersion: string | null = null;
@@ -171,6 +174,15 @@
     detailsTitle = '';
     detailsContent = '';
   }
+
+  async function openPreviousChangelogs() {
+    try {
+      await openUrl(RELEASES_URL);
+    } catch (err) {
+      console.warn('Failed to open release history:', err);
+      window.open(RELEASES_URL, '_blank', 'noopener,noreferrer');
+    }
+  }
 </script>
 
 <div class="update-tab">
@@ -308,6 +320,12 @@
       <div class="empty-state">No known bugs recorded.</div>
     {/if}
   </div>
+
+  <div class="release-history-bar">
+    <button type="button" class="release-history-link" on:click={openPreviousChangelogs}>
+      Read previous changelogs here
+    </button>
+  </div>
 </div>
 
 <style>
@@ -318,7 +336,7 @@
     max-width: 1280px;
     margin: 0 auto;
     width: 100%;
-    padding: 1rem;
+    padding: 1rem 1rem 5rem;
   }
 
   .header-panel {
@@ -833,6 +851,34 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
+  .release-history-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    z-index: 20;
+    transform: translateX(-50%);
+    width: min(1280px, calc(100vw - 2rem));
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .release-history-link {
+    pointer-events: auto;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-primary);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0.75rem 1.15rem;
+  }
+
+  .release-history-link:hover {
+    background: var(--md-sys-color-surface-variant);
+  }
+
   @media (max-width: 768px) {
     .status-grid {
       grid-template-columns: 1fr;
@@ -840,6 +886,11 @@
 
     .actions-row {
       flex-direction: column;
+    }
+
+    .release-history-bar {
+      bottom: 0.75rem;
+      width: calc(100vw - 1rem);
     }
   }
 </style>

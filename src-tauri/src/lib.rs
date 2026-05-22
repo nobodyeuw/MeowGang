@@ -430,6 +430,7 @@ pub fn run() {
             handlers::system_handlers::install_update,
             handlers::system_handlers::get_log_content,
             handlers::system_handlers::clear_log,
+            handlers::system_handlers::write_frontend_log,
             handlers::system_handlers::send_log_report,
             handlers::system_handlers::get_changelogs,
             handlers::system_handlers::get_known_bugs,

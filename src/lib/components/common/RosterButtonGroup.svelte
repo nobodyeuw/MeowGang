@@ -1,16 +1,28 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { activeRosterId, rosters } from '$lib/store';
 
   export let label = 'Active Roster';
+  export let selectedRosterId: string | undefined = undefined;
+  export let extraRosters: Array<{ id: string; roster_name: string }> = [];
 
-  $: orderedRosters = [...$rosters].sort(
-    (a, b) =>
-      (a.roster_display_order ?? 0) - (b.roster_display_order ?? 0) ||
-      a.roster_name.localeCompare(b.roster_name)
-  );
+  const dispatch = createEventDispatcher<{ select: string }>();
+
+  $: orderedRosters = [
+    ...[...$rosters].sort(
+      (a, b) =>
+        (a.roster_display_order ?? 0) - (b.roster_display_order ?? 0) ||
+        a.roster_name.localeCompare(b.roster_name)
+    ),
+    ...extraRosters
+  ];
+  $: activeId = selectedRosterId ?? $activeRosterId;
 
   function selectRoster(rosterId: string) {
-    activeRosterId.set(rosterId);
+    dispatch('select', rosterId);
+    if (selectedRosterId === undefined) {
+      activeRosterId.set(rosterId);
+    }
   }
 </script>
 
@@ -20,7 +32,7 @@
     {#each orderedRosters as roster}
       <button
         type="button"
-        class:active={$activeRosterId === roster.id}
+        class:active={activeId === roster.id}
         on:click={() => selectRoster(roster.id)}
       >
         {roster.roster_name}

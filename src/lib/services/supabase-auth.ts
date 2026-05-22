@@ -5,6 +5,7 @@ const SUPABASE_URL = 'https://jvpmxbjqfqdgmdzeltdg.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2cG14YmpxZnFkZ21kemVsdGRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MDcwMDksImV4cCI6MjA5NDk4MzAwOX0.OzvInEBWVk8UAjRDR1u5jJ0ctnWPgj203hpr-FWS5K0';
 const SUPABASE_AUTH_REDIRECT_URL = 'http://127.0.0.1:53682/supabase/callback';
+const whitelistDisplayNameCache = new Map<string, string>();
 
 export interface DiscordAuthResult {
   approved: boolean;
@@ -112,14 +113,36 @@ export async function getCurrentSupabaseDiscordProfile(): Promise<SupabaseDiscor
   if (!identity?.discordId) {
     throw new Error('Supabase session is missing Discord identity data.');
   }
+  const fallbackDisplayName = identity.username || identity.discordId;
 
   return {
     userId: data.session.user.id,
     discordId: identity.discordId,
-    displayName: identity.username || identity.discordId,
+    displayName: await resolveWhitelistDisplayName(data.session.user, fallbackDisplayName),
     avatarUrl: identity.avatarUrl,
     accessToken: data.session.access_token
   };
+}
+
+export async function resolveDiscordWhitelistDisplayName(discordId: string, fallbackDisplayName: string): Promise<string> {
+  const normalizedDiscordId = discordId.trim();
+  if (!normalizedDiscordId) return fallbackDisplayName;
+
+  const cachedName = whitelistDisplayNameCache.get(normalizedDiscordId);
+  if (cachedName) return cachedName;
+
+  try {
+    const result = await invoke<DiscordAuthResult>('verify_discord_profile_auth', {
+      discordId: normalizedDiscordId,
+      username: fallbackDisplayName
+    });
+    const displayName = result.approved && result.username ? result.username : fallbackDisplayName;
+    whitelistDisplayNameCache.set(normalizedDiscordId, displayName);
+    return displayName;
+  } catch (error) {
+    console.warn('Failed to resolve whitelist display name:', error);
+    return fallbackDisplayName;
+  }
 }
 
 async function verifySupabaseDiscordUser(user: User): Promise<DiscordAuthResult> {
@@ -131,10 +154,30 @@ async function verifySupabaseDiscordUser(user: User): Promise<DiscordAuthResult>
     };
   }
 
-  return invoke<DiscordAuthResult>('verify_discord_profile_auth', {
+  const result = await invoke<DiscordAuthResult>('verify_discord_profile_auth', {
     discordId: identity.discordId,
     username: identity.username
   });
+  if (result.approved && result.username) {
+    whitelistDisplayNameCache.set(identity.discordId, result.username);
+  }
+  return result;
+}
+
+async function resolveWhitelistDisplayName(user: User, fallbackDisplayName: string): Promise<string> {
+  const identity = extractDiscordIdentity(user);
+  if (!identity?.discordId) return fallbackDisplayName;
+
+  const cachedName = whitelistDisplayNameCache.get(identity.discordId);
+  if (cachedName) return cachedName;
+
+  try {
+    const result = await verifySupabaseDiscordUser(user);
+    return resolveDiscordWhitelistDisplayName(identity.discordId, fallbackDisplayName);
+  } catch (error) {
+    console.warn('Failed to resolve whitelist display name:', error);
+    return fallbackDisplayName;
+  }
 }
 
 function extractDiscordIdentity(user: User): DiscordIdentity | null {

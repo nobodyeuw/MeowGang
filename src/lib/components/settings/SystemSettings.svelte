@@ -9,6 +9,7 @@
     setMeowConnectFeatureEnabled,
     setMeowConnectRealtimeEnabled
   } from '$lib/services/meow-connect';
+  import { setSplitRatTodoView, splitRatTodoView } from '$lib/services/todo-preferences';
 
   // State
   let systemSettings: any = null;
@@ -255,6 +256,12 @@
     showSuccess(`MeowConnect real-time sync ${newValue ? 'enabled' : 'disabled'}!`);
   }
 
+  function toggleSplitRatTodoView() {
+    const newValue = !$splitRatTodoView;
+    setSplitRatTodoView(newValue);
+    showSuccess(`RAT To Do view ${newValue ? 'enabled' : 'disabled'}!`);
+  }
+
   function requestClearUserData() {
     showClearUserDataDialog = true;
   }
@@ -480,6 +487,33 @@
             </div>
           </div>
 
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 6h13"/>
+                  <path d="M8 12h13"/>
+                  <path d="M8 18h13"/>
+                  <path d="M3 6h.01"/>
+                  <path d="M3 12h.01"/>
+                  <path d="M3 18h.01"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Separate RAT To Do View</h4>
+                <p>Add a frontend-only RAT roster button in To Do for non-gold characters across all rosters</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={$splitRatTodoView}
+                  on:change={toggleSplitRatTodoView}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
           <div class="setting-card danger-card">
             <div class="setting-header">
               <div class="setting-icon danger">
@@ -501,7 +535,7 @@
       </div>
 
       <!-- MeowConnect Section -->
-      <div class="settings-section">
+      <div class="settings-section" data-guide="system-meowconnect">
         <div class="section-header">
           <div class="section-icon">
             <img src="/images/meowconnect_tab.png" alt="" class="section-image-icon" />

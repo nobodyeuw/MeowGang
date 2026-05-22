@@ -4,6 +4,7 @@
   import { RAIDS } from '$lib/data/raids';
   import { GAME_CLASSES } from '$lib/data/classes';
   import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
+  import { markMeowConnectUnsyncedChanges } from '$lib/services/meow-connect';
 
   // Interfaces
   interface RaidGate {
@@ -460,6 +461,7 @@
       } else {
         updateMasterDifficulty(charId, contentId);
       }
+      markMeowConnectUnsyncedChanges('Raid difficulty setting changed.');
     } catch (err) {
       console.error('Failed to update gate difficulty:', err);
       // Revert
@@ -541,6 +543,7 @@
           buyBox: gate.buy_box
         });
       }
+      markMeowConnectUnsyncedChanges('Raid master difficulty changed.');
     } catch (err) {
       console.error('Failed to update master difficulty:', err);
       error = `Failed to update difficulty: ${err}`;
@@ -635,6 +638,7 @@
         buyBox: gateConfig.buy_box
       });
       console.log('update_raid_gate_config completed');
+      markMeowConnectUnsyncedChanges('Raid gate setting changed.');
       
       console.log('DEBUG: Dispatching raid-settings-updated event');
       dispatchEvent(new CustomEvent('raid-settings-updated'));
@@ -701,6 +705,7 @@
         // For now, update all gates to new difficulty
         await updateAllGatesDifficulty(contentId, charId, newDifficulty);
       }
+      markMeowConnectUnsyncedChanges('Raid difficulty setting changed.');
       
       // Update gold values and master_difficulty for the specific character
       const raidGroupIndex = raidMatrix.findIndex(r => r.content_id === contentId);
@@ -776,6 +781,7 @@
         });
       }
     }
+    markMeowConnectUnsyncedChanges('Raid gate difficulty settings changed.');
   }
 
   
@@ -955,6 +961,7 @@
             buyBox: undefined
           });
         }
+        markMeowConnectUnsyncedChanges('Raid difficulty setting changed.');
       } catch (err) {
         console.error("Error saving difficulty:", err);
         error = `Failed to update difficulty: ${err}`;
@@ -1051,6 +1058,11 @@
           reservedForStatic: type === 'reserved_for_static' ? targetValue : undefined
         });
       }
+      markMeowConnectUnsyncedChanges(
+        type === 'reserved_for_static'
+          ? 'Raid static reservation setting changed.'
+          : 'Raid gold or box setting changed.'
+      );
     } catch (err) {
       console.error("Error saving master raid config:", err);
       error = `Failed to update master raid setting: ${err}`;
@@ -1156,6 +1168,7 @@
         takeGold: gateConfig.take_gold,
         buyBox: gateConfig.buy_box
       });
+      markMeowConnectUnsyncedChanges('Raid gate setting changed.');
     } catch (err) {
       console.error("Error saving raid config:", err);
       error = `Failed to update gate setting: ${err}`;

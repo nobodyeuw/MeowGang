@@ -1,88 +1,113 @@
 {
   "versions": [
     {
-      "version": "1.2.0",
+      "version": "1.2.1",
       "date": "2026-05-22",
       "changes": [
         {
-          "type": "Changed",
-          "description": "Party Planner has been replaced by MeowConnect.",
-          "details": "The old Google Sheets and Apps Script based Party Planner has been removed from the app. MeowConnect is now the shared raid availability feature, focused on seeing who can still run selected raids with you."
-        },
-        {
-          "type": "Added",
-          "description": "MeowConnect adds shared friend raid availability through Supabase.",
-          "details": "Users can connect with Discord, consent to sharing selected character data, add friends, and see raid availability through the cloud-hosted MeowGangConnect database."
-        },
-        {
-          "type": "Added",
-          "description": "Raid Together view added for planning runs with friends.",
-          "details": "The MeowConnect overview now focuses on how many matching open runs you and each friend can still do for selected raids, with profile sections that can be expanded to inspect individual characters."
-        },
-        {
-          "type": "Added",
-          "description": "MeowConnect logs show recent clear activity.",
-          "details": "The logs view can show clears from LOA Logs encounter data and manual completion status, including source labels so users can tell whether the clear came from LOA Logs or manual tracking."
-        },
-        {
-          "type": "Added",
-          "description": "Character-level MeowConnect opt-in was added.",
-          "details": "Roster settings now include a MeowConnect toggle per character. Characters stay hidden from MeowConnect until the user explicitly enables them."
-        },
-        {
-          "type": "Added",
-          "description": "Static reservation sharing was added.",
-          "details": "Raid settings can mark a character as reserved for static or friend runs per raid and difficulty. Static friends can be granted visibility into the reserved character while other friends only see that the character is reserved."
-        },
-        {
-          "type": "Added",
-          "description": "MeowConnect settings were added to System Settings.",
-          "details": "Users can enable or disable MeowConnect locally and separately control real-time raid completion syncing with the cloud database."
-        },
-        {
-          "type": "Added",
-          "description": "MeowConnect status is visible in the app header.",
-          "details": "The header now shows whether MeowConnect is active, connecting, offline, login required, or inactive. The status reacts to Supabase realtime connection events and sync failures."
+          "type": "Improved",
+          "description": "MeowConnect realtime closed state now displays as Sleeping.",
+          "details": "When Supabase closes the passive realtime listener, the header now shows Sleeping instead of Offline because on-demand uploads can still run when raid completions are synced."
         },
         {
           "type": "Improved",
-          "description": "Raid availability now respects difficulty lockouts.",
-          "details": "If a character clears a raid on one difficulty, MeowConnect treats that character as locked for the raid instead of showing it as available for another difficulty of the same raid."
+          "description": "MeowConnect cloud failures are written to app logs.",
+          "details": "Actual MeowConnect cloud request failures and login-required states are now recorded in the integrated Settings > System logs for easier diagnostics."
         },
         {
           "type": "Improved",
-          "description": "Friend search and profile display were refined.",
-          "details": "The friend flow now uses a tighter settings UI, whitelist name preview, pending requests, profile avatars for users who have connected through MeowConnect, and local favorites for focusing important friends or characters."
+          "description": "MeowConnect profile names now prefer whitelist names.",
+          "details": "Shared MeowConnect profiles now use the Discord whitelist display name when available instead of falling back to the raw Discord account name."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect sync is throttled and event-driven.",
-          "details": "Character and completion data syncs on app start, after successful daily roster scraping, and after raid completions when real-time syncing is enabled. Manual sync remains available but is rate limited."
+          "description": "Set-up guide now covers MeowConnect.",
+          "details": "The guide now includes selecting shared characters with the Connect toggle and waits on the MeowConnect consent step until terms are accepted."
         },
         {
           "type": "Improved",
-          "description": "Update release notes now render as formatted text.",
-          "details": "The update dialog now formats headings, bullet lists, paragraphs, and bold text from latest.json notes instead of showing the raw Markdown text."
+          "description": "Set-up guide highlighting is less intrusive.",
+          "details": "Guide highlights now use a lighter outline without forcing highlighted UI above the page, reducing layout and scrolling glitches."
         },
         {
-          "type": "Removed",
-          "description": "Legacy Party Planner code and Apps Script template were removed.",
-          "details": "The PartyPlan component, frontend Party Plan service, Tauri Party Plan commands, Rust handler module, Party Plan styles, and local Apps Script development template were removed. Existing party_plans.json files are now inert legacy data."
+          "type": "Improved",
+          "description": "MeowConnect now marks unsynced local sharing changes.",
+          "details": "Roster sharing changes, character order changes, dashboard visibility changes, gold earner changes, and raid/static setting changes now mark MeowConnect as having unsynced local changes until the next successful upload. Manual sync remains cooldown-limited."
         },
         {
-          "type": "Security",
-          "description": "MeowConnect database access is protected by Supabase RLS.",
-          "details": "Profiles, characters, completions, reservations, encounters, and friend connections use row-level security so users can write only their own data and read only their own or accepted friends' shared data."
+          "type": "Improved",
+          "description": "MeowConnect logs combine shared LOA Logs clears.",
+          "details": "When accepted friends clear the same raid together and LOA Logs records the same player list and fight time, MeowConnect now combines those clear logs and shows the involved profile icons together."
         },
         {
           "type": "Fixed",
-          "description": "Favorites now apply per character instead of per profile.",
-          "details": "Marking one character as a favorite no longer marks every character from that same profile."
+          "description": "Manual MeowConnect logs now keep separate raid gates.",
+          "details": "Manual completions for multiple gates on the same character, raid, difficulty, and source no longer collapse into one log entry. Gate 1 and Gate 2 can now appear separately."
         },
         {
           "type": "Fixed",
-          "description": "MeowConnect can recover from old or disabled tab URLs.",
-          "details": "Opening an old Party Planner tab URL or disabled MeowConnect URL now redirects back to Dashboard instead of leaving the app on an empty view."
+          "description": "Raid Together now refreshes after friend data loads.",
+          "details": "The Raid Together comparison view now explicitly reacts to loaded friends, local snapshots, and remote snapshots so matching open runs appear without needing unrelated UI changes."
+        },
+        {
+          "type": "Improved",
+          "description": "Raid Together availability layout is more compact.",
+          "details": "The Availability view now removes the redundant All filter, adds visible-raid focus filters, stacks profiles inside each raid frame, and opens character details in an overlay so multiple selected raids can fit without horizontal scrolling."
+        },
+        {
+          "type": "Improved",
+          "description": "Raid Together now supports friend-set matching.",
+          "details": "The Together view now lets users select which accepted friends to compare and computes the shared open-run count across the whole selected group."
+        },
+        {
+          "type": "Fixed",
+          "description": "MeowConnect favorites update inside availability overlays.",
+          "details": "Profile availability overlays now follow the recomputed raid data so favorite toggles and Favorites filtering update visually without closing the overlay."
+        },
+        {
+          "type": "Fixed",
+          "description": "Shared LOA Logs clears infer friends from player lists.",
+          "details": "Encounter logs now match players_json names against local and accepted-friend rosters before grouping so clears can show everyone from the friend list who was in the run."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect toolbar aligns with raid frames.",
+          "details": "The MeowConnect title and Together tab controls now share the centered raid-board width so they line up with the first Availability raid frame."
+        },
+        {
+          "type": "Improved",
+          "description": "Availability raid focus supports multiple raids.",
+          "details": "The visible-raid focus buttons can now select more than one raid at a time instead of switching to only one focused raid."
+        },
+        {
+          "type": "Fixed",
+          "description": "Favorites view shows favorite counts per member.",
+          "details": "When Favorites is active, member rows and overlays now show favorite counts such as 0 favorites and only list favorited characters."
+        },
+        {
+          "type": "Fixed",
+          "description": "MeowConnect displays whitelist names consistently.",
+          "details": "Remote profiles, friend rows, sent friend requests, availability, logs, and Together matching now resolve Discord IDs against whitelist names instead of showing raw Discord display names."
+        },
+        {
+          "type": "Fixed",
+          "description": "Shared LOA Logs clears dedupe by raid gate and party.",
+          "details": "Multiple uploaded perspectives of the same LOA Logs clear now collapse when they share the same raid gate and players_json list, even if their fight timestamps differ slightly."
+        },
+        {
+          "type": "Added",
+          "description": "Optional RAT view added to To Do.",
+          "details": "A default-off System setting can add a frontend-only RAT roster button in To Do that shows non-gold characters from all rosters together without changing saved roster data."
+        },
+        {
+          "type": "Fixed",
+          "description": "Split RAT To Do view removes RAT characters from normal roster views.",
+          "details": "When the optional RAT To Do view is enabled, non-gold characters are hidden from their normal To Do roster view and shown only in the frontend-only RAT view."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect availability overlay headers are clearer.",
+          "details": "Expanded profile overlays now show the raid name beside the profile image, with the profile name and availability details underneath for better readability."
         }
       ]
     }

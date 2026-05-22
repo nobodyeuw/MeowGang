@@ -59,7 +59,7 @@
   let discordAuthMessage = 'Checking Discord access...';
   let discordAuthUser = '';
   let appInitializationStarted = false;
-  let meowConnectHeaderState: 'inactive' | 'connecting' | 'active' | 'offline' | 'login_required' = 'inactive';
+  let meowConnectHeaderState: 'inactive' | 'connecting' | 'active' | 'sleeping' | 'offline' | 'login_required' = 'inactive';
   let meowConnectHeaderMessage = 'MeowConnect is inactive.';
   let meowConnectHeaderLabel = 'Inactive';
   let meowConnectFeatureEnabled = true;
@@ -496,6 +496,7 @@
   function getMeowConnectHeaderLabel(state: typeof meowConnectHeaderState): string {
     if (state === 'active') return 'Active';
     if (state === 'connecting') return 'Connecting';
+    if (state === 'sleeping') return 'Sleeping';
     if (state === 'offline') return 'Offline';
     if (state === 'login_required') return 'Login required';
     return 'Inactive';
@@ -681,7 +682,7 @@
             <div
               class="meowconnect-header-status"
               class:active={meowConnectHeaderState === 'active'}
-              class:connecting={meowConnectHeaderState === 'connecting'}
+              class:connecting={meowConnectHeaderState === 'connecting' || meowConnectHeaderState === 'sleeping'}
               class:inactive={meowConnectHeaderState === 'inactive'}
               class:offline={meowConnectHeaderState === 'offline' || meowConnectHeaderState === 'login_required'}
               title={meowConnectHeaderMessage}

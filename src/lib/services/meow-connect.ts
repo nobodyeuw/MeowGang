@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { writable } from 'svelte/store';
 import { RAIDS, type Raid } from '$lib/data/raids';
 import { encounterMap } from '$lib/data/encounters';
-import { getCurrentSupabaseDiscordProfile, supabase } from '$lib/services/supabase-auth';
+import { getCurrentSupabaseDiscordProfile, resolveDiscordWhitelistDisplayName, supabase } from '$lib/services/supabase-auth';
 
 export interface MeowConnectCharacterSnapshot {
   charId: number;
@@ -109,7 +109,15 @@ export interface MeowConnectLogEntry extends MeowConnectEncounterSnapshot {
   ownerId: string;
   ownerName: string;
   ownerAvatarUrl?: string;
+  participants: MeowConnectLogParticipant[];
   source: 'Manual' | 'LOA Logs' | string;
+}
+
+export interface MeowConnectLogParticipant {
+  ownerId: string;
+  ownerName: string;
+  ownerAvatarUrl?: string;
+  localPlayer: string;
 }
 
 export interface MeowConnectSupabaseConfig {
@@ -124,6 +132,7 @@ const FEATURE_ENABLED_STORAGE_KEY = 'meowConnect.featureEnabled';
 const REALTIME_ENABLED_STORAGE_KEY = 'meowConnect.realtimeEnabled';
 const LAST_UPLOAD_STORAGE_KEY = 'meowConnect.lastUploadAt';
 const LAST_UPLOAD_SIGNATURE_STORAGE_KEY = 'meowConnect.lastUploadSignature';
+const UNSYNCED_CHANGES_STORAGE_KEY = 'meowConnect.unsyncedChanges';
 const DEFAULT_AUTO_UPLOAD_COOLDOWN_MS = 15 * 60 * 1000;
 
 export interface MeowConnectUploadResult {
@@ -132,7 +141,7 @@ export interface MeowConnectUploadResult {
   skippedReason?: 'unchanged';
 }
 
-export type MeowConnectConnectionState = 'inactive' | 'connecting' | 'active' | 'offline' | 'login_required';
+export type MeowConnectConnectionState = 'inactive' | 'connecting' | 'active' | 'sleeping' | 'offline' | 'login_required';
 
 export interface MeowConnectConnectionStatus {
   state: MeowConnectConnectionState;
@@ -147,6 +156,8 @@ export const meowConnectStatus = writable<MeowConnectConnectionStatus>({
     : 'MeowConnect is inactive.',
   updatedAt: Date.now()
 });
+
+export const meowConnectHasUnsyncedChanges = writable<boolean>(hasStoredUnsyncedChanges());
 
 interface EncounterPreview {
   current_boss: string;
@@ -280,12 +291,16 @@ export async function uploadMeowConnectSnapshotIfNeeded(options: {
   const cooldownActive = Date.now() - lastUploadAt < cooldownMs;
 
   if (!options.force && unchanged && cooldownActive) {
+    if (hasStoredUnsyncedChanges()) {
+      clearMeowConnectUnsyncedChanges();
+    }
     return { snapshot, uploaded: false, skippedReason: 'unchanged' };
   }
 
   await syncMeowConnectSnapshot(snapshot);
   localStorage.setItem(LAST_UPLOAD_SIGNATURE_STORAGE_KEY, signature);
   setStoredTimestamp(LAST_UPLOAD_STORAGE_KEY, Date.now());
+  clearMeowConnectUnsyncedChanges();
 
   return { snapshot, uploaded: true };
 }
@@ -331,13 +346,13 @@ export async function fetchMeowConnectRemoteSnapshots(resetCycle?: string): Prom
     )
   ]);
 
-  return buildRemoteSnapshots(
+  return applyWhitelistDisplayNames(buildRemoteSnapshots(
     (profiles || []) as MeowProfileRow[],
     (characters || []) as MeowCharacterRow[],
     (completions || []) as MeowCompletionRow[],
     (reservations || []) as MeowReservationRow[],
     (encounters || []) as MeowEncounterRow[]
-  );
+  ));
 }
 
 export async function loadMeowConnectFriends(): Promise<MeowConnectFriendConnection[]> {
@@ -411,7 +426,9 @@ export async function loadMeowConnectFriends(): Promise<MeowConnectFriendConnect
     });
   }
 
-  return Array.from(friendConnectionsByProfile.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return applyWhitelistDisplayNamesToFriends(
+    Array.from(friendConnectionsByProfile.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  );
 }
 
 export async function setMeowConnectStaticFriend(connection: MeowConnectFriendConnection, enabled: boolean): Promise<void> {
@@ -454,10 +471,12 @@ export async function sendMeowConnectFriendRequest(discordId: string): Promise<M
     )
   );
 
+  const displayName = await resolveDiscordWhitelistDisplayName(target.discord_id, target.display_name);
+
   return {
     userId: target.user_id,
     discordId: target.discord_id,
-    displayName: target.display_name,
+    displayName,
     avatarUrl: target.avatar_url || undefined
   };
 }
@@ -488,6 +507,28 @@ export async function removeMeowConnectFriend(connection: MeowConnectFriendConne
   );
 }
 
+async function applyWhitelistDisplayNames(snapshots: MeowConnectRemoteSnapshot[]): Promise<MeowConnectRemoteSnapshot[]> {
+  return Promise.all(snapshots.map(async (snapshot) => ({
+    ...snapshot,
+    profile: {
+      ...snapshot.profile,
+      displayName: await resolveDiscordWhitelistDisplayName(snapshot.profile.discordId, snapshot.profile.displayName)
+    }
+  })));
+}
+
+async function applyWhitelistDisplayNamesToFriends(
+  connections: MeowConnectFriendConnection[]
+): Promise<MeowConnectFriendConnection[]> {
+  return Promise.all(connections.map(async (connection) => ({
+    ...connection,
+    profile: {
+      ...connection.profile,
+      displayName: await resolveDiscordWhitelistDisplayName(connection.profile.discordId, connection.profile.displayName)
+    }
+  })));
+}
+
 export function subscribeMeowConnectChanges(onChange: () => void): () => void {
   if (!isMeowConnectRealtimeEnabled()) {
     return () => {};
@@ -508,7 +549,7 @@ export function subscribeMeowConnectChanges(onChange: () => void): () => void {
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         markMeowConnectFailure(error || new Error(`MeowConnect realtime ${status.toLowerCase().replace('_', ' ')}.`));
       } else if (status === 'CLOSED') {
-        updateMeowConnectStatus('offline', 'MeowConnect realtime connection closed.');
+        markMeowConnectSleeping('MeowConnect realtime listener is sleeping. Uploads still run on demand.');
       }
     });
 
@@ -576,11 +617,46 @@ export function setMeowConnectRealtimeEnabled(enabled: boolean) {
   }
 }
 
+export function markMeowConnectUnsyncedChanges(reason = 'Local MeowConnect sharing settings changed.') {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(UNSYNCED_CHANGES_STORAGE_KEY, '1');
+  }
+  meowConnectHasUnsyncedChanges.set(true);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('meow-connect-unsynced-changed', { detail: { dirty: true, reason } }));
+  }
+}
+
+export function clearMeowConnectUnsyncedChanges() {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(UNSYNCED_CHANGES_STORAGE_KEY);
+  }
+  meowConnectHasUnsyncedChanges.set(false);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('meow-connect-unsynced-changed', { detail: { dirty: false } }));
+  }
+}
+
+function hasStoredUnsyncedChanges(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(UNSYNCED_CHANGES_STORAGE_KEY) === '1';
+}
+
 export function updateMeowConnectStatus(state: MeowConnectConnectionState, message: string) {
   meowConnectStatus.set({
     state,
     message,
     updatedAt: Date.now()
+  });
+}
+
+function writeMeowConnectLog(level: 'info' | 'warn' | 'error' | 'debug', message: string) {
+  if (typeof window === 'undefined') return;
+  invoke('write_frontend_log', {
+    level,
+    message: `MeowConnect: ${message}`
+  }).catch((error) => {
+    console.warn('Failed to write frontend log:', error);
   });
 }
 
@@ -600,6 +676,15 @@ export function markMeowConnectActive(message = 'MeowConnect is active.') {
   updateMeowConnectStatus('active', message);
 }
 
+export function markMeowConnectSleeping(message = 'MeowConnect realtime listener is sleeping. Uploads still run on demand.') {
+  if (!hasMeowConnectConsent()) {
+    updateMeowConnectStatus('inactive', 'MeowConnect is inactive.');
+    return;
+  }
+  updateMeowConnectStatus('sleeping', message);
+  writeMeowConnectLog('info', message);
+}
+
 export function markMeowConnectFailure(error: unknown) {
   if (!hasMeowConnectConsent()) {
     updateMeowConnectStatus('inactive', 'MeowConnect is inactive.');
@@ -608,6 +693,12 @@ export function markMeowConnectFailure(error: unknown) {
 
   const message = formatErrorMessage(error);
   const state: MeowConnectConnectionState = isLoginRequiredError(message) ? 'login_required' : 'offline';
+  writeMeowConnectLog(
+    state === 'login_required' ? 'warn' : 'error',
+    state === 'login_required'
+      ? `Login required: ${message}`
+      : `Cloud request failed: ${message}`
+  );
   updateMeowConnectStatus(
     state,
     state === 'login_required'
@@ -744,9 +835,12 @@ export function buildMeowConnectLogEntries(
       }, allowedRaidIds)
     : [];
 
-  return localEntries
-    .concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds)))
-    .sort((a, b) => b.fightStart - a.fightStart);
+  return combineSharedEncounterLogEntries(
+    enrichEncounterLogParticipants(
+      localEntries.concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds))),
+      buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile)
+    )
+  ).sort((a, b) => b.fightStart - a.fightStart);
 }
 
 export async function meowConnectSupabaseRequest<T>(
@@ -902,6 +996,12 @@ function buildSnapshotLogEntries(
       ownerId,
       ownerName: snapshot.profile.displayName,
       ownerAvatarUrl: snapshot.profile.avatarUrl,
+      participants: [{
+        ownerId,
+        ownerName: snapshot.profile.displayName,
+        ownerAvatarUrl: snapshot.profile.avatarUrl,
+        localPlayer: encounter.localPlayer
+      }],
       source: 'LOA Logs' as const
     }));
 
@@ -923,10 +1023,11 @@ function buildSnapshotLogEntries(
 
     if (source === 'LOA Logs' && encounterKeys.has(key)) continue;
 
-    const groupKey = `${key}:${source}`;
-    const existing = completionGroups.get(groupKey);
     const completedAt = completion.completedAt || 0;
     const gate = normalizeGateLabel(completion.gate || completion.sessionId);
+    const gateKey = normalizeGate(gate || completion.gate || completion.sessionId || 'raid');
+    const groupKey = `${key}:${source}:${gateKey}`;
+    const existing = completionGroups.get(groupKey);
 
     if (!existing) {
       completionGroups.set(groupKey, {
@@ -943,6 +1044,12 @@ function buildSnapshotLogEntries(
         players: [],
         matchedCharacterIds: [completion.charId],
         resetCycle: completion.resetCycle,
+        participants: [{
+          ownerId,
+          ownerName: snapshot.profile.displayName,
+          ownerAvatarUrl: snapshot.profile.avatarUrl,
+          localPlayer: characterName
+        }],
         source
       });
       continue;
@@ -953,6 +1060,177 @@ function buildSnapshotLogEntries(
   }
 
   return [...encounterLogs, ...Array.from(completionGroups.values())];
+}
+
+function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
+  const combined = new Map<string, MeowConnectLogEntry>();
+  const passthrough: MeowConnectLogEntry[] = [];
+
+  for (const entry of entries) {
+    if (entry.source !== 'LOA Logs' || !entry.fightStart || entry.players.length === 0) {
+      passthrough.push(entry);
+      continue;
+    }
+
+    const key = [
+      entry.contentId,
+      normalizeGate(entry.gate || 'raid'),
+      normalizePlayerList(entry.players)
+    ].join(':');
+
+    const existing = combined.get(key);
+    if (!existing) {
+      combined.set(key, {
+        ...entry,
+        players: dedupeStrings(entry.players),
+        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)])
+      });
+      continue;
+    }
+
+    const participants = dedupeLogParticipants([
+      ...(existing.participants || [entryAsParticipant(existing)]),
+      ...(entry.participants || [entryAsParticipant(entry)])
+    ]);
+    const players = dedupeStrings([...existing.players, ...entry.players]);
+
+    combined.set(key, {
+      ...existing,
+      difficulty: existing.difficulty || entry.difficulty,
+      gate: existing.gate || entry.gate,
+      fightStart: Math.max(existing.fightStart || 0, entry.fightStart || 0),
+      ownerId: participants.map((participant) => participant.ownerId).join('+'),
+      ownerName: formatParticipantNames(participants),
+      ownerAvatarUrl: existing.ownerAvatarUrl || entry.ownerAvatarUrl,
+      localPlayer: participants.map((participant) => participant.localPlayer).join(', '),
+      players,
+      matchedCharacterIds: dedupeNumbers([...existing.matchedCharacterIds, ...entry.matchedCharacterIds]),
+      participants
+    });
+  }
+
+  return [...passthrough, ...Array.from(combined.values())];
+}
+
+function buildLogParticipantIndex(
+  localSnapshot: MeowConnectLocalSnapshot | null,
+  remoteSnapshots: MeowConnectRemoteSnapshot[],
+  localProfile?: MeowConnectProfile | null
+): Map<string, MeowConnectLogParticipant> {
+  const participantsByCharacter = new Map<string, MeowConnectLogParticipant>();
+
+  const addSnapshot = (snapshot: MeowConnectRemoteSnapshot) => {
+    for (const character of snapshot.characters || []) {
+      participantsByCharacter.set(character.charName.trim().toLowerCase(), {
+        ownerId: snapshot.profile.discordId || snapshot.profile.userId,
+        ownerName: snapshot.profile.displayName,
+        ownerAvatarUrl: snapshot.profile.avatarUrl,
+        localPlayer: character.charName
+      });
+    }
+  };
+
+  if (localSnapshot) {
+    addSnapshot({
+      profile: {
+        userId: 'local',
+        discordId: 'local',
+        displayName: 'You',
+        avatarUrl: localProfile?.avatarUrl
+      },
+      characters: localSnapshot.characters,
+      completionSnapshots: localSnapshot.completionSnapshots,
+      raidReservations: localSnapshot.raidReservations,
+      encounterSnapshots: localSnapshot.encounterSnapshots,
+      updatedAt: new Date(localSnapshot.generatedAt).toISOString()
+    });
+  }
+
+  for (const snapshot of remoteSnapshots) {
+    addSnapshot(snapshot);
+  }
+
+  return participantsByCharacter;
+}
+
+function enrichEncounterLogParticipants(
+  entries: MeowConnectLogEntry[],
+  participantsByCharacter: Map<string, MeowConnectLogParticipant>
+): MeowConnectLogEntry[] {
+  return entries.map((entry) => {
+    if (entry.source !== 'LOA Logs' || entry.players.length === 0) return entry;
+
+    const inferredParticipants = entry.players
+      .map((player) => participantsByCharacter.get(player.trim().toLowerCase()))
+      .filter((participant): participant is MeowConnectLogParticipant => Boolean(participant));
+    const participants = dedupeLogParticipants([
+      ...(entry.participants || [entryAsParticipant(entry)]),
+      ...inferredParticipants
+    ]);
+
+    if (participants.length <= (entry.participants || []).length) return entry;
+
+    return {
+      ...entry,
+      ownerId: participants.map((participant) => participant.ownerId).join('+'),
+      ownerName: formatParticipantNames(participants),
+      ownerAvatarUrl: entry.ownerAvatarUrl || participants.find((participant) => participant.ownerAvatarUrl)?.ownerAvatarUrl,
+      localPlayer: participants.map((participant) => participant.localPlayer).join(', '),
+      participants
+    };
+  });
+}
+
+function entryAsParticipant(entry: MeowConnectLogEntry): MeowConnectLogParticipant {
+  return {
+    ownerId: entry.ownerId,
+    ownerName: entry.ownerName,
+    ownerAvatarUrl: entry.ownerAvatarUrl,
+    localPlayer: entry.localPlayer
+  };
+}
+
+function dedupeLogParticipants(participants: MeowConnectLogParticipant[]): MeowConnectLogParticipant[] {
+  const byOwner = new Map<string, MeowConnectLogParticipant>();
+  for (const participant of participants) {
+    const key = participant.ownerId || participant.ownerName;
+    if (!byOwner.has(key)) {
+      byOwner.set(key, participant);
+    }
+  }
+  return Array.from(byOwner.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+}
+
+function formatParticipantNames(participants: MeowConnectLogParticipant[]): string {
+  if (participants.length <= 2) {
+    return participants.map((participant) => participant.ownerName).join(' and ');
+  }
+  return `${participants.slice(0, -1).map((participant) => participant.ownerName).join(', ')} and ${participants[participants.length - 1].ownerName}`;
+}
+
+function normalizePlayerList(players: string[]): string {
+  return dedupeStrings(players)
+    .map((player) => player.trim().toLowerCase())
+    .sort()
+    .join('|');
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function dedupeNumbers(values: number[]): number[] {
+  return Array.from(new Set(values.map((value) => Number(value || 0)).filter(Boolean)));
 }
 
 function getRaidMatchForEncounter(bossName: string): { contentId: string; gate?: string } | null {

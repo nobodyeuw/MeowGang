@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { hasMeowConnectConsent, isMeowConnectFeatureEnabled } from '$lib/services/meow-connect';
 
   type SettingsTab = 'roster' | 'todo' | 'raid' | 'system';
 
@@ -10,6 +11,8 @@
     settingsTab?: SettingsTab;
     target?: string;
     align?: 'left' | 'right';
+    requiresMeowConnect?: boolean;
+    waitForMeowConnectConsent?: boolean;
   }
 
   export let activeTab = 'dashboard';
@@ -21,10 +24,10 @@
 
   const storageKey = 'setupGuideDismissed';
 
-  const steps: GuideStep[] = [
+  const allSteps: GuideStep[] = [
     {
       title: 'Set-Up Guide',
-      body: 'This guide walks through the first roster, tracking, raid, and system setup. Skip it any time if you already know the flow.',
+      body: 'This guide walks through the first roster, tracking, raid, MeowConnect, and system setup. Skip it any time if you already know the flow.',
       tab: 'dashboard'
     },
     {
@@ -49,6 +52,21 @@
       target: '[data-guide="character-drag"]'
     },
     {
+      title: 'Enable MeowConnect',
+      body: 'In System, keep MeowConnect enabled if you want shared raid availability with friends. You can turn real-time updates on or off separately.',
+      tab: 'settings',
+      settingsTab: 'system',
+      target: '[data-guide="system-meowconnect"]'
+    },
+    {
+      title: 'Share Characters',
+      body: 'Use the CONNECT toggle only for characters you want to share through MeowConnect. Characters left OFF stay local.',
+      tab: 'settings',
+      settingsTab: 'roster',
+      target: '[data-guide="meow-connect-toggle"]',
+      requiresMeowConnect: true
+    },
+    {
       title: 'Choose Tracking',
       body: 'In Tracking, uncheck tasks or raids you do not want to track. The row toggle changes that task for all characters. Rested Chaos/Guardian values are app values, so 20 in-game rested equals 10 here.',
       tab: 'settings',
@@ -63,6 +81,14 @@
       target: '[data-guide="raid-matrix"]'
     },
     {
+      title: 'Accept MeowConnect',
+      body: 'Open MeowConnect and accept the sharing terms when you are ready. The guide waits here until MeowConnect consent is accepted.',
+      tab: 'meow-connect',
+      target: '[data-guide="meow-connect-consent"]',
+      requiresMeowConnect: true,
+      waitForMeowConnectConsent: true
+    },
+    {
       title: 'System Options',
       body: 'Check startup options and paths. For a complete tracking experience, install LOA Logs by Snoww from github.com/snoww/loa-logs/releases/latest.',
       tab: 'settings',
@@ -71,7 +97,7 @@
     },
     {
       title: 'Back To Dashboard',
-      body: 'The dashboard now shows the information gathered from roster, tracking, raid, and system setup.',
+      body: 'The dashboard now shows the information gathered from roster, tracking, raid, MeowConnect, and system setup.',
       tab: 'dashboard',
       target: '[data-guide="dashboard"]',
       align: 'right'
@@ -82,13 +108,19 @@
   let currentStep = 0;
   let autoStarted = false;
   let hasMounted = false;
+  let meowConnectEnabled = true;
+  let meowConnectConsentAccepted = false;
 
+  $: steps = allSteps.filter((step) => !step.requiresMeowConnect || meowConnectEnabled);
+  $: if (currentStep >= steps.length) currentStep = Math.max(0, steps.length - 1);
   $: current = steps[currentStep];
   $: canGoBack = currentStep > 0;
   $: isLastStep = currentStep === steps.length - 1;
+  $: isCurrentStepBlocked = Boolean(current?.waitForMeowConnectConsent && !meowConnectConsentAccepted);
 
   onMount(() => {
     hasMounted = true;
+    refreshMeowConnectGuideState();
     const dismissed = localStorage.getItem(storageKey) === 'true';
     if (!dismissed && appReady && characterCount === 0) {
       startGuide();
@@ -96,10 +128,15 @@
     }
 
     const startListener = () => startGuide();
+    const meowConnectStateListener = () => refreshMeowConnectGuideState();
     window.addEventListener('setup-guide:start', startListener);
+    window.addEventListener('meow-connect-consent-changed', meowConnectStateListener);
+    window.addEventListener('meow-connect-feature-changed', meowConnectStateListener);
 
     return () => {
       window.removeEventListener('setup-guide:start', startListener);
+      window.removeEventListener('meow-connect-consent-changed', meowConnectStateListener);
+      window.removeEventListener('meow-connect-feature-changed', meowConnectStateListener);
       clearHighlight();
     };
   });
@@ -120,6 +157,7 @@
   }
 
   async function navigateForStep(step: GuideStep) {
+    if (!step) return;
     if (activeTab !== step.tab) {
       switchTab(step.tab);
     }
@@ -130,6 +168,11 @@
 
     await tick();
     window.setTimeout(() => highlightTarget(step.target), 80);
+  }
+
+  function refreshMeowConnectGuideState() {
+    meowConnectEnabled = isMeowConnectFeatureEnabled();
+    meowConnectConsentAccepted = hasMeowConnectConsent();
   }
 
   function highlightTarget(selector?: string) {
@@ -151,6 +194,7 @@
   }
 
   function nextStep() {
+    if (isCurrentStepBlocked) return;
     if (isLastStep) {
       finishGuide();
       return;
@@ -185,8 +229,8 @@
 
     <div class="guide-actions">
       <button type="button" class="secondary" on:click={previousStep} disabled={!canGoBack}>Back</button>
-      <button type="button" class="primary" on:click={nextStep}>
-        {isLastStep ? 'Finish' : 'Continue'}
+      <button type="button" class="primary" on:click={nextStep} disabled={isCurrentStepBlocked}>
+        {isCurrentStepBlocked ? 'Waiting for consent' : isLastStep ? 'Finish' : 'Continue'}
       </button>
     </div>
   </section>
@@ -198,7 +242,7 @@
     inset: 0;
     z-index: 999;
     pointer-events: none;
-    background: rgba(0, 0, 0, 0.22);
+    background: rgba(0, 0, 0, 0.08);
   }
 
   .setup-guide {
@@ -282,11 +326,9 @@
   }
 
   :global(.setup-guide-target) {
-    position: relative;
-    z-index: 1001 !important;
-    outline: 3px solid var(--md-sys-color-primary) !important;
-    outline-offset: 4px;
-    box-shadow: 0 0 0 8px rgba(255, 107, 53, 0.22), 0 0 24px rgba(255, 107, 53, 0.55) !important;
+    outline: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 82%, white) !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12) !important;
   }
 
   @media (max-width: 768px) {

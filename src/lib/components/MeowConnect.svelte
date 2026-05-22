@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { GAME_CLASSES } from '$lib/data/classes';
+  import type { Raid } from '$lib/data/raids';
   import {
     acceptMeowConnectFriendRequest,
     buildMeowConnectAvailabilityRows,
@@ -16,6 +17,7 @@
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
+    meowConnectHasUnsyncedChanges,
     removeMeowConnectFriend,
     sendMeowConnectFriendRequest,
     setMeowConnectStaticFriend,
@@ -38,7 +40,7 @@
   }
 
   type MeowConnectTab = 'together' | 'logs' | 'settings';
-  type AvailabilityMode = 'open' | 'favorites' | 'all';
+  type AvailabilityMode = 'open' | 'favorites';
   type RaidTogetherView = 'availability' | 'pairs';
 
   interface ProfileRaidGroup {
@@ -49,16 +51,19 @@
     rows: MeowConnectAvailabilityRow[];
     openCount: number;
     clearedCount: number;
+    favoriteCount: number;
+    raidName: string;
+    minIlvl: number;
   }
 
   interface RaidTogetherRow {
     key: string;
     raidName: string;
     minIlvl: number;
-    friendName: string;
-    friendAvatarUrl?: string;
+    friendNames: string;
+    friendAvatars: { name: string; avatarUrl?: string }[];
     myOpenCount: number;
-    friendOpenCount: number;
+    participantCounts: { name: string; count: number }[];
     togetherCount: number;
   }
 
@@ -75,13 +80,16 @@
   let availabilityMode: AvailabilityMode = 'open';
   let raidTogetherView: RaidTogetherView = 'availability';
   let visibleRaidIds = raidOptions.map((raid) => raid.id);
+  let focusedAvailabilityRaidIds = new Set<string>();
+  let activeProfileGroup: ProfileRaidGroup | null = null;
   let friendPopoverEl: HTMLElement | null = null;
   let currentProfile: MeowConnectProfile | null = null;
   let localSnapshot: MeowConnectLocalSnapshot | null = null;
   let remoteSnapshots: MeowConnectRemoteSnapshot[] = [];
   let friendConnections: MeowConnectFriendConnection[] = [];
   let favoriteIds = new Set<string>();
-  let expandedProfileKeys = new Set<string>();
+  let selectedTogetherFriendIds = new Set<string>();
+  let togetherFriendSelectionInitialized = false;
   let friendOptions: FriendOption[] = [];
   let friendSearch = '';
   let friendDiscordId = '';
@@ -102,7 +110,9 @@
     ? 'Syncing...'
     : manualSyncBlocked
       ? `Sync in ${formatDuration(manualSyncRemainingMs)}`
-      : 'Sync now';
+      : $meowConnectHasUnsyncedChanges
+        ? 'Sync changes'
+        : 'Sync now';
   $: visibleRaids = raidOptions.filter((raid) => visibleRaidIds.includes(raid.id));
   $: raidSections = visibleRaids.map((raid) => ({
     raid,
@@ -112,13 +122,31 @@
       filterRows(buildMeowConnectAvailabilityRows(localSnapshot, remoteSnapshots, raid.id, 'all', favoriteIds, currentProfile))
     )
   }));
+  $: if (focusedAvailabilityRaidIds.size > 0) {
+    const validFocusedIds = new Set(Array.from(focusedAvailabilityRaidIds).filter((raidId) => visibleRaidIds.includes(raidId)));
+    if (validFocusedIds.size !== focusedAvailabilityRaidIds.size) focusedAvailabilityRaidIds = validFocusedIds;
+  }
+  $: displayedRaidSections = focusedAvailabilityRaidIds.size > 0
+    ? raidSections.filter((section) => focusedAvailabilityRaidIds.has(section.raid.id))
+    : raidSections;
   $: logEntries = buildMeowConnectLogEntries(localSnapshot, remoteSnapshots, visibleRaidIds, currentProfile).slice(0, 80);
-  $: raidTogetherRows = buildRaidTogetherRows();
+  $: acceptedFriendConnections = friendConnections.filter((connection) => connection.status === 'accepted');
+  $: if (!togetherFriendSelectionInitialized && acceptedFriendConnections.length > 0) {
+    selectedTogetherFriendIds = new Set(acceptedFriendConnections.map(getFriendConnectionKey));
+    togetherFriendSelectionInitialized = true;
+  }
+  $: selectedTogetherConnections = acceptedFriendConnections.filter((connection) =>
+    selectedTogetherFriendIds.has(getFriendConnectionKey(connection))
+  );
+  $: raidTogetherRows = buildRaidTogetherRows(visibleRaids, selectedTogetherConnections, localSnapshot, remoteSnapshots, favoriteIds, currentProfile);
+  $: activeProfileGroup = activeProfileGroup
+    ? displayedRaidSections.flatMap((section) => section.groups).find((group) => group.key === activeProfileGroup?.key) || null
+    : null;
   $: totalOpenCount = raidSections.reduce(
     (total, section) => total + section.rows.filter((row) => row.status === 'open').length,
     0
   );
-  $: connectedFriends = friendConnections.filter((connection) => connection.status === 'accepted').length;
+  $: connectedFriends = acceptedFriendConnections.length;
   $: pendingIncoming = friendConnections.filter(
     (connection) => connection.status === 'pending' && connection.direction === 'incoming'
   );
@@ -228,6 +256,21 @@
     favoriteIds = toggleFavoritePlayerId(favoriteKey);
   }
 
+  function getFriendConnectionKey(connection: MeowConnectFriendConnection): string {
+    return connection.profile.userId || connection.friendUserId || connection.profile.discordId || connection.userId;
+  }
+
+  function toggleTogetherFriend(connection: MeowConnectFriendConnection) {
+    const key = getFriendConnectionKey(connection);
+    const next = new Set(selectedTogetherFriendIds);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    selectedTogetherFriendIds = next;
+  }
+
   function groupRowsByProfile(raidId: string, rows: MeowConnectAvailabilityRow[]): ProfileRaidGroup[] {
     const groups = new Map<string, ProfileRaidGroup>();
     for (const row of rows) {
@@ -239,11 +282,15 @@
         ownerAvatarUrl: row.ownerAvatarUrl,
         rows: [],
         openCount: 0,
-        clearedCount: 0
+        clearedCount: 0,
+        favoriteCount: 0,
+        raidName: row.raid.name,
+        minIlvl: row.raid.gates[0]?.minIlvl || 0
       };
       group.rows.push(row);
       if (row.status === 'open') group.openCount += 1;
       if (row.status === 'cleared') group.clearedCount += 1;
+      if (row.favorite) group.favoriteCount += 1;
       groups.set(key, group);
     }
 
@@ -254,40 +301,79 @@
     );
   }
 
-  function toggleProfileGroup(key: string) {
-    const next = new Set(expandedProfileKeys);
-    if (next.has(key)) {
-      next.delete(key);
+  function setAvailabilityRaidFilter(raidId: string) {
+    const next = new Set(focusedAvailabilityRaidIds);
+    if (next.has(raidId)) {
+      next.delete(raidId);
     } else {
-      next.add(key);
+      next.add(raidId);
     }
-    expandedProfileKeys = next;
+    focusedAvailabilityRaidIds = next;
   }
 
-  function buildRaidTogetherRows(): RaidTogetherRow[] {
-    return visibleRaids.flatMap((raid) => {
-      const rows = buildMeowConnectAvailabilityRows(localSnapshot, remoteSnapshots, raid.id, 'all', favoriteIds, currentProfile)
+  function openProfileGroup(group: ProfileRaidGroup) {
+    activeProfileGroup = group;
+  }
+
+  function closeProfileGroup() {
+    activeProfileGroup = null;
+  }
+
+  function buildRaidTogetherRows(
+    raids: Raid[],
+    selectedConnections: MeowConnectFriendConnection[],
+    currentLocalSnapshot: MeowConnectLocalSnapshot | null,
+    currentRemoteSnapshots: MeowConnectRemoteSnapshot[],
+    currentFavoriteIds: Set<string>,
+    profile: MeowConnectProfile | null
+  ): RaidTogetherRow[] {
+    if (selectedConnections.length === 0) return [];
+
+    return raids.flatMap((raid) => {
+      const rows = buildMeowConnectAvailabilityRows(currentLocalSnapshot, currentRemoteSnapshots, raid.id, 'all', currentFavoriteIds, profile)
         .filter((row) => row.status === 'open');
       const myOpenCount = rows.filter((row) => row.ownerId === 'local').length;
+      const participantCounts = selectedConnections.map((connection) => ({
+        name: connection.profile.displayName,
+        count: rows.filter((row) => isFriendAvailabilityRow(row, connection)).length
+      }));
+      const togetherCount = Math.min(myOpenCount, ...participantCounts.map((participant) => participant.count));
 
-      return friendConnections
-        .filter((connection) => connection.status === 'accepted')
-        .map((connection) => {
-          const friendOwnerIds = new Set([connection.profile.discordId, connection.profile.userId].filter(Boolean));
-          const friendOpenCount = rows.filter((row) => friendOwnerIds.has(row.ownerId)).length;
-
-          return {
-            key: `${raid.id}:${connection.profile.userId}`,
-            raidName: raid.name,
-            minIlvl: raid.gates[0].minIlvl,
-            friendName: connection.profile.displayName,
-            friendAvatarUrl: connection.profile.avatarUrl,
-            myOpenCount,
-            friendOpenCount,
-            togetherCount: Math.min(myOpenCount, friendOpenCount)
-          };
-        });
+      return [{
+        key: `${raid.id}:${selectedConnections.map(getFriendConnectionKey).sort().join('+')}`,
+        raidName: raid.name,
+        minIlvl: raid.gates[0].minIlvl,
+        friendNames: selectedConnections.map((connection) => connection.profile.displayName).join(', '),
+        friendAvatars: selectedConnections.map((connection) => ({
+          name: connection.profile.displayName,
+          avatarUrl: connection.profile.avatarUrl
+        })),
+        myOpenCount,
+        participantCounts,
+        togetherCount
+      }];
     });
+  }
+
+  function isFriendAvailabilityRow(row: MeowConnectAvailabilityRow, connection: MeowConnectFriendConnection): boolean {
+    const ownerIds = [row.ownerId, row.character.rosterId].map(normalizeId).filter(Boolean);
+    const friendIds = [
+      connection.profile.discordId,
+      connection.profile.userId,
+      connection.friendUserId,
+      connection.userId
+    ].map(normalizeId).filter(Boolean);
+
+    return ownerIds.some((ownerId) => friendIds.includes(ownerId)) ||
+      normalizeName(row.ownerName) === normalizeName(connection.profile.displayName);
+  }
+
+  function normalizeId(value?: string | null): string {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function normalizeName(value?: string | null): string {
+    return String(value || '').trim().toLowerCase();
   }
 
   function toggleRaidVisibility(raidId: string) {
@@ -331,7 +417,7 @@
 
   function loadAvailabilityMode(): AvailabilityMode {
     const value = localStorage.getItem(AVAILABILITY_MODE_STORAGE_KEY);
-    return value === 'favorites' || value === 'all' || value === 'open' ? value : 'open';
+    return value === 'favorites' || value === 'open' ? value : 'open';
   }
 
   async function openFriendPopover() {
@@ -537,15 +623,15 @@
 </script>
 
 <section class="meow-connect">
-  <header class="mc-header">
-    <div class="mc-title">
-      <img src="/images/meowconnect_tab.png" alt="" />
-      <h2>MeowConnect</h2>
-    </div>
-  </header>
-
   {#if !consentAccepted}
-    <section class="consent-panel">
+    <header class="mc-header">
+      <div class="mc-title">
+        <img src="/images/meowconnect_tab.png" alt="" />
+        <h2>MeowConnect</h2>
+      </div>
+    </header>
+
+    <section class="consent-panel" data-guide="meow-connect-consent">
       <div>
         <h3>Share character availability</h3>
         <p>
@@ -563,37 +649,54 @@
     {/if}
 
     {#if activeSection === 'together'}
-      <section class="overview-toolbar">
-        <div class="summary-pill">
-          <strong>{totalOpenCount}</strong>
-          <span>open</span>
-        </div>
-        <div class="summary-pill">
-          <strong>{connectedFriends}</strong>
-          <span>friends</span>
+      <section class="connect-toolbar-row">
+        <div class="mc-title">
+          <img src="/images/meowconnect_tab.png" alt="" />
+          <h2>MeowConnect</h2>
         </div>
 
-        {#if raidTogetherView === 'availability'}
-          <div class="mode-toggle">
-            <button type="button" class:active={availabilityMode === 'open'} on:click={() => setAvailabilityMode('open')}>
-              Available
+        <div class="overview-toolbar">
+          <div class="summary-pill">
+            <strong>{totalOpenCount}</strong>
+            <span>open</span>
+          </div>
+          <div class="summary-pill">
+            <strong>{connectedFriends}</strong>
+            <span>friends</span>
+          </div>
+
+          {#if raidTogetherView === 'availability'}
+            <div class="mode-toggle">
+              <button type="button" class:active={availabilityMode === 'open'} on:click={() => setAvailabilityMode('open')}>
+                Available
+              </button>
+              <button type="button" class:active={availabilityMode === 'favorites'} on:click={() => setAvailabilityMode('favorites')}>
+                Favorites
+              </button>
+            </div>
+
+            <div class="mode-toggle raid-filter-toggle">
+              {#each visibleRaids as raid}
+                <button
+                  type="button"
+                  class:active={focusedAvailabilityRaidIds.has(raid.id)}
+                  on:click={() => setAvailabilityRaidFilter(raid.id)}
+                  title={focusedAvailabilityRaidIds.has(raid.id) ? `Hide ${raid.name} focus` : `Add ${raid.name} focus`}
+                >
+                  {raid.name}
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="mode-toggle view-toggle">
+            <button type="button" class:active={raidTogetherView === 'availability'} on:click={() => raidTogetherView = 'availability'}>
+              Availability
             </button>
-            <button type="button" class:active={availabilityMode === 'favorites'} on:click={() => setAvailabilityMode('favorites')}>
-              Favorites
-            </button>
-            <button type="button" class:active={availabilityMode === 'all'} on:click={() => setAvailabilityMode('all')}>
-              All
+            <button type="button" class:active={raidTogetherView === 'pairs'} on:click={() => raidTogetherView = 'pairs'}>
+              Together
             </button>
           </div>
-        {/if}
-
-        <div class="mode-toggle view-toggle">
-          <button type="button" class:active={raidTogetherView === 'availability'} on:click={() => raidTogetherView = 'availability'}>
-            Availability
-          </button>
-          <button type="button" class:active={raidTogetherView === 'pairs'} on:click={() => raidTogetherView = 'pairs'}>
-            Together
-          </button>
         </div>
       </section>
 
@@ -602,11 +705,8 @@
           {#if visibleRaids.length === 0}
             <div class="empty-state">No raids selected. Enable raids in Settings.</div>
           {:else}
-            {#each raidSections as section}
-              <article
-                class="raid-column"
-                style={`--profile-column-count: ${Math.max(1, Math.min(section.groups.length, 2))};`}
-              >
+            {#each displayedRaidSections as section}
+              <article class="raid-column">
                 <header>
                   <div>
                     <h3>{section.raid.name}</h3>
@@ -624,8 +724,8 @@
                         <button
                           class="profile-group-summary"
                           type="button"
-                          on:click={() => toggleProfileGroup(group.key)}
-                          aria-expanded={expandedProfileKeys.has(group.key)}
+                          on:click={() => openProfileGroup(group)}
+                          aria-haspopup="dialog"
                         >
                           {#if group.ownerAvatarUrl}
                             <img src={group.ownerAvatarUrl} alt="" />
@@ -634,42 +734,16 @@
                           {/if}
                           <span>
                             <strong>{group.ownerName}</strong>
-                            <small>{group.openCount} available{availabilityMode === 'all' ? ` · ${group.clearedCount} cleared` : ''}</small>
+                            <small>
+                              {#if availabilityMode === 'favorites'}
+                                {group.favoriteCount} favorite{group.favoriteCount === 1 ? '' : 's'}
+                              {:else}
+                                {group.openCount} available · {group.rows.length} shown
+                              {/if}
+                            </small>
                           </span>
                         </button>
 
-                        {#if expandedProfileKeys.has(group.key)}
-                          <div class="availability-stack">
-                            {#each group.rows as row}
-                              <article class:cleared={row.status === 'cleared'} class="availability-card">
-                                <button
-                                  class:active={row.favorite}
-                                  class="favorite-button"
-                                  type="button"
-                                  title={row.favorite ? 'Remove favorite' : 'Mark favorite'}
-                                  aria-label={row.favorite ? 'Remove favorite' : 'Mark favorite'}
-                                  on:click={() => toggleFavorite(row.favoriteKey)}
-                                >
-                                  {row.favorite ? '★' : '☆'}
-                                </button>
-
-                                <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
-
-                                <div class="character-copy">
-                                  <strong>{row.character.charName}</strong>
-                                  <span>{getClassName(row.character.classId)} · {Math.round(row.character.itemLevel)}</span>
-                                  <small>
-                                    {row.status === 'open' ? `${row.openGates}/${row.totalGates} gates open` : 'cleared'}
-                                    · {row.raid.difficulty}
-                                    {#if row.reservedForStatic}
-                                      · {row.staticReservationDetailsVisible ? 'reserved for static' : 'preserved for static'}
-                                    {/if}
-                                  </small>
-                                </div>
-                              </article>
-                            {/each}
-                          </div>
-                        {/if}
                       </article>
                     {/each}
                   {/if}
@@ -678,30 +752,140 @@
             {/each}
           {/if}
         </section>
+
+        {#if activeProfileGroup}
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div
+            class="profile-detail-backdrop"
+            role="presentation"
+            on:click={closeProfileGroup}
+          >
+            <section
+              class="profile-detail-popover"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${activeProfileGroup.ownerName} raid availability`}
+              on:click|stopPropagation
+            >
+              <header>
+                <div class="profile-detail-title">
+                  {#if activeProfileGroup.ownerAvatarUrl}
+                    <img src={activeProfileGroup.ownerAvatarUrl} alt="" />
+                  {:else}
+                    <span class="avatar-fallback">{getInitials(activeProfileGroup.ownerName)}</span>
+                  {/if}
+                  <div>
+                    <h3>{activeProfileGroup.raidName}</h3>
+                    <strong>{activeProfileGroup.ownerName}</strong>
+                    <span>
+                      {#if availabilityMode === 'favorites'}
+                        {activeProfileGroup.favoriteCount} favorite{activeProfileGroup.favoriteCount === 1 ? '' : 's'} · {activeProfileGroup.minIlvl}+
+                      {:else}
+                        {activeProfileGroup.openCount} available · {activeProfileGroup.rows.length} matching characters · {activeProfileGroup.minIlvl}+
+                      {/if}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" class="icon-button" aria-label="Close availability details" on:click={closeProfileGroup}>×</button>
+              </header>
+
+              <div class="availability-stack">
+                {#each activeProfileGroup.rows.filter((row) => availabilityMode !== 'favorites' || row.favorite) as row}
+                  <article class:cleared={row.status === 'cleared'} class="availability-card">
+                    <button
+                      class:active={row.favorite}
+                      class="favorite-button"
+                      type="button"
+                      title={row.favorite ? 'Remove favorite' : 'Mark favorite'}
+                      aria-label={row.favorite ? 'Remove favorite' : 'Mark favorite'}
+                      on:click={() => toggleFavorite(row.favoriteKey)}
+                    >
+                      {row.favorite ? '★' : '☆'}
+                    </button>
+
+                    <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
+
+                    <div class="character-copy">
+                      <strong>{row.character.charName}</strong>
+                      <span>{getClassName(row.character.classId)} · {Math.round(row.character.itemLevel)}</span>
+                      <small>
+                        {row.status === 'open' ? `${row.openGates}/${row.totalGates} gates open` : 'cleared'}
+                        · {row.raid.difficulty}
+                        {#if row.reservedForStatic}
+                          · {row.staticReservationDetailsVisible ? 'reserved for static' : 'preserved for static'}
+                        {/if}
+                      </small>
+                    </div>
+                  </article>
+                {/each}
+                {#if availabilityMode === 'favorites' && activeProfileGroup.favoriteCount === 0}
+                  <p class="column-empty">0 favorites</p>
+                {/if}
+              </div>
+            </section>
+          </div>
+        {/if}
       {:else}
         <section class="together-panel">
           <div class="panel-title">
             <div>
               <h3>Raid Together</h3>
-              <p>Shows how many runs you and each friend can still run together for selected raids.</p>
+              <p>Select friends first, then compare the shared open-run limit across everyone selected.</p>
             </div>
+          </div>
+
+          <div class="together-friend-picker">
+            {#if acceptedFriendConnections.length === 0}
+              <p class="column-empty">Add or accept a MeowConnect friend to compare open runs.</p>
+            {:else}
+              {#each acceptedFriendConnections as connection}
+                <button
+                  type="button"
+                  class:active={selectedTogetherFriendIds.has(getFriendConnectionKey(connection))}
+                  on:click={() => toggleTogetherFriend(connection)}
+                >
+                  {#if connection.profile.avatarUrl}
+                    <img src={connection.profile.avatarUrl} alt="" />
+                  {:else}
+                    <span class="avatar-fallback">{getInitials(connection.profile.displayName)}</span>
+                  {/if}
+                  <span>{connection.profile.displayName}</span>
+                </button>
+              {/each}
+            {/if}
           </div>
 
           <div class="together-grid">
             {#if raidTogetherRows.length === 0}
-              <p class="column-empty">Add friends and select raids to compare open runs.</p>
+              <p class="column-empty">
+                {#if visibleRaids.length === 0}
+                  Select at least one raid to compare open runs.
+                {:else if acceptedFriendConnections.length === 0}
+                  Add or accept a MeowConnect friend to compare open runs.
+                {:else if selectedTogetherConnections.length === 0}
+                  Select at least one friend to compare open runs.
+                {:else if !localSnapshot || localSnapshot.characters.length === 0}
+                  Enable Connect on at least one local character, then sync MeowConnect.
+                {:else}
+                  No open shared raid runs found for the current selection.
+                {/if}
+              </p>
             {:else}
               {#each raidTogetherRows as row}
                 <article class:empty={row.togetherCount === 0} class="together-card">
                   <div class="together-main">
-                    {#if row.friendAvatarUrl}
-                      <img src={row.friendAvatarUrl} alt="" />
-                    {:else}
-                      <span class="avatar-fallback">{getInitials(row.friendName)}</span>
-                    {/if}
+                    <div class="together-avatar-stack" style={`--avatar-count: ${row.friendAvatars.length}`}>
+                      {#each row.friendAvatars as avatar, avatarIndex}
+                        {#if avatar.avatarUrl}
+                          <img src={avatar.avatarUrl} alt="" title={avatar.name} style={`--avatar-index: ${avatarIndex}`} />
+                        {:else}
+                          <span class="avatar-fallback" title={avatar.name} style={`--avatar-index: ${avatarIndex}`}>{getInitials(avatar.name)}</span>
+                        {/if}
+                      {/each}
+                    </div>
                     <div>
                       <strong>{row.raidName}</strong>
-                      <span>{row.friendName} · {row.minIlvl}+</span>
+                      <span>{row.friendNames} · {row.minIlvl}+</span>
                     </div>
                   </div>
 
@@ -712,7 +896,9 @@
 
                   <div class="together-meta">
                     <span>You: {row.myOpenCount}</span>
-                    <span>{row.friendName}: {row.friendOpenCount}</span>
+                    {#each row.participantCounts as participant}
+                      <span>{participant.name}: {participant.count}</span>
+                    {/each}
                   </div>
                 </article>
               {/each}
@@ -735,11 +921,15 @@
           {:else}
             {#each logEntries as entry}
               <article class="log-row">
-                {#if entry.ownerAvatarUrl}
-                  <img src={entry.ownerAvatarUrl} alt="" />
-                {:else}
-                  <span class="avatar-fallback">{getInitials(entry.ownerName)}</span>
-                {/if}
+                <div class="log-avatar-stack" style={`--avatar-count: ${entry.participants?.length || 1}`}>
+                  {#each (entry.participants?.length ? entry.participants : [{ ownerId: entry.ownerId, ownerName: entry.ownerName, ownerAvatarUrl: entry.ownerAvatarUrl, localPlayer: entry.localPlayer }]) as participant, participantIndex}
+                    {#if participant.ownerAvatarUrl}
+                      <img src={participant.ownerAvatarUrl} alt="" title={`${participant.ownerName} (${participant.localPlayer})`} style={`--avatar-index: ${participantIndex}`} />
+                    {:else}
+                      <span class="avatar-fallback" title={`${participant.ownerName} (${participant.localPlayer})`} style={`--avatar-index: ${participantIndex}`}>{getInitials(participant.ownerName)}</span>
+                    {/if}
+                  {/each}
+                </div>
                 <div>
                   <strong>{entry.ownerName} cleared {entry.raidName} {entry.difficulty}</strong>
                   <span>
@@ -765,14 +955,19 @@
           <div class="panel-title">
             <div>
               <h3>Sync</h3>
-              <p>{localSnapshot ? `${localSnapshot.characters.length} connected characters · current weekly reset started ${formatResetTime(localSnapshot.weeklyResetMs)}` : 'No local snapshot loaded.'}</p>
+              <p>
+                {localSnapshot ? `${localSnapshot.characters.length} connected characters · current weekly reset started ${formatResetTime(localSnapshot.weeklyResetMs)}` : 'No local snapshot loaded.'}
+                {#if $meowConnectHasUnsyncedChanges}
+                  · Unsynced local changes
+                {/if}
+              </p>
             </div>
             <button
               class="primary-button"
               type="button"
               on:click={() => refreshMeowConnect({ allowUpload: true, manual: true })}
               disabled={isLoading || manualSyncBlocked}
-              title={manualSyncBlocked ? `Manual sync is available in ${formatDuration(manualSyncRemainingMs)}.` : 'Upload your current MeowConnect snapshot'}
+              title={manualSyncBlocked ? `Manual sync is available in ${formatDuration(manualSyncRemainingMs)}.` : $meowConnectHasUnsyncedChanges ? 'Upload unsynced MeowConnect changes' : 'Upload your current MeowConnect snapshot'}
             >
               {manualSyncLabel}
             </button>
@@ -943,6 +1138,7 @@
   }
 
   .mc-header,
+  .connect-toolbar-row,
   .overview-toolbar,
   .panel-title,
   .friend-row {
@@ -958,6 +1154,17 @@
     z-index: 10;
     padding: 0.35rem 0;
     background: var(--md-sys-color-background);
+  }
+
+  .connect-toolbar-row {
+    align-self: center;
+    width: min(100%, calc((320px * 3) + (0.6rem * 2)));
+    flex-wrap: wrap;
+  }
+
+  .connect-toolbar-row .overview-toolbar {
+    flex: 1;
+    min-width: min(100%, 28rem);
   }
 
   .mc-title {
@@ -1217,6 +1424,12 @@
     margin-left: auto;
   }
 
+  .raid-filter-toggle {
+    max-width: min(42rem, 100%);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
   .summary-pill {
     display: inline-flex;
     align-items: baseline;
@@ -1240,9 +1453,11 @@
   }
 
   .raid-board {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(245px, 320px));
+    justify-content: center;
     gap: 0.6rem;
-    overflow: auto;
+    overflow-y: auto;
     max-height: min(68vh, calc(100vh - 15rem));
     padding-bottom: 0.35rem;
     scrollbar-width: thin;
@@ -1250,9 +1465,7 @@
   }
 
   .raid-column {
-    --profile-column-count: 1;
-    width: clamp(320px, calc(178px + (var(--profile-column-count) * 176px)), 540px);
-    flex: 0 0 auto;
+    min-width: 0;
     min-height: 16rem;
     display: flex;
     flex-direction: column;
@@ -1293,7 +1506,7 @@
 
   .profile-group-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.45rem;
     padding: 0.45rem;
     align-items: start;
@@ -1320,6 +1533,115 @@
     color: var(--md-sys-color-on-surface);
     text-align: left;
     cursor: pointer;
+  }
+
+  .profile-group-summary:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 9%, var(--md-sys-color-surface-variant));
+  }
+
+  .profile-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: start center;
+    padding: clamp(1rem, 6vh, 4rem) 1rem 1rem;
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .profile-detail-popover {
+    width: min(34rem, 100%);
+    max-height: min(72vh, 42rem);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface);
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
+  }
+
+  .profile-detail-popover > header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-variant);
+  }
+
+  .profile-detail-title {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    gap: 0.8rem;
+    align-items: center;
+  }
+
+  .profile-detail-title > img,
+  .profile-detail-title > .avatar-fallback {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .profile-detail-title div {
+    min-width: 0;
+    display: grid;
+    gap: 0.08rem;
+  }
+
+  .profile-detail-title h3 {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.92rem;
+  }
+
+  .profile-detail-title strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.78rem;
+    font-weight: 650;
+  }
+
+  .profile-detail-title span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.74rem;
+  }
+
+  .profile-detail-popover .availability-stack {
+    overflow-y: auto;
+    padding: 0.55rem;
+  }
+
+  .icon-button {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 50%;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .icon-button:hover {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
   }
 
   .profile-group-summary span {
@@ -1426,6 +1748,48 @@
     gap: 0.55rem;
   }
 
+  .together-friend-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+  }
+
+  .together-friend-picker button {
+    min-width: 0;
+    display: inline-grid;
+    grid-template-columns: 1.5rem minmax(0, auto);
+    gap: 0.4rem;
+    align-items: center;
+    max-width: 12rem;
+    padding: 0.34rem 0.5rem;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    font-size: 0.76rem;
+  }
+
+  .together-friend-picker button.active {
+    border-color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 12%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .together-friend-picker img,
+  .together-friend-picker .avatar-fallback {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .together-friend-picker span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .together-card {
     min-width: 0;
     display: grid;
@@ -1445,9 +1809,24 @@
   .together-main {
     min-width: 0;
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr);
+    grid-template-columns: 4.2rem minmax(0, 1fr);
     gap: 0.55rem;
     align-items: center;
+  }
+
+  .together-avatar-stack {
+    position: relative;
+    width: 4.2rem;
+    height: 2rem;
+  }
+
+  .together-avatar-stack img,
+  .together-avatar-stack .avatar-fallback {
+    position: absolute;
+    top: 0;
+    left: calc(var(--avatar-index, 0) * 1.05rem);
+    border: 2px solid var(--md-sys-color-surface-variant);
+    box-sizing: border-box;
   }
 
   .together-main div {
@@ -1499,7 +1878,7 @@
   .log-row {
     min-width: 0;
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr);
+    grid-template-columns: 4.4rem minmax(0, 1fr);
     gap: 0.6rem;
     align-items: start;
     padding: 0.55rem;
@@ -1508,10 +1887,27 @@
     background: var(--md-sys-color-surface-variant);
   }
 
-  .log-row div {
+  .log-row > div:not(.log-avatar-stack) {
     min-width: 0;
     display: grid;
     gap: 0.15rem;
+  }
+
+  .log-avatar-stack {
+    --avatar-count: 1;
+    position: relative;
+    min-width: 2rem;
+    width: 4.4rem;
+    height: 2rem;
+  }
+
+  .log-avatar-stack img,
+  .log-avatar-stack .avatar-fallback {
+    position: absolute;
+    top: 0;
+    left: calc(var(--avatar-index, 0) * 1.15rem);
+    border: 2px solid var(--md-sys-color-surface-variant);
+    box-sizing: border-box;
   }
 
   .log-row span,
@@ -1726,11 +2122,16 @@
     }
 
     .mc-header,
+    .connect-toolbar-row,
     .consent-panel,
     .panel-title,
     .overview-toolbar {
       display: grid;
       grid-template-columns: 1fr;
+    }
+
+    .connect-toolbar-row {
+      width: 100%;
     }
 
     .settings-grid {
@@ -1753,12 +2154,19 @@
       grid-column: auto;
     }
 
-    .raid-column {
-      width: min(88vw, 360px);
+    .raid-board {
+      grid-template-columns: 1fr;
+      max-height: none;
+      overflow: visible;
     }
 
-    .profile-group-grid {
-      grid-template-columns: 1fr;
+    .profile-detail-backdrop {
+      place-items: end center;
+      padding: 0.75rem;
+    }
+
+    .profile-detail-popover {
+      max-height: min(82vh, 42rem);
     }
 
     .friend-row {
