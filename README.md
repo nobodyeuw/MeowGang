@@ -1,4 +1,4 @@
-# <img src="static/images/LOAtracker_icon.png" alt="MeowGang Tracker icon" width="36" align="left" /> MeowGang Tracker
+# <img src="static/images/LOAtracker_appicon.png" alt="MeowGang Tracker icon" width="36" align="left" /> MeowGang Tracker
 
 **A lightweight desktop companion for Lost Ark roster, raid, gold, and friend availability tracking.**
 
