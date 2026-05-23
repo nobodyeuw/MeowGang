@@ -642,6 +642,7 @@
                 data-guide="gold-toggle"
                 class:active={char.earns_gold}
                 on:click|stopPropagation={() => toggleGold(char)}
+                title={char.earns_gold ? 'Character currently earns gold' : 'Character current state is non-gold earner'}
               >
                 {char.earns_gold ? 'EARNS GOLD' : 'RAT'}
               </button>
@@ -649,18 +650,24 @@
                 class="toggle-btn hide"
                 class:active={char.hide_from_dashboard}
                 on:click|stopPropagation={() => toggleHideFromDashboard(char)}
+                title={char.hide_from_dashboard ? 'Hidden from dashboard' : 'Visible on dashboard'}
               >
-                {char.hide_from_dashboard ? 'HIDDEN' : 'SHOW ON DASHBOARD'}
+                <img
+                  class="visibility-icon"
+                  src={char.hide_from_dashboard ? '/images/invisble.png' : '/images/visble.png'}
+                  alt=""
+                />
+                <span>{char.hide_from_dashboard ? 'HIDDEN' : 'VISIBLE'}</span>
               </button>
               <button
                 class="toggle-btn connect"
                 data-guide="meow-connect-toggle"
                 class:active={char.meow_connect_enabled}
                 on:click|stopPropagation={() => toggleMeowConnect(char)}
-                title="Include this character in MeowConnect shared availability"
+                title={char.meow_connect_enabled ? 'Connected to MeowConnect shared availability' : 'Not connected to MeowConnect shared availability'}
               >
-                <span class="connect-icon" aria-hidden="true"></span>
-                <span>{char.meow_connect_enabled ? 'CONNECT' : 'OFF'}</span>
+                <img class="connect-icon" src="/images/meowconnect_tab.png" alt="" />
+                <span>{char.meow_connect_enabled ? 'CONNECTED' : 'OFF'}</span>
               </button>
             </div>
           </div>
@@ -1002,6 +1009,10 @@
   }
 
   .toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
     padding: 0.5rem 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--md-sys-color-outline);
@@ -1017,43 +1028,23 @@
   }
 
   .toggle-btn.connect {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
     min-width: 76px;
   }
 
-  .connect-icon {
-    position: relative;
-    width: 18px;
-    height: 10px;
+  .visibility-icon {
+    width: 15px;
+    height: 15px;
+    object-fit: contain;
     flex: 0 0 auto;
   }
 
-  .connect-icon::before,
-  .connect-icon::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    border: 2px solid currentColor;
-    box-sizing: border-box;
-  }
-
-  .connect-icon::before {
-    left: 0;
-  }
-
-  .connect-icon::after {
-    right: 0;
-  }
-
-  .toggle-btn.connect .connect-icon {
-    border-top: 2px solid currentColor;
-    transform: translateY(4px);
+  .connect-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex: 0 0 auto;
+    filter: grayscale(1);
+    opacity: 0.48;
   }
 
   .toggle-btn.gold.active {
@@ -1066,6 +1057,11 @@
     border-color: rgba(251, 146, 60, 0.62);
     background: rgba(251, 146, 60, 0.18);
     color: #fdba74;
+  }
+
+  .toggle-btn.connect.active .connect-icon {
+    filter: none;
+    opacity: 1;
   }
 
   .toggle-btn:hover {

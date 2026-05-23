@@ -1,113 +1,138 @@
 {
   "versions": [
     {
-      "version": "1.2.1",
-      "date": "2026-05-22",
+      "version": "1.2.2",
+      "date": "2026-05-24",
       "changes": [
         {
-          "type": "Improved",
-          "description": "MeowConnect realtime closed state now displays as Sleeping.",
-          "details": "When Supabase closes the passive realtime listener, the header now shows Sleeping instead of Offline because on-demand uploads can still run when raid completions are synced."
+          "type": "Added",
+          "description": "MeowConnect difficulty filters added to Raid Together.",
+          "details": "Raid Together now has per-raid difficulty chips for Normal, Hard, and Nightmare where available. Clicking an active chip clears that raid filter and returns it to all difficulties."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect cloud failures are written to app logs.",
-          "details": "Actual MeowConnect cloud request failures and login-required states are now recorded in the integrated Settings > System logs for easier diagnostics."
+          "description": "MeowConnect Raid Together header is more compact.",
+          "details": "The MeowConnect title, centered raid difficulty filters, and friends count now share one tighter header so the raid comparison area keeps more vertical space."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect profile names now prefer whitelist names.",
-          "details": "Shared MeowConnect profiles now use the Discord whitelist display name when available instead of falling back to the raw Discord account name."
+          "description": "MeowConnect profile details show richer character stats.",
+          "details": "Expanded friend profiles now show class beside the character name, the gold-earner icon beside the title, aligned iLvl and CP values, and dashboard-matched CP coloring."
         },
         {
           "type": "Improved",
-          "description": "Set-up guide now covers MeowConnect.",
-          "details": "The guide now includes selecting shared characters with the Connect toggle and waits on the MeowConnect consent step until terms are accepted."
+          "description": "Static reservations are clearer in MeowConnect.",
+          "details": "Static rows now distinguish shared static runs from generic static reservations. Static runs shared with you count as available for your matching, while unrelated static reservations stay unavailable."
         },
         {
           "type": "Improved",
-          "description": "Set-up guide highlighting is less intrusive.",
-          "details": "Guide highlights now use a lighter outline without forcing highlighted UI above the page, reducing layout and scrolling glitches."
+          "description": "Static badges added to expanded MeowConnect profiles.",
+          "details": "Characters reserved for static now show the same Static badge style used on dashboard raid labels, including cleared static rows."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect now marks unsynced local sharing changes.",
-          "details": "Roster sharing changes, character order changes, dashboard visibility changes, gold earner changes, and raid/static setting changes now mark MeowConnect as having unsynced local changes until the next successful upload. Manual sync remains cooldown-limited."
+          "description": "Expanded MeowConnect profile labels are less noisy.",
+          "details": "Static run counts were removed from collapsed and expanded profile headers, while available and cleared counts remain visible. The profile ilvl label now follows the active difficulty filter and defaults to the raid lowest non-solo requirement."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect logs combine shared LOA Logs clears.",
-          "details": "When accepted friends clear the same raid together and LOA Logs records the same player list and fight time, MeowConnect now combines those clear logs and shows the involved profile icons together."
+          "description": "Dashboard and app headers use space more efficiently.",
+          "details": "The universal app header, dashboard stat labels, weekly progress spacing, and dashboard view controls were tightened to reduce dead space."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard view selection moved to System settings.",
+          "details": "The List/Cards dashboard view preference now lives in General System settings instead of taking space inside the dashboard header."
+        },
+        {
+          "type": "Improved",
+          "description": "Update history link moved into the Updates header.",
+          "details": "The Read previous changelogs link now appears as a note in the Updates & Changelog header instead of floating at the bottom of the page."
         },
         {
           "type": "Fixed",
-          "description": "Manual MeowConnect logs now keep separate raid gates.",
-          "details": "Manual completions for multiple gates on the same character, raid, difficulty, and source no longer collapse into one log entry. Gate 1 and Gate 2 can now appear separately."
+          "description": "MeowConnect clear status respects actual raid clears.",
+          "details": "Difficulty filters now only affect availability by item level. Clear status and labels use the actual completion or encounter snapshot evidence so Normal clears do not become Hard clears, and already-cleared characters no longer appear available."
         },
         {
           "type": "Fixed",
-          "description": "Raid Together now refreshes after friend data loads.",
-          "details": "The Raid Together comparison view now explicitly reacts to loaded friends, local snapshots, and remote snapshots so matching open runs appear without needing unrelated UI changes."
-        },
-        {
-          "type": "Improved",
-          "description": "Raid Together availability layout is more compact.",
-          "details": "The Availability view now removes the redundant All filter, adds visible-raid focus filters, stacks profiles inside each raid frame, and opens character details in an overlay so multiple selected raids can fit without horizontal scrolling."
-        },
-        {
-          "type": "Improved",
-          "description": "Raid Together now supports friend-set matching.",
-          "details": "The Together view now lets users select which accepted friends to compare and computes the shared open-run count across the whole selected group."
+          "description": "Local encounter snapshots match the active character more reliably.",
+          "details": "LOA Logs encounter snapshots now include the local player when matching character IDs, so local clears are recognized even when the player list is incomplete."
         },
         {
           "type": "Fixed",
-          "description": "MeowConnect favorites update inside availability overlays.",
-          "details": "Profile availability overlays now follow the recomputed raid data so favorite toggles and Favorites filtering update visually without closing the overlay."
+          "description": "Raid clear gate counting handles final-gate clears.",
+          "details": "Encounter evidence such as Gate 2 on a two-gate raid now counts as clearing through that gate instead of only counting one arbitrary gate entry."
         },
         {
           "type": "Fixed",
-          "description": "Shared LOA Logs clears infer friends from player lists.",
-          "details": "Encounter logs now match players_json names against local and accepted-friend rosters before grouping so clears can show everyone from the friend list who was in the run."
-        },
-        {
-          "type": "Improved",
-          "description": "MeowConnect toolbar aligns with raid frames.",
-          "details": "The MeowConnect title and Together tab controls now share the centered raid-board width so they line up with the first Availability raid frame."
-        },
-        {
-          "type": "Improved",
-          "description": "Availability raid focus supports multiple raids.",
-          "details": "The visible-raid focus buttons can now select more than one raid at a time instead of switching to only one focused raid."
+          "description": "MeowConnect text encoding artifacts removed.",
+          "details": "Corrupted characters in profile separators, close buttons, and favorite icons were cleaned up."
         },
         {
           "type": "Fixed",
-          "description": "Favorites view shows favorite counts per member.",
-          "details": "When Favorites is active, member rows and overlays now show favorite counts such as 0 favorites and only list favorited characters."
+          "description": "MeowConnect difficulty chip state updates immediately.",
+          "details": "Difficulty chips now react instantly per raid and no longer share visual state with other raid filters."
         },
         {
           "type": "Fixed",
-          "description": "MeowConnect displays whitelist names consistently.",
-          "details": "Remote profiles, friend rows, sent friend requests, availability, logs, and Together matching now resolve Discord IDs against whitelist names instead of showing raw Discord display names."
-        },
-        {
-          "type": "Fixed",
-          "description": "Shared LOA Logs clears dedupe by raid gate and party.",
-          "details": "Multiple uploaded perspectives of the same LOA Logs clear now collapse when they share the same raid gate and players_json list, even if their fight timestamps differ slightly."
+          "description": "LOAtracker header image now scales without clipping.",
+          "details": "The app header now uses the cleaner LOAtracker header image with tighter sizing and corrected right-side fit."
         },
         {
           "type": "Added",
-          "description": "Optional RAT view added to To Do.",
-          "details": "A default-off System setting can add a frontend-only RAT roster button in To Do that shows non-gold characters from all rosters together without changing saved roster data."
-        },
-        {
-          "type": "Fixed",
-          "description": "Split RAT To Do view removes RAT characters from normal roster views.",
-          "details": "When the optional RAT To Do view is enabled, non-gold characters are hidden from their normal To Do roster view and shown only in the frontend-only RAT view."
+          "description": "README now displays the app icon beside the project title.",
+          "details": "The GitHub README header now renders the LOAtracker icon inline next to MeowGang Tracker and the README version badge was updated to 1.2.2."
         },
         {
           "type": "Improved",
-          "description": "MeowConnect availability overlay headers are clearer.",
-          "details": "Expanded profile overlays now show the raid name beside the profile image, with the profile name and availability details underneath for better readability."
+          "description": "Application version metadata updated for 1.2.2.",
+          "details": "package.json, package-lock.json, tauri.conf.json, and the generated Rust app version now point at 1.2.2."
+        },
+        {
+          "type": "Improved",
+          "description": "Application icons regenerated from the newer LOAtracker artwork.",
+          "details": "Windows, macOS, iOS, Android, store, and bundled Tauri icon assets were refreshed, and new static LOAtracker header/app icon assets were added for the app and README."
+        },
+        {
+          "type": "Improved",
+          "description": "Sidebar navigation now uses branded image icons.",
+          "details": "Dashboard, To Do, Marketplace, Settings, Updates, and MeowConnect navigation now use image assets instead of emoji-style icons, with larger icon sizing and cleaner footer spacing."
+        },
+        {
+          "type": "Improved",
+          "description": "Progression navigation now focuses on Marketplace.",
+          "details": "The Progression Planner sidebar entry was renamed Marketplace, planner sub-tabs were removed, and the progression view now opens directly into Market Prices."
+        },
+        {
+          "type": "Improved",
+          "description": "Market Prices hides the unfinished Gems category.",
+          "details": "The Gems sub-tab was removed from Market Prices and any stale gems category selection is redirected back to Engraving."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard character cards support quick completion actions.",
+          "details": "Dashboard daily, weekly, and raid-gate labels can now be clicked to mark progress complete, right-clicked to undo, and still expose character-name navigation to the To Do view."
+        },
+        {
+          "type": "Improved",
+          "description": "Roster settings toggles use clearer visual states.",
+          "details": "Dashboard visibility and MeowConnect sharing toggles now use visibility and MeowConnect icons, clearer Connected/Visible labels, and more specific tooltips."
+        },
+        {
+          "type": "Fixed",
+          "description": "To Do character highlighting is smoother and more reliable.",
+          "details": "To Do now centers highlighted characters in the matrix, handles RAT split-view routing when the highlighted character lives in the RAT view, and clears highlights with a managed timer."
+        },
+        {
+          "type": "Fixed",
+          "description": "To Do split RAT view handles empty roster states.",
+          "details": "Empty roster views now show specific messages for separated RAT characters, missing RAT characters, and normal empty rosters instead of falling through to a generic empty state."
+        },
+        {
+          "type": "Fixed",
+          "description": "Machinist class mapping corrected.",
+          "details": "The Scouter/Machinist class data now uses the scouter class id with the Machinist display name and the existing class icon."
         }
       ]
     }

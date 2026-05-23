@@ -13,7 +13,9 @@
       class:active={activeTab === 'dashboard'}
       on:click={() => switchTab('dashboard')}
     >
-      <span class="nav-icon">📊</span>
+      <span class="nav-icon image-icon">
+        <img src="/images/dashboard.png" alt="" />
+      </span>
       <span class="nav-text">Dashboard</span>
     </button>
     
@@ -22,7 +24,9 @@
       class:active={activeTab === 'todo'}
       on:click={() => switchTab('todo')}
     >
-      <span class="nav-icon">✅</span>
+      <span class="nav-icon image-icon">
+        <img src="/images/todo_tab.png" alt="" />
+      </span>
       <span class="nav-text">To Do's</span>
     </button>
     
@@ -31,8 +35,10 @@
       class:active={activeTab === 'progression'}
       on:click={() => switchTab('progression')}
     >
-      <span class="nav-icon">📈</span>
-      <span class="nav-text">Progression Planner</span>
+      <span class="nav-icon image-icon">
+        <img src="/images/marketplace.png" alt="" />
+      </span>
+      <span class="nav-text">Marketplace</span>
     </button>
 
     {#if showMeowConnect}
@@ -55,7 +61,9 @@
       class:active={activeTab === 'settings'}
       on:click={() => switchTab('settings')}
     >
-      <span class="nav-icon">⚙️</span>
+      <span class="nav-icon image-icon">
+        <img src="/images/settings_tab.png" alt="" />
+      </span>
       <span class="nav-text">Settings</span>
     </button>
   </div>
@@ -67,7 +75,9 @@
       class:active={activeTab === 'updates'}
       on:click={() => switchTab('updates')}
     >
-      <span class="nav-icon">🔄</span>
+      <span class="nav-icon image-icon">
+        <img src="/images/updates.png" alt="" />
+      </span>
       <span class="nav-text">Updates</span>
     </button>
     {#if discordAuthUser}
@@ -107,14 +117,15 @@
   }
 
   .nav-spacer {
-    height: 1rem;
+    flex: 1;
+    min-height: 1rem;
   }
 
   .sidebar-footer {
     padding: 0 0 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
   }
 
   .sidebar-divider {
@@ -201,18 +212,18 @@
 
   .nav-icon {
     font-size: 1.25rem;
-    width: 24px;
-    height: 24px;
+    width: 48px;
+    height: 48px;
     text-align: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 24px;
+    flex: 0 0 48px;
   }
 
   .nav-icon.image-icon img {
-    width: 24px;
-    height: 24px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
     display: block;
   }
@@ -233,14 +244,6 @@
 
     .nav-icon {
       font-size: 1.125rem;
-      width: 20px;
-      height: 20px;
-      flex-basis: 20px;
-    }
-
-    .nav-icon.image-icon img {
-      width: 20px;
-      height: 20px;
     }
   }
 

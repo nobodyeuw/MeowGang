@@ -87,6 +87,7 @@ export interface MeowConnectAvailabilityRow {
   totalGates: number;
   openGates: number;
   status: 'open' | 'cleared' | 'too_low';
+  clearedDifficulty?: string;
   reservedForStatic: boolean;
   staticReservationDetailsVisible: boolean;
   sources: string[];
@@ -100,6 +101,7 @@ export interface MeowConnectEncounterSnapshot {
   gate?: string;
   cleared: boolean;
   fightStart: number;
+  clearedAt?: number;
   players: string[];
   matchedCharacterIds: number[];
   resetCycle?: string;
@@ -835,12 +837,14 @@ export function buildMeowConnectLogEntries(
       }, allowedRaidIds)
     : [];
 
-  return combineSharedEncounterLogEntries(
-    enrichEncounterLogParticipants(
-      localEntries.concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds))),
-      buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile)
+  return combineEncounterGateLogEntries(
+    combineSharedEncounterLogEntries(
+      enrichEncounterLogParticipants(
+        localEntries.concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds))),
+        buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile)
+      )
     )
-  ).sort((a, b) => b.fightStart - a.fightStart);
+  ).sort((a, b) => getLogDisplayTimestamp(b) - getLogDisplayTimestamp(a));
 }
 
 export async function meowConnectSupabaseRequest<T>(
@@ -914,16 +918,20 @@ function buildSnapshotRows(
     .filter((entry): entry is { character: MeowConnectCharacterSnapshot; raid: Raid } => Boolean(entry.raid))
     .map((character) => {
       const completions = completionByCharacter.get(character.character.charId) || [];
-      const encounters = (encountersByCharacter.get(character.character.charId) || [])
-        .concat((snapshot.encounterSnapshots || []).filter((encounter) =>
+      const encounters = dedupeEncounterSnapshots(
+        (encountersByCharacter.get(character.character.charId) || []).concat((snapshot.encounterSnapshots || []).filter((encounter) =>
           encounter.cleared &&
           encounter.contentId === raidId &&
           encounter.localPlayer.trim().toLowerCase() === character.character.charName.trim().toLowerCase()
-        ));
+        ))
+      );
       const totalGates = character.raid.gates.length;
       const detailedReservation = reservedCharacterIds.has(character.character.charId);
       const clearedGates = countClearedGates(completions, totalGates, encounters);
       const status = clearedGates >= totalGates ? 'cleared' : 'open';
+      const clearedDifficulty = status === 'cleared'
+        ? getClearedEvidenceDifficulty(completions, encounters, selectedDifficulty)
+        : undefined;
 
       return {
         ownerId: snapshot.profile.discordId || snapshot.profile.userId,
@@ -937,6 +945,7 @@ function buildSnapshotRows(
         totalGates,
         openGates: Math.max(0, totalGates - clearedGates),
         status,
+        clearedDifficulty,
         reservedForStatic: detailedReservation || character.character.hasStaticReservation,
         staticReservationDetailsVisible: detailedReservation,
         sources: Array.from(
@@ -970,8 +979,9 @@ async function loadLocalEncounterSnapshots(snapshot: MeowConnectLocalSnapshot): 
           gate: match.gate,
           cleared: Boolean(encounter.cleared),
           fightStart: encounter.fight_start,
+          clearedAt: undefined,
           players: encounter.players || [],
-          matchedCharacterIds: (encounter.players || [])
+          matchedCharacterIds: [encounter.local_player, ...(encounter.players || [])]
             .map((player) => characterIdsByName.get(player.trim().toLowerCase()) || 0)
             .filter(Boolean),
           resetCycle: String(snapshot.weeklyResetMs || 0)
@@ -991,19 +1001,23 @@ function buildSnapshotLogEntries(
   const characterById = new Map(snapshot.characters.map((character) => [character.charId, character]));
   const encounterLogs: MeowConnectLogEntry[] = (snapshot.encounterSnapshots || [])
     .filter((encounter) => encounter.cleared && allowedRaidIds.has(encounter.contentId))
-    .map((encounter) => ({
-      ...encounter,
-      ownerId,
-      ownerName: snapshot.profile.displayName,
-      ownerAvatarUrl: snapshot.profile.avatarUrl,
-      participants: [{
+    .map((encounter) => {
+      const matchingCompletionTime = findMatchingEncounterCompletionTime(encounter, snapshot.completionSnapshots, characterById);
+      return {
+        ...encounter,
+        clearedAt: matchingCompletionTime || encounter.clearedAt,
         ownerId,
         ownerName: snapshot.profile.displayName,
         ownerAvatarUrl: snapshot.profile.avatarUrl,
-        localPlayer: encounter.localPlayer
-      }],
-      source: 'LOA Logs' as const
-    }));
+        participants: [{
+          ownerId,
+          ownerName: snapshot.profile.displayName,
+          ownerAvatarUrl: snapshot.profile.avatarUrl,
+          localPlayer: encounter.localPlayer
+        }],
+        source: 'LOA Logs' as const
+      };
+    });
 
   const encounterKeys = new Set(
     encounterLogs.map((entry) =>
@@ -1041,6 +1055,7 @@ function buildSnapshotLogEntries(
         gate,
         cleared: true,
         fightStart: completedAt,
+        clearedAt: completedAt,
         players: [],
         matchedCharacterIds: [completion.charId],
         resetCycle: completion.resetCycle,
@@ -1057,6 +1072,7 @@ function buildSnapshotLogEntries(
 
     if (gate && !existing.gate) existing.gate = gate;
     if (completedAt > existing.fightStart) existing.fightStart = completedAt;
+    if (completedAt > (existing.clearedAt || 0)) existing.clearedAt = completedAt;
   }
 
   return [...encounterLogs, ...Array.from(completionGroups.values())];
@@ -1099,6 +1115,59 @@ function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowC
       difficulty: existing.difficulty || entry.difficulty,
       gate: existing.gate || entry.gate,
       fightStart: Math.max(existing.fightStart || 0, entry.fightStart || 0),
+      clearedAt: Math.max(existing.clearedAt || 0, entry.clearedAt || 0) || undefined,
+      ownerId: participants.map((participant) => participant.ownerId).join('+'),
+      ownerName: formatParticipantNames(participants),
+      ownerAvatarUrl: existing.ownerAvatarUrl || entry.ownerAvatarUrl,
+      localPlayer: participants.map((participant) => participant.localPlayer).join(', '),
+      players,
+      matchedCharacterIds: dedupeNumbers([...existing.matchedCharacterIds, ...entry.matchedCharacterIds]),
+      participants
+    });
+  }
+
+  return [...passthrough, ...Array.from(combined.values())];
+}
+
+function combineEncounterGateLogEntries(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
+  const combined = new Map<string, MeowConnectLogEntry>();
+  const passthrough: MeowConnectLogEntry[] = [];
+
+  for (const entry of entries) {
+    if (entry.source !== 'LOA Logs' || entry.players.length === 0) {
+      passthrough.push(entry);
+      continue;
+    }
+
+    const key = [
+      entry.contentId,
+      normalizeLogDifficulty(entry.difficulty),
+      normalizePlayerList(entry.players)
+    ].join(':');
+    const existing = combined.get(key);
+
+    if (!existing) {
+      combined.set(key, {
+        ...entry,
+        players: dedupeStrings(entry.players),
+        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)])
+      });
+      continue;
+    }
+
+    const participants = dedupeLogParticipants([
+      ...(existing.participants || [entryAsParticipant(existing)]),
+      ...(entry.participants || [entryAsParticipant(entry)])
+    ]);
+    const players = dedupeStrings([...existing.players, ...entry.players]);
+    const gate = formatCombinedGateLabel([existing.gate, entry.gate]);
+
+    combined.set(key, {
+      ...existing,
+      difficulty: existing.difficulty || entry.difficulty,
+      gate,
+      fightStart: Math.max(existing.fightStart || 0, entry.fightStart || 0),
+      clearedAt: Math.max(existing.clearedAt || 0, entry.clearedAt || 0) || undefined,
       ownerId: participants.map((participant) => participant.ownerId).join('+'),
       ownerName: formatParticipantNames(participants),
       ownerAvatarUrl: existing.ownerAvatarUrl || entry.ownerAvatarUrl,
@@ -1215,6 +1284,50 @@ function normalizePlayerList(players: string[]): string {
     .join('|');
 }
 
+function formatCombinedGateLabel(values: Array<string | undefined>): string | undefined {
+  const gateNumbers = Array.from(new Set(
+    values
+      .map((value) => normalizeGateLabel(value))
+      .map((value) => value?.match(/\d+/)?.[0])
+      .filter((value): value is string => Boolean(value))
+      .map(Number)
+  )).sort((a, b) => a - b);
+
+  if (gateNumbers.length === 0) return values.find(Boolean);
+  if (gateNumbers.length === 1) return `Gate ${gateNumbers[0]}`;
+  return `Gates ${gateNumbers.join(' + ')}`;
+}
+
+function findMatchingEncounterCompletionTime(
+  encounter: MeowConnectEncounterSnapshot,
+  completions: MeowConnectCompletionSnapshot[],
+  characterById: Map<number, MeowConnectCharacterSnapshot>
+): number | undefined {
+  const encounterGate = normalizeGateLabel(encounter.gate);
+  const encounterPlayerNames = new Set(
+    [encounter.localPlayer, ...encounter.players]
+      .map((player) => player.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const candidates = completions.filter((completion) => {
+    if (!completion.isCompleted || completion.contentId !== encounter.contentId || !completion.completedAt) return false;
+    if (encounter.difficulty && completion.difficulty && !sameDifficulty(encounter.difficulty, completion.difficulty)) return false;
+
+    const completionGate = normalizeGateLabel(completion.gate || completion.sessionId);
+    if (encounterGate && completionGate && encounterGate !== completionGate) return false;
+
+    const characterName = characterById.get(completion.charId)?.charName.trim().toLowerCase();
+    return characterName ? encounterPlayerNames.has(characterName) : (encounter.matchedCharacterIds || []).includes(completion.charId);
+  });
+
+  return Math.max(...candidates.map((completion) => completion.completedAt || 0), 0) || undefined;
+}
+
+function getLogDisplayTimestamp(entry: MeowConnectLogEntry): number {
+  return entry.clearedAt || entry.fightStart || 0;
+}
+
 function dedupeStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -1302,12 +1415,15 @@ function countClearedGates(
   encounters: MeowConnectEncounterSnapshot[] = []
 ): number {
   const gates = new Set<string>();
+  const numericGates: number[] = [];
   for (const completion of completions) {
     if (!completion.isCompleted) continue;
     const gate = normalizeGate(completion.gate || completion.sessionId || 'raid');
     if (gate === 'raid' || gate === 'clear' || gate === 'completed') {
       return totalGates;
     }
+    const gateNumber = getGateNumber(gate);
+    if (gateNumber) numericGates.push(gateNumber);
     gates.add(gate);
   }
   for (const encounter of encounters) {
@@ -1316,9 +1432,50 @@ function countClearedGates(
     if (gate === 'raid' || gate === 'clear' || gate === 'completed') {
       return totalGates;
     }
+    const gateNumber = getGateNumber(gate);
+    if (gateNumber) numericGates.push(gateNumber);
     gates.add(gate);
   }
+  if (numericGates.length > 0) {
+    return Math.min(totalGates, Math.max(...numericGates));
+  }
   return gates.size;
+}
+
+function getGateNumber(value: string): number | null {
+  const match = value.match(/(?:gate|g)\s*(\d+)/i) || value.match(/\b(\d+)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function getClearedEvidenceDifficulty(
+  completions: MeowConnectCompletionSnapshot[],
+  encounters: MeowConnectEncounterSnapshot[],
+  selectedDifficulty: string
+): string | undefined {
+  const difficulties = [...completions, ...encounters]
+    .filter((entry) => 'cleared' in entry ? entry.cleared : entry.isCompleted)
+    .map((entry) => entry.difficulty || '')
+    .filter(Boolean);
+
+  return difficulties.find((difficulty) => sameDifficulty(difficulty, selectedDifficulty)) || difficulties[0];
+}
+
+function dedupeEncounterSnapshots(encounters: MeowConnectEncounterSnapshot[]): MeowConnectEncounterSnapshot[] {
+  const seen = new Set<string>();
+  const result: MeowConnectEncounterSnapshot[] = [];
+  for (const encounter of encounters) {
+    const key = [
+      encounter.contentId,
+      normalizeGate(encounter.gate || ''),
+      normalizeLogDifficulty(encounter.difficulty),
+      encounter.localPlayer.trim().toLowerCase(),
+      encounter.fightStart
+    ].join(':');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(encounter);
+  }
+  return result;
 }
 
 function normalizeGate(value: string): string {
@@ -1511,6 +1668,7 @@ function buildRemoteSnapshots(
       gate: encounter.gate || undefined,
       cleared: Boolean(encounter.cleared),
       fightStart: Number(encounter.fight_start || 0),
+      clearedAt: parseTimestampMs(encounter.updated_at),
       players: parseJsonArray<string>(encounter.players_json),
       matchedCharacterIds: parseJsonArray<number>(encounter.matched_character_ids_json).map((value) => Number(value || 0)).filter(Boolean),
       resetCycle: encounter.reset_cycle
@@ -1521,4 +1679,10 @@ function buildRemoteSnapshots(
   }
 
   return Array.from(snapshotsByUser.values()).filter((snapshot) => snapshot.characters.length > 0);
+}
+
+function parseTimestampMs(value?: string | null): number | undefined {
+  if (!value) return undefined;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }

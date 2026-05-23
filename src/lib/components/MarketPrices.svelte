@@ -177,6 +177,10 @@
       return mul * (a.price - b.price);
     });
 
+  $: if (activeMarketCategory === 'gems') {
+    activeMarketCategory = 'engraving';
+  }
+
   onMount(async () => {
     await checkRefreshStatus();
     await loadPrices();
@@ -531,13 +535,6 @@
             on:click={() => activeMarketCategory = 'additional_honing'}
           >
             Additional Honing
-          </button>
-          <button
-            class="sub-tab-btn"
-            class:active={activeMarketCategory === 'gems'}
-            on:click={() => activeMarketCategory = 'gems'}
-          >
-            Gems
           </button>
         </div>
 

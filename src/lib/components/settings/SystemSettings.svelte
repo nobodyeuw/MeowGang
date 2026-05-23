@@ -29,6 +29,7 @@
   let showAuthWelcome = true;
   let meowConnectEnabled = true;
   let meowConnectRealtimeEnabled = true;
+  let dashboardView: 'cards' | 'compact' = 'compact';
   let isClearingUserData = false;
   let showClearUserDataDialog = false;
   let isRunning = false;
@@ -80,6 +81,7 @@
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
       meowConnectEnabled = isMeowConnectFeatureEnabled();
       meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
+      dashboardView = localStorage.getItem('dashboardView') === 'cards' ? 'cards' : 'compact';
 
     } catch (err) {
       error = `Failed to load system settings: ${err}`;
@@ -260,6 +262,13 @@
     const newValue = !$splitRatTodoView;
     setSplitRatTodoView(newValue);
     showSuccess(`RAT To Do view ${newValue ? 'enabled' : 'disabled'}!`);
+  }
+
+  function setDashboardView(view: 'cards' | 'compact') {
+    dashboardView = view;
+    localStorage.setItem('dashboardView', view);
+    window.dispatchEvent(new CustomEvent('dashboard-view:changed', { detail: view }));
+    showSuccess(`Dashboard view set to ${view === 'compact' ? 'List' : 'Cards'}!`);
   }
 
   function requestClearUserData() {
@@ -514,6 +523,39 @@
             </div>
           </div>
 
+          <div class="setting-card option-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="16" rx="2"/>
+                  <path d="M7 8h10"/>
+                  <path d="M7 12h10"/>
+                  <path d="M7 16h6"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Dashboard View</h4>
+                <p>Choose how roster characters are shown on the Dashboard</p>
+              </div>
+              <div class="setting-segmented" aria-label="Dashboard view mode">
+                <button
+                  type="button"
+                  class:active={dashboardView === 'cards'}
+                  on:click={() => setDashboardView('cards')}
+                >
+                  Cards
+                </button>
+                <button
+                  type="button"
+                  class:active={dashboardView === 'compact'}
+                  on:click={() => setDashboardView('compact')}
+                >
+                  List
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="setting-card danger-card">
             <div class="setting-header">
               <div class="setting-icon danger">
@@ -570,7 +612,7 @@
           <div class="setting-card toggle-card" class:disabled-card={!meowConnectEnabled}>
             <div class="setting-header">
               <div class="setting-icon meowconnect-icon">
-                <img src="/images/meowconnect_status.png" alt="" />
+                <img src="/images/meowconnect_tab.png" alt="" />
               </div>
               <div class="toggle-content">
                 <h4>Real-time MeowConnect</h4>
@@ -1296,6 +1338,38 @@
     border-color: color-mix(in srgb, var(--md-sys-color-error) 35%, var(--md-sys-color-outline-variant));
   }
 
+  .option-card .setting-header {
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  .setting-segmented {
+    flex-shrink: 0;
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface-variant);
+  }
+
+  .setting-segmented button {
+    border: 0;
+    border-radius: 6px;
+    padding: 7px 11px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .setting-segmented button.active {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+  }
+
   .danger-button {
     flex-shrink: 0;
     padding: 8px 14px;
@@ -1566,6 +1640,19 @@
 
     .settings-grid {
       grid-template-columns: 1fr;
+    }
+
+    .option-card .setting-header {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .setting-segmented {
+      width: 100%;
+    }
+
+    .setting-segmented button {
+      flex: 1;
     }
 
     .path-input-group {

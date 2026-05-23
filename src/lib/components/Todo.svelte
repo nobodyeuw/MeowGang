@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { isTaskAvailable } from '../utils/availability';
   import Countdown from './Countdown.svelte';
@@ -103,6 +103,8 @@
   let error = '';
   let selectedTodoRosterId = '';
   let lastActiveRosterId = '';
+  let lastHighlightRequestKey = '';
+  let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
 
   const VIRTUAL_RAT_ROSTER_ID = '__todo_virtual_rat__';
 
@@ -334,43 +336,50 @@
     }
   }
   
-  // Scroll to highlighted character when it changes
   $: if (highlightCharId && matrixData) {
-    const id = highlightCharId;
-    scrollToHighlightedCharacter(id);
-    
-    // Nach 3.5 Sekunden das Highlight entfernen
-    setTimeout(() => {
-      if (highlightCharId === id) {
-        activeFilterCharId.set(null);
-      }
-    }, 3500);
+    const requestKey = `${highlightCharId}:${effectiveTodoRosterId}:${matrixData.characters.map((character) => character.id).join(',')}`;
+    if (requestKey !== lastHighlightRequestKey) {
+      lastHighlightRequestKey = requestKey;
+      focusHighlightedCharacter(highlightCharId);
+    }
   }
 
-  function scrollToHighlightedCharacter(characterId: number) {
-    if (!highlightCharId || !matrixData) return;
-    
+  async function focusHighlightedCharacter(characterId: number) {
+    if (!matrixData) return;
+
     const headerIndex = matrixData.characters.findIndex(char => char.id === characterId);
-    if (headerIndex === -1) return;
-    
-    // Find table container and target header
-    const tableContainer = document.querySelector('.todo-matrix');
-    const headerElements = document.querySelectorAll('.char-header');
-    const targetHeader = headerElements[headerIndex];
-    
-    if (targetHeader && tableContainer) {
-      // Calculate position to scroll to
-      const headerRect = targetHeader.getBoundingClientRect();
-      const containerRect = tableContainer.getBoundingClientRect();
-      
-      // Calculate scroll position to center header
-      const scrollLeft = headerRect.left - containerRect.left - (containerRect.width / 2) + (headerRect.width / 2);
-      const scrollTop = headerRect.top - containerRect.top - (containerRect.height / 2) + (headerRect.height / 2);
-      
-      // Scroll both horizontally and vertically
-      tableContainer.scrollLeft = scrollLeft;
-      tableContainer.scrollTop = scrollTop;
+    if (headerIndex === -1) {
+      if ($splitRatTodoView && effectiveTodoRosterId !== VIRTUAL_RAT_ROSTER_ID) {
+        selectedTodoRosterId = VIRTUAL_RAT_ROSTER_ID;
+      }
+      return;
     }
+
+    await tick();
+
+    const scrollContainer = document.querySelector<HTMLElement>('.matrix-content');
+    const headerElements = document.querySelectorAll<HTMLElement>('.char-header');
+    const targetHeader = headerElements[headerIndex];
+
+    if (targetHeader && scrollContainer) {
+      const headerRect = targetHeader.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetCenter = headerRect.left - containerRect.left + scrollContainer.scrollLeft + headerRect.width / 2;
+      const nextScrollLeft = Math.max(targetCenter - scrollContainer.clientWidth / 2, 0);
+
+      scrollContainer.scrollTo({ left: nextScrollLeft, behavior: 'auto' });
+    }
+
+    if (highlightClearTimer) {
+      clearTimeout(highlightClearTimer);
+    }
+
+    highlightClearTimer = setTimeout(() => {
+      if (highlightCharId === characterId) {
+        activeFilterCharId.set(null);
+      }
+      lastHighlightRequestKey = '';
+    }, 2500);
   }
   
   function getTaskIcon(taskId: string): string {
@@ -788,6 +797,9 @@
     return () => {
       window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
       window.removeEventListener('raid-completed', handleRaidCompleted);
+      if (highlightClearTimer) {
+        clearTimeout(highlightClearTimer);
+      }
     };
   });
   
@@ -808,15 +820,16 @@
       <p>{error}</p>
       <button on:click={loadMatrix}>Retry</button>
     </div>
-  {:else if matrixData && matrixData.characters.length > 0}
+  {:else if matrixData}
     <div class="matrix-content">
       <RosterButtonGroup
         selectedRosterId={effectiveTodoRosterId}
         extraRosters={todoRosterOptions}
         on:select={selectTodoRoster}
       />
-      
-      <table class="todo-matrix">
+
+      {#if matrixData.characters.length > 0}
+        <table class="todo-matrix">
         <thead>
           <tr class="header-row">
             <th class="sticky-col first-col">Tasks/Character</th>
@@ -1064,7 +1077,20 @@
             {/each}
           {/if}
         </tbody>
-      </table>
+        </table>
+      {:else}
+        <div class="empty-state todo-empty-view">
+          <div class="empty-icon">👥</div>
+          <h3>No Characters In This View</h3>
+          {#if $splitRatTodoView && effectiveTodoRosterId !== VIRTUAL_RAT_ROSTER_ID}
+            <p>This roster currently has no gold earners because RAT characters are separated into the RAT To Do view.</p>
+          {:else if $splitRatTodoView && effectiveTodoRosterId === VIRTUAL_RAT_ROSTER_ID}
+            <p>No RAT characters found across your rosters.</p>
+          {:else}
+            <p>Add characters to this roster to get started with your daily tasks.</p>
+          {/if}
+        </div>
+      {/if}
     </div>
   {:else}
     <div class="empty-state">
@@ -1203,76 +1229,18 @@
   }
 
   .char-header.highlighted {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(90deg, rgba(255, 107, 53, 0.15) 0%, transparent 100%);
-    border-left: 4px solid #ff6b35;
-    box-shadow: inset 10px 0 20px -10px rgba(255, 107, 53, 0.3);
-    animation: fadeOutHighlight 3.5s forwards;
-  }
-
-  /* small laser */
-  .char-header.highlighted::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 50%;
-    height: 100%;
-    background: linear-gradient(
-        90deg, 
-        transparent, 
-        rgba(255, 255, 255, 0.2), 
-        transparent
-    );
-    transform: skewX(-25deg);
-    animation: shine 1.2s ease-in-out;
-  }
-
-  /* small glow pulse */
-  .char-header.highlighted::before {
-    content: '';
-    position: absolute;
-    left: -2px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 6px;
-    height: 40%;
-    background: #ff6b35;
-    filter: blur(4px);
-    border-radius: 100px;
-    animation: pulseGlow 1.5s infinite ease-in-out;
+    background:
+      linear-gradient(180deg, rgba(255, 168, 76, 0.24), rgba(255, 107, 53, 0.1)),
+      var(--md-sys-color-surface-container);
+    box-shadow:
+      inset 0 3px 0 rgba(255, 168, 76, 0.85),
+      inset 0 -18px 28px rgba(255, 107, 53, 0.08),
+      0 8px 22px rgba(255, 107, 53, 0.12);
   }
 
   .char-header.highlighted .char-name {
-    animation: softShake 0.4s ease-in-out 2;
-    color: #ff6b35 !important;
-    text-shadow: 0 0 8px rgba(255, 107, 53, 0.4);
-  }
-
-  @keyframes shine {
-    100% { left: 200%; }
-  }
-
-  @keyframes pulseGlow {
-    0%, 100% { opacity: 0.5; height: 40%; }
-    50% { opacity: 1; height: 80%; }
-  }
-
-  @keyframes fadeOutHighlight {
-    0% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { 
-        background: transparent;
-        border-left-color: transparent;
-        box-shadow: none;
-    }
-  }
-
-  @keyframes softShake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(2px); }
-    75% { transform: translateX(-2px); }
+    color: #ffb45f !important;
+    text-shadow: 0 1px 10px rgba(255, 107, 53, 0.3);
   }
 
   .char-info {

@@ -218,6 +218,9 @@
       <h2>Updates & Changelog</h2>
       <p>View the current app version, available updates, and known issues.</p>
     </div>
+    <button type="button" class="release-history-link" on:click={openPreviousChangelogs}>
+      Read previous changelogs here
+    </button>
   </div>
 
   <div class="status-grid">
@@ -320,12 +323,6 @@
       <div class="empty-state">No known bugs recorded.</div>
     {/if}
   </div>
-
-  <div class="release-history-bar">
-    <button type="button" class="release-history-link" on:click={openPreviousChangelogs}>
-      Read previous changelogs here
-    </button>
-  </div>
 </div>
 
 <style>
@@ -336,10 +333,14 @@
     max-width: 1280px;
     margin: 0 auto;
     width: 100%;
-    padding: 1rem 1rem 5rem;
+    padding: 1rem;
   }
 
   .header-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     padding: 1.25rem;
     background: var(--md-sys-color-surface-container-highest);
     border-radius: 16px;
@@ -851,28 +852,17 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .release-history-bar {
-    position: fixed;
-    left: 50%;
-    bottom: 1rem;
-    z-index: 20;
-    transform: translateX(-50%);
-    width: min(1280px, calc(100vw - 2rem));
-    display: flex;
-    justify-content: center;
-    pointer-events: none;
-  }
-
   .release-history-link {
-    pointer-events: auto;
     border: 1px solid var(--md-sys-color-outline);
     border-radius: 999px;
     background: var(--md-sys-color-surface-container-highest);
     color: var(--md-sys-color-primary);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
     cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
     font-weight: 700;
-    padding: 0.75rem 1.15rem;
+    padding: 0.5rem 0.8rem;
+    white-space: nowrap;
   }
 
   .release-history-link:hover {
@@ -880,6 +870,15 @@
   }
 
   @media (max-width: 768px) {
+    .header-panel {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .release-history-link {
+      white-space: normal;
+    }
+
     .status-grid {
       grid-template-columns: 1fr;
     }
@@ -888,9 +887,5 @@
       flex-direction: column;
     }
 
-    .release-history-bar {
-      bottom: 0.75rem;
-      width: calc(100vw - 1rem);
-    }
   }
 </style>

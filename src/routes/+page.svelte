@@ -674,7 +674,14 @@
 
       <div class="header-title">
         <div class="title-row">
-          <h1>LOA Tracker</h1>
+          <button
+            type="button"
+            class="app-title-button"
+            on:click={() => activeTab !== 'dashboard' && switchTab('dashboard')}
+            aria-label="Go to dashboard"
+          >
+            <img src="/images/LOAtracker_header.png" alt="LOA Tracker" class="app-title-logo" />
+          </button>
           {#if resetCountdown}
             <div class="reset-countdown">{resetCountdown}</div>
           {/if}
@@ -687,7 +694,7 @@
               class:offline={meowConnectHeaderState === 'offline' || meowConnectHeaderState === 'login_required'}
               title={meowConnectHeaderMessage}
             >
-              <img src="/images/meowconnect_status.png" alt="" />
+              <img src="/images/meowconnect_tab.png" alt="" />
               <span>MeowConnect: {meowConnectHeaderLabel}</span>
             </div>
           {/if}
@@ -753,26 +760,6 @@
             on:click={() => activeSettingsTab = 'system'}
           >
             System
-          </button>
-        </div>
-      {/if}
-
-      <!-- Progression Sub-Tabs (only shown when progression tab is active) -->
-      {#if activeTab === 'progression'}
-        <div class="settings-sub-tabs">
-          <button
-            class="settings-tab-button"
-            class:active={activeProgressionTab === 'market_prices'}
-            on:click={() => activeProgressionTab = 'market_prices'}
-          >
-            Market Prices
-          </button>
-          <button
-            class="settings-tab-button"
-            class:active={activeProgressionTab === 'planner'}
-            on:click={() => activeProgressionTab = 'planner'}
-          >
-            Planner
           </button>
         </div>
       {/if}
@@ -1036,7 +1023,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 1rem 1.5rem;
+    padding: 0.55rem 1.5rem;
     background: var(--md-sys-color-surface);
     border-bottom: 1px solid var(--md-sys-color-outline);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -1147,7 +1134,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.12rem;
   }
 
   .header-title h1 {
@@ -1155,6 +1142,30 @@
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
+  }
+
+  .app-title-button {
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font: inherit;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    padding: 0;
+  }
+
+  .app-title-button:hover {
+    color: var(--md-sys-color-primary);
+  }
+
+  .app-title-logo {
+    width: 200px;
+    height: 46px;
+    display: block;
+    object-fit: contain;
+    object-position: center;
   }
 
   .reset-countdown {
@@ -1263,11 +1274,16 @@
 
   @media (max-width: 768px) {
     .header {
-      padding: 0.75rem 1rem;
+      padding: 0.45rem 1rem;
     }
 
     .header-title h1 {
       font-size: 1.25rem;
+    }
+
+    .app-title-logo {
+      width: 160px;
+      height: 36px;
     }
 
     .settings-sub-tabs {
@@ -1336,11 +1352,16 @@
 
   @media (max-width: 768px) {
     .header {
-      padding: 0.75rem 1rem;
+      padding: 0.45rem 1rem;
     }
 
     .header-title h1 {
       font-size: 1.25rem;
+    }
+
+    .app-title-logo {
+      width: 160px;
+      height: 36px;
     }
 
     .content {

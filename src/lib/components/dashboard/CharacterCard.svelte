@@ -5,6 +5,7 @@
   import { GAME_TASKS } from '$lib/data/tasks';
   import { RAIDS } from '$lib/data/raids';
   import { activeFilterCharId, activeRosterId } from '$lib/store';
+  import { invoke } from '@tauri-apps/api/core';
   
   export let character: Character;
   export let classIcon: string = '';
@@ -46,6 +47,30 @@
     ).length;
 
     return { completed, total };
+  }
+
+  function getRaidDefinition(raidId: string, difficulty: string) {
+    return RAIDS.find(r => r.id === raidId && r.difficulty === difficulty)
+      ?? RAIDS.find(r => r.id === raidId);
+  }
+
+  function isRaidGateCompleted(raidId: string, gate: string): boolean {
+    return completionStatus.some(c =>
+      c.content_id === raidId &&
+      Number(c.is_completed) === 1 &&
+      (c.session_id ?? '') === `${raidId}_${gate}`
+    );
+  }
+
+  function getNextOpenGate(raidId: string, difficulty: string): string | null {
+    const raid = getRaidDefinition(raidId, difficulty);
+    return raid?.gates.find(gate => !isRaidGateCompleted(raidId, gate.gate))?.gate ?? null;
+  }
+
+  function getLastCompletedGate(raidId: string, difficulty: string): string | null {
+    const raid = getRaidDefinition(raidId, difficulty);
+    const completedGates = [...(raid?.gates ?? [])].reverse();
+    return completedGates.find(gate => isRaidGateCompleted(raidId, gate.gate))?.gate ?? null;
   }
 
   function getCompletedRaidDetails(contentId: string): string | undefined {
@@ -199,6 +224,64 @@
     goto(`/?tab=todo&char=${character.char_id}`);
   }
 
+  async function completeDashboardTask(contentId: string, completed: boolean, event?: MouseEvent) {
+    event?.preventDefault();
+    if (completed) return;
+
+    await invoke('update_task_status', {
+      characterId: character.char_id,
+      taskId: contentId,
+      completed: true
+    });
+    dispatchDashboardCompletionUpdate();
+  }
+
+  async function undoDashboardTask(contentId: string, event: MouseEvent) {
+    event.preventDefault();
+    await invoke('update_task_status', {
+      characterId: character.char_id,
+      taskId: contentId,
+      completed: false
+    });
+    dispatchDashboardCompletionUpdate();
+  }
+
+  async function completeDashboardRaidGate(raid: any, event?: MouseEvent) {
+    event?.preventDefault();
+    const nextGate = getNextOpenGate(raid.content_id, raid.difficulty);
+    if (!nextGate) return;
+
+    await invoke('update_raid_gate_status', {
+      characterId: character.char_id,
+      raidId: raid.content_id,
+      gateId: nextGate,
+      contentId: raid.content_id,
+      completed: true
+    });
+    window.dispatchEvent(new CustomEvent('raid-completed'));
+    dispatchDashboardCompletionUpdate();
+  }
+
+  async function undoDashboardRaidGate(raid: any, event: MouseEvent) {
+    event.preventDefault();
+    const gateToUndo = getLastCompletedGate(raid.content_id, raid.difficulty);
+    if (!gateToUndo) return;
+
+    await invoke('update_raid_gate_status', {
+      characterId: character.char_id,
+      raidId: raid.content_id,
+      gateId: gateToUndo,
+      contentId: raid.content_id,
+      completed: false
+    });
+    window.dispatchEvent(new CustomEvent('raid-completed'));
+    dispatchDashboardCompletionUpdate();
+  }
+
+  function dispatchDashboardCompletionUpdate() {
+    window.dispatchEvent(new CustomEvent('character-data-complete'));
+  }
+
   
   function formatItemLevel(itemLevel: number): string {
     return itemLevel.toFixed(2);
@@ -249,10 +332,6 @@
      class:daily-only-minimal={isDailyOnlyMinimalCard}
      class:gold-earner={character.earns_gold}
      class:non-gold-earner={!character.earns_gold}
-     role="button" 
-     tabindex="0" 
-     on:click={handleCharacterClick} 
-     on:keydown={(e) => e.key === 'Enter' && handleCharacterClick()} 
      aria-label={`Select character ${character.char_name}`}>
 
   {#if viewMode === 'compact'}
@@ -270,7 +349,9 @@
           class="class-icon compact-class-icon"
           on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <h4 class="character-name compact-name">{character.char_name}</h4>
+        <button type="button" class="character-name compact-name name-link" on:click={handleCharacterClick}>
+          {character.char_name}
+        </button>
       </div>
 
       <div class="compact-stats">
@@ -281,11 +362,14 @@
       {#if hasCompactLabels || chaosConfigured || guardianConfigured}
         <div class="compact-daily-icons" aria-label="Daily task status">
           {#if chaosConfigured}
-            <span
+            <button
+              type="button"
               class="compact-daily-state"
               class:available={chaosAvailable}
               class:inactive={!chaosAvailable}
               title={chaosIconTitle}
+              on:click={(event) => completeDashboardTask('chaos', chaosCompleted, event)}
+              on:contextmenu={(event) => undoDashboardTask('chaos', event)}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon('chaos')} alt="Chaos" />
@@ -293,7 +377,7 @@
               <span class="compact-daily-progress" aria-hidden="true">
                 <span style="width: {chaosRested}%"></span>
               </span>
-            </span>
+            </button>
           {:else}
             <span class="compact-daily-state placeholder" aria-hidden="true">
               <span class="compact-daily-icon"></span>
@@ -301,11 +385,14 @@
             </span>
           {/if}
           {#if guardianConfigured}
-            <span
+            <button
+              type="button"
               class="compact-daily-state"
               class:available={guardianAvailable}
               class:inactive={!guardianAvailable}
               title={guardianIconTitle}
+              on:click={(event) => completeDashboardTask('guardian', guardianCompleted, event)}
+              on:contextmenu={(event) => undoDashboardTask('guardian', event)}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon('guardian')} alt="Guardian" />
@@ -313,7 +400,7 @@
               <span class="compact-daily-progress" aria-hidden="true">
                 <span style="width: {guardianRested}%"></span>
               </span>
-            </span>
+            </button>
           {:else}
             <span class="compact-daily-state placeholder" aria-hidden="true">
               <span class="compact-daily-icon"></span>
@@ -322,15 +409,18 @@
           {/if}
           {#if isMinimalCard && displayWeeklyTasks.length === 1}
             {@const weeklyTask = displayWeeklyTasks[0]}
-            <span
+            <button
+              type="button"
               class="compact-daily-state weekly"
               class:inactive={weeklyTask.completed}
               title={`${weeklyTask.name}: ${weeklyTask.completed ? 'done' : 'open'}`}
+              on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
+              on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon(weeklyTask.content_id)} alt={weeklyTask.name} />
               </span>
-            </span>
+            </button>
           {/if}
         </div>
       {/if}
@@ -338,13 +428,16 @@
       {#if compactWeeklyTasks.length > 0}
         <div class="compact-weekly-icons" aria-label="Weekly task status">
           {#each compactWeeklyTasks as task}
-            <span
+            <button
+              type="button"
               class="compact-weekly-state"
               class:inactive={task.completed}
               title={`${task.name}: ${task.completed ? 'done' : 'open'}`}
+              on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
+              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
             >
               <img src={getTaskIcon(task.content_id)} alt={task.name} />
-            </span>
+            </button>
           {/each}
         </div>
       {/if}
@@ -360,6 +453,11 @@
               class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
               title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
+              role="button"
+              tabindex="0"
+              on:click={(event) => completeDashboardRaidGate(raid, event)}
+              on:contextmenu={(event) => undoDashboardRaidGate(raid, event)}
+              on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
                 <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
@@ -390,6 +488,11 @@
               class="raid-item compact-raid weekly-task"
               class:completed={task.completed}
               title={`${task.name}: ${task.completed ? 'done' : 'open'}`}
+              role="button"
+              tabindex="0"
+              on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
+              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
+              on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(task.content_id, task.completed)}
             >
               <div class="raid-content">
                 <img src={getTaskIcon(task.content_id)} alt={task.name} class="raid-icon">
@@ -415,7 +518,9 @@
             on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
           <div class="character-details">
-            <h4 class="character-name">{character.char_name}</h4>
+            <button type="button" class="character-name name-link" on:click={handleCharacterClick}>
+              {character.char_name}
+            </button>
             <div class="character-stats">
               <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
               <span class="combat-power">CP {formatCombatPower(character.combat_power)}</span>
@@ -432,6 +537,11 @@
           class="activity-item weekly-inline"
           class:inactive={weeklyTask.completed}
           title={`${weeklyTask.name}: ${weeklyTask.completed ? 'done' : 'open'}`}
+          role="button"
+          tabindex="0"
+          on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
+          on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
+          on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(weeklyTask.content_id, weeklyTask.completed)}
         >
           <div class="activity-icon">
             <img src={getTaskIcon(weeklyTask.content_id)} alt={weeklyTask.name} class="task-icon" />
@@ -439,7 +549,16 @@
         </div>
       {/each}
       {#if chaosConfigured}
-        <div class="activity-item" class:inactive={!chaosAvailable} title={chaosIconTitle}>
+        <div
+          class="activity-item"
+          class:inactive={!chaosAvailable}
+          title={chaosIconTitle}
+          role="button"
+          tabindex="0"
+          on:click={(event) => completeDashboardTask('chaos', chaosCompleted, event)}
+          on:contextmenu={(event) => undoDashboardTask('chaos', event)}
+          on:keydown={(event) => event.key === 'Enter' && completeDashboardTask('chaos', chaosCompleted)}
+        >
           <div class="activity-icon">
             <img src={getTaskIcon('chaos')} alt="Chaos" class="task-icon" />
           </div>
@@ -452,7 +571,16 @@
         </div>
       {/if}
       {#if guardianConfigured}
-        <div class="activity-item" class:inactive={!guardianAvailable} title={guardianIconTitle}>
+        <div
+          class="activity-item"
+          class:inactive={!guardianAvailable}
+          title={guardianIconTitle}
+          role="button"
+          tabindex="0"
+          on:click={(event) => completeDashboardTask('guardian', guardianCompleted, event)}
+          on:contextmenu={(event) => undoDashboardTask('guardian', event)}
+          on:keydown={(event) => event.key === 'Enter' && completeDashboardTask('guardian', guardianCompleted)}
+        >
           <div class="activity-icon">
             <img src={getTaskIcon('guardian')} alt="Guardian" class="task-icon" />
           </div>
@@ -479,6 +607,11 @@
               class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
               title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
+              role="button"
+              tabindex="0"
+              on:click={(event) => completeDashboardRaidGate(raid, event)}
+              on:contextmenu={(event) => undoDashboardRaidGate(raid, event)}
+              on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
                 <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
@@ -506,6 +639,11 @@
               class="raid-item weekly-task"
               class:completed={task.completed}
               title={`${task.name}: ${task.completed ? 'done' : 'open'}`}
+              role="button"
+              tabindex="0"
+              on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
+              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
+              on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(task.content_id, task.completed)}
             >
               <div class="raid-content">
                 <img src={getTaskIcon(task.content_id)} alt={task.name} class="raid-icon">
@@ -528,8 +666,6 @@
     border-radius: 12px;
     padding: 0.8rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
     position: relative;
     overflow: hidden;
     border: 2px solid transparent;
@@ -568,19 +704,6 @@
   .character-card.minimal-card:not(.compact) {
     min-height: 54px;
     padding: 0.34rem 0.55rem;
-  }
-
-  .character-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  }
-
-  .character-card.gold-earner:hover {
-    box-shadow: 0 8px 24px rgba(255, 215, 0, 0.3);
-  }
-
-  .character-card.non-gold-earner:hover {
-    box-shadow: 0 8px 24px rgba(56, 189, 248, 0.18);
   }
 
   .compact-main-row {
@@ -713,6 +836,13 @@
   }
 
   .compact-daily-state {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -797,6 +927,10 @@
   }
 
   .compact-weekly-state {
+    appearance: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
     width: 22px;
     height: 22px;
     border-radius: 5px;
@@ -892,11 +1026,26 @@
   }
 
   .character-name {
+    display: block;
     margin: 0 0 0.25rem 0;
     color: var(--on-surface);
     font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.2;
+  }
+
+  .name-link {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    text-align: left;
+  }
+
+  .name-link:hover {
+    color: var(--primary);
   }
 
   .character-card.minimal-card:not(.compact) .character-name {
@@ -950,6 +1099,10 @@
   }
 
   .activity-item {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -1073,6 +1226,7 @@
     color: var(--on-surface-variant);
     font-weight: 500;
     transition: all 0.2s ease;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1104,6 +1258,7 @@
   .raid-item.completed {
     opacity: 0.5;
     text-decoration: line-through;
+    cursor: default;
   }
 
   .raid-item.gold-raid.completed {

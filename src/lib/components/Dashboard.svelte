@@ -32,8 +32,7 @@
   let actualBoundGoldDisplay = 0;
   let actualTradableGoldDisplay = 0;
   let estimatedGoldDisplay = 0;
-  let dashboardView: 'cards' | 'compact' = 'cards';
-
+  let dashboardView: 'cards' | 'compact' = 'compact';
   let mismatchGoldLost = 0;
 
   interface CompletionStatusEntry {
@@ -281,9 +280,7 @@
   // Initialize app and load all data
   onMount(() => {
     const savedDashboardView = localStorage.getItem('dashboardView');
-    if (savedDashboardView === 'cards' || savedDashboardView === 'compact') {
-      dashboardView = savedDashboardView;
-    }
+    dashboardView = savedDashboardView === 'cards' ? 'cards' : 'compact';
 
     (async () => {
       await loadAllCharacters();
@@ -314,10 +311,16 @@
       await calculateGlobalStats($characters);
     };
 
+    const handleDashboardViewChanged = (event: Event) => {
+      const nextView = (event as CustomEvent<'cards' | 'compact'>).detail;
+      dashboardView = nextView === 'cards' ? 'cards' : 'compact';
+    };
+
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
     window.addEventListener('raid-completed', handleRaidCompleted);
     window.addEventListener('character-data-complete', handleCharacterDataComplete);
     window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+    window.addEventListener('dashboard-view:changed', handleDashboardViewChanged);
     
     // Cleanup on unmount
     return () => {
@@ -325,6 +328,7 @@
       window.removeEventListener('raid-completed', handleRaidCompleted);
       window.removeEventListener('character-data-complete', handleCharacterDataComplete);
       window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
+      window.removeEventListener('dashboard-view:changed', handleDashboardViewChanged);
     };
   });
 
@@ -492,11 +496,6 @@
     return true;
   }
 
-  function setDashboardView(view: 'cards' | 'compact') {
-    dashboardView = view;
-    localStorage.setItem('dashboardView', view);
-  }
-
   function getOpenCount(completed: number, possible: number): number {
     return Math.max(possible - completed, 0);
   }
@@ -597,9 +596,7 @@
 
         <div class="progress-container-modern">
           <div class="progress-track">
-            <div class="progress-fill-glow" style="width: {Math.min(progressPercentage, 100)}%">
-              <div class="shimmer"></div>
-            </div>
+            <div class="progress-fill-glow" style="width: {Math.min(progressPercentage, 100)}%"></div>
             {#if mismatchGoldLost > 0 && estimatedGoldDisplay > 0}
               <div
                 class="progress-fill-lost"
@@ -609,11 +606,12 @@
           </div>
           <div class="progress-labels">
             <span class="pct-text">{Math.round(progressPercentage)}% complete</span>
-            {#if mismatchGoldLost > 0}
-              <span class="remaining-text mismatch-loss">⚠ {mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
-            {:else}
+            <span class="remaining-stack">
+              {#if mismatchGoldLost > 0}
+                <span class="remaining-text mismatch-loss">{mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
+              {/if}
               <span class="remaining-text">{Math.max(estimatedGoldDisplay - actualGoldDisplay, 0).toLocaleString()} gold remaining</span>
-            {/if}
+            </span>
           </div>
         </div>
 
@@ -757,28 +755,6 @@
     </div>
     {/if}
 
-    <div class="dashboard-view-toolbar">
-      <div>
-        <h3>Roster View</h3>
-      </div>
-      <div class="view-switch" aria-label="Dashboard view mode">
-        <button
-          type="button"
-          class:active={dashboardView === 'cards'}
-          on:click={() => setDashboardView('cards')}
-        >
-          Cards
-        </button>
-        <button
-          type="button"
-          class:active={dashboardView === 'compact'}
-          on:click={() => setDashboardView('compact')}
-        >
-          List
-        </button>
-      </div>
-    </div>
-
     <!-- Character Cards Grid -->
     <div class="characters-grid">
       {#each Object.entries(charactersByRoster) as [rosterId, rosterCharacters], index}
@@ -865,8 +841,8 @@
     background: #1a1a1d;
     border: 1px solid rgba(255, 215, 0, 0.15);
     border-radius: 14px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
+    padding: 0.78rem 0.9rem;
+    margin-bottom: 0.5rem;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   }
@@ -890,7 +866,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.48rem;
   }
 
   .title-group {
@@ -923,11 +899,11 @@
   .gold-values .unit { font-size: 0.875rem; color: #555; margin-left: 0.5rem; text-transform: uppercase; }
 
   .progress-container-modern {
-    margin-bottom: 0.65rem;
+    margin-bottom: 0.42rem;
   }
 
   .progress-track {
-    height: 10px;
+    height: 8px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 5px;
     overflow: hidden;
@@ -944,27 +920,10 @@
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .shimmer {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    animation: shimmer 2s infinite;
-  }
-
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-
   .progress-labels {
     display: flex;
     justify-content: space-between;
-    margin-top: 0.5rem;
+    margin-top: 0.34rem;
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -974,6 +933,14 @@
   .pct-text { color: #ffd700; }
   .remaining-text { color: #666; }
   .remaining-text.mismatch-loss { color: #f87171; }
+
+  .remaining-stack {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 0.55rem;
+    text-align: right;
+  }
 
   .progress-fill-lost {
     position: absolute;
@@ -994,7 +961,7 @@
     display: flex;
     gap: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 0.65rem;
+    padding-top: 0.45rem;
   }
 
   .detail-item {
@@ -1103,31 +1070,31 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.38rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.5rem;
   }
 
   .stat-card {
-    flex: 0 1 154px;
-    min-width: 132px;
-    max-width: 172px;
+    flex: 0 1 132px;
+    min-width: 112px;
+    max-width: 148px;
     box-sizing: border-box;
     background: var(--surface-variant);
     border: 1px solid rgba(255, 140, 0, 0.25);
     border-radius: 8px;
-    padding: 0.52rem 0.65rem;
+    padding: 0.42rem 0.52rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .stat-icon {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1136,8 +1103,8 @@
   }
 
   .stat-icon img {
-    width: 20px;
-    height: 20px;
+    width: 17px;
+    height: 17px;
     object-fit: contain;
   }
 
@@ -1156,7 +1123,7 @@
   }
 
   .stat-status {
-    min-height: 1.35rem;
+    min-height: 1.12rem;
     display: inline-flex;
     max-width: 100%;
     align-items: center;
@@ -1168,14 +1135,14 @@
   }
 
   .stat-open-count {
-    font-size: 1.02rem;
+    font-size: 0.88rem;
     font-weight: 800;
     color: var(--on-surface);
   }
 
   .stat-open-label {
     color: var(--on-surface-variant);
-    font-size: 0.68rem;
+    font-size: 0.58rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0;
@@ -1202,88 +1169,28 @@
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.76rem;
+    font-size: 0.64rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0;
   }
 
   .stat-label {
-    font-size: 0.72rem;
+    font-size: 0.62rem;
     color: var(--on-surface-variant);
-    margin-top: 0.2rem;
+    margin-top: 0.16rem;
     text-align: center;
     white-space: nowrap;
   }
 
   .stat-label.event-name {
-    font-size: 0.72rem;
+    font-size: 0.62rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   /* Characters Grid */
-  .dashboard-view-toolbar {
-    width: var(--dashboard-frame-width);
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.55rem;
-  }
-
-  .dashboard-view-toolbar h3 {
-    margin: 0;
-    color: var(--on-surface);
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  .view-switch {
-    display: inline-flex;
-    padding: 0.25rem;
-    border-radius: 10px;
-    background: var(--surface-variant);
-    border: 1px solid rgba(255, 140, 0, 0.25);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
-  }
-
-  .view-switch button {
-    position: relative;
-    border: 0;
-    background: transparent;
-    color: var(--on-surface-variant);
-    border-radius: 8px;
-    padding: 0.45rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease;
-  }
-
-  .view-switch button.active {
-    background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, #ffd700));
-    color: var(--on-primary);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      0 2px 10px color-mix(in srgb, var(--primary) 35%, transparent);
-  }
-
-  .view-switch button.active::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    bottom: 0.2rem;
-    width: 18px;
-    height: 2px;
-    border-radius: 999px;
-    background: currentColor;
-    transform: translateX(-50%);
-    opacity: 0.9;
-  }
-
   .characters-grid {
     display: flex;
     flex-direction: column;
@@ -1445,11 +1352,11 @@
     }
 
     .header-stats {
-      gap: 0.45rem;
+      gap: 0.35rem;
     }
 
     .stat-card {
-      flex-basis: 148px;
+      flex-basis: 126px;
     }
 
     .characters-list {
@@ -1464,18 +1371,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .dashboard-view-toolbar {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .view-switch {
-      width: 100%;
-    }
-
-    .view-switch button {
-      flex: 1;
-    }
   }
 
   @media (max-width: 480px) {
@@ -1484,7 +1379,7 @@
     }
 
     .stat-card {
-      flex-basis: min(100%, 154px);
+      flex-basis: min(100%, 132px);
     }
   }
 </style>
