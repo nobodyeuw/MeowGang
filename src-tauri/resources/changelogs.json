@@ -1,6 +1,22 @@
 {
   "versions": [
     {
+      "version": "1.2.3",
+      "date": "2026-05-24",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "Weekly gold progress handles difficulty mismatch losses correctly.",
+          "details": "Gold lost to a difficulty mismatch now counts as resolved progress instead of remaining gold. Fully cleared rosters with mismatch losses now show 100% complete and 0 gold remaining while still showing the lost gold warning."
+        },
+        {
+          "type": "Fixed",
+          "description": "Application icon scaling improved.",
+          "details": "The generated LOA Tracker application icon assets were refreshed from the updated app icon source so the icon appears cleaner at packaged Windows icon sizes."
+        }
+      ]
+    },
+    {
       "version": "1.2.2",
       "date": "2026-05-24",
       "changes": [

@@ -28,10 +28,12 @@
   let totalArgeosDoneToday = 0;
   let totalArgeosFullyDone = 0;
   let progressPercentage = 0;
+  let earnedGoldPercentage = 0;
   let actualGoldDisplay = 0;
   let actualBoundGoldDisplay = 0;
   let actualTradableGoldDisplay = 0;
   let estimatedGoldDisplay = 0;
+  let remainingGoldDisplay = 0;
   let dashboardView: 'cards' | 'compact' = 'compact';
   let mismatchGoldLost = 0;
 
@@ -250,9 +252,12 @@
       actualTradableGoldDisplay = goldProgress.actualTradableGold;
       estimatedGoldDisplay = goldProgress.plannedGold;
       mismatchGoldLost = goldProgress.lostGold;
+      const resolvedGold = goldProgress.actualGold + goldProgress.lostGold;
+      remainingGoldDisplay = Math.max(goldProgress.plannedGold - resolvedGold, 0);
 
       if (goldProgress.plannedGold > 0) {
-        progressPercentage = Math.min((goldProgress.actualGold / goldProgress.plannedGold) * 100, 100);
+        earnedGoldPercentage = Math.min((goldProgress.actualGold / goldProgress.plannedGold) * 100, 100);
+        progressPercentage = Math.min((resolvedGold / goldProgress.plannedGold) * 100, 100);
         console.log(
           'Progress calculation - Actual gold:',
           goldProgress.actualGold,
@@ -264,11 +269,17 @@
           goldProgress.plannedGold,
           'Lost gold:',
           goldProgress.lostGold,
+          'Remaining gold:',
+          remainingGoldDisplay,
+          'Earned gold %:',
+          earnedGoldPercentage,
           'Progress %:',
           progressPercentage
         );
       } else {
+        earnedGoldPercentage = 0;
         progressPercentage = 0;
+        remainingGoldDisplay = 0;
         console.log('Progress calculation failed - planned gold:', goldProgress.plannedGold);
       }
       
@@ -596,11 +607,11 @@
 
         <div class="progress-container-modern">
           <div class="progress-track">
-            <div class="progress-fill-glow" style="width: {Math.min(progressPercentage, 100)}%"></div>
+            <div class="progress-fill-glow" style="width: {Math.min(earnedGoldPercentage, 100)}%"></div>
             {#if mismatchGoldLost > 0 && estimatedGoldDisplay > 0}
               <div
                 class="progress-fill-lost"
-                style="left: {Math.min(progressPercentage, 100)}%; width: {Math.min(mismatchGoldLost / estimatedGoldDisplay * 100, 100 - Math.min(progressPercentage, 100))}%"
+                style="left: {Math.min(earnedGoldPercentage, 100)}%; width: {Math.min(mismatchGoldLost / estimatedGoldDisplay * 100, 100 - Math.min(earnedGoldPercentage, 100))}%"
               ></div>
             {/if}
           </div>
@@ -610,7 +621,7 @@
               {#if mismatchGoldLost > 0}
                 <span class="remaining-text mismatch-loss">{mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
               {/if}
-              <span class="remaining-text">{Math.max(estimatedGoldDisplay - actualGoldDisplay, 0).toLocaleString()} gold remaining</span>
+              <span class="remaining-text">{remainingGoldDisplay.toLocaleString()} gold remaining</span>
             </span>
           </div>
         </div>
