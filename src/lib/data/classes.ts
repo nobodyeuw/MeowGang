@@ -27,7 +27,7 @@ export const GAME_CLASSES: Record<string, GameClass> = {
   "devil_hunter": { id: "devil_hunter", displayName: "Deadeye", iconId: "503" },
   "blaster": { id: "blaster", displayName: "Artillerist", iconId: "504" },
   "machinist": { id: "machinist", displayName: "Scouter", iconId: "505" },
-  "gunslinger": { id: "gunslinger", displayName: "Gunslinger", iconId: "512" },
+  "devil_hunter_female": { id: "devil_hunter_female", displayName: "Gunslinger", iconId: "512" },
   "yinyangshi": { id: "yinyangshi", displayName: "Artist", iconId: "602" },
   "weather_artist": { id: "weather_artist", displayName: "Aeromancer", iconId: "603" },
   "alchemist": { id: "alchemist", displayName: "Wildsoul", iconId: "604" },
