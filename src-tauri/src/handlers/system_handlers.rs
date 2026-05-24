@@ -941,7 +941,13 @@ struct SeenUpdateState {
     first_seen_at: i64,
 }
 
-async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
+enum UpdateReleaseDelay {
+    Remaining(i64),
+    Ready,
+    Unknown,
+}
+
+async fn update_release_delay_status(version: &str) -> UpdateReleaseDelay {
     let client = reqwest::Client::new();
     let metadata = match client
         .get(UPDATE_METADATA_URL)
@@ -953,28 +959,28 @@ async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
             Ok(metadata) => metadata,
             Err(e) => {
                 logging_service::warn(&format!("Failed to parse update metadata for delay check: {}", e));
-                return None;
+                return UpdateReleaseDelay::Unknown;
             }
         },
         Err(e) => {
             logging_service::warn(&format!("Failed to fetch update metadata for delay check: {}", e));
-            return None;
+            return UpdateReleaseDelay::Unknown;
         }
     };
 
     if metadata.version.trim_start_matches('v') != version.trim_start_matches('v') {
-        return None;
+        return UpdateReleaseDelay::Unknown;
     }
 
     let Some(pub_date) = metadata.pub_date else {
-        return None;
+        return UpdateReleaseDelay::Unknown;
     };
 
     let published_at = match chrono::DateTime::parse_from_rfc3339(&pub_date) {
         Ok(date) => date.with_timezone(&chrono::Utc),
         Err(e) => {
             logging_service::warn(&format!("Failed to parse update pub_date for delay check: {}", e));
-            return None;
+            return UpdateReleaseDelay::Unknown;
         }
     };
 
@@ -984,9 +990,9 @@ async fn update_delay_remaining_seconds(version: &str) -> Option<i64> {
         .max(0);
 
     if elapsed_seconds < UPDATE_READY_GRACE_PERIOD_SECONDS {
-        Some(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
+        UpdateReleaseDelay::Remaining(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
     } else {
-        None
+        UpdateReleaseDelay::Ready
     }
 }
 
@@ -1043,9 +1049,13 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     match app.updater() {
         Ok(updater) => match updater.check().await {
             Ok(Some(update)) => {
-                let first_seen_remaining = update_first_seen_delay_remaining_seconds(&app, &update.version);
-                let pub_date_remaining = update_delay_remaining_seconds(&update.version).await;
-                let remaining_delay = first_seen_remaining.into_iter().chain(pub_date_remaining).max();
+                let remaining_delay = match update_release_delay_status(&update.version).await {
+                    UpdateReleaseDelay::Remaining(seconds) => Some(seconds),
+                    UpdateReleaseDelay::Ready => None,
+                    UpdateReleaseDelay::Unknown => {
+                        update_first_seen_delay_remaining_seconds(&app, &update.version)
+                    }
+                };
 
                 if let Some(remaining_seconds) = remaining_delay {
                     logging_service::info(&format!(
@@ -1097,7 +1107,9 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
         Ok(updater) => {
             match updater.check().await {
                 Ok(Some(update)) => {
-                    if let Some(remaining_seconds) = update_delay_remaining_seconds(&update.version).await {
+                    if let UpdateReleaseDelay::Remaining(remaining_seconds) =
+                        update_release_delay_status(&update.version).await
+                    {
                         let remaining_minutes = ((remaining_seconds as f64) / 60.0).ceil() as i64;
                         logging_service::info(&format!(
                             "Install blocked because update {} is still in release grace period",
