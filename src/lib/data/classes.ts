@@ -10,7 +10,7 @@ export const GAME_CLASSES: Record<string, GameClass> = {
   "warlord": { id: "warlord", displayName: "Gunlancer", iconId: "104" },
   "holyknight": { id: "holyknight", displayName: "Paladin", iconId: "105" },
   "berserker_female": { id: "berserker_female", displayName: "Slayer", iconId: "112" },
-  "summoner": { id: "summoner", displayName: "Summoner", iconId: "201" },
+  "summoner": { id: "summoner", displayName: "Summoner", iconId: "203" },
   "arcana": { id: "arcana", displayName: "Arcanist", iconId: "202" },
   "bard": { id: "bard", displayName: "Bard", iconId: "204" },
   "elemental_master": { id: "elemental_master", displayName: "Sorceress", iconId: "205" },
