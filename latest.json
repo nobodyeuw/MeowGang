@@ -1,14 +1,14 @@
 {
   "version": "1.2.3",
-  "notes": "### v1.2.3 Hotfix\n\n#### Fixed\n- Weekly gold progress handles difficulty mismatch losses correctly. Gold lost to a difficulty mismatch now counts as resolved progress instead of remaining gold. Fully cleared rosters with mismatch losses now show 100% complete and 0 gold remaining while still showing the lost gold warning.\n- Application icon scaling improved. The generated LOA Tracker application icon assets were refreshed from the updated app icon source so the icon appears cleaner at packaged Windows icon sizes.\n\n## Installation\nDownload `loatracker_1.2.3_x64-setup.exe` below.",
-  "pub_date": "2026-05-23T23:38:27.500Z",
+  "notes": "### v1.2.3 Hotfix\n\n#### Fixed\n- Weekly gold progress handles difficulty mismatch losses correctly. Gold lost to a difficulty mismatch now counts as resolved progress instead of remaining gold. Fully cleared rosters with mismatch losses now show 100% complete and 0 gold remaining while still showing the lost gold warning.\n- Application icon scaling improved. The generated LOA Tracker application icon assets were refreshed from the updated app icon source so the icon appears cleaner at packaged Windows icon sizes.\n\n## Installation\nDownload `loatracker_1.2.3_x64-setup.exe` below.\n\n## Installation\nDownload `loatracker_1.2.3_x64-setup.exe` below.",
+  "pub_date": "2026-05-24T00:37:03.690Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2hzMnZFNzIxZ0Nxakh1QnFsajJqZWkzeVJFVFFBSWxGVVBwdGNTWVU4ZWlMeDFRSWFJN2xRaFNRQTBoRmRwaHlsemZnS3M4cVliSnRqREs2bXZhOUEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5NTc5NTA0CWZpbGU6TE9BIFRyYWNrZXJfMS4yLjNfeDY0LXNldHVwLmV4ZQpkUnAxcUZpd0RTRWJ4WWgydzI2VXRhV1ZNL0kzdDdCN24zb0RxTm93N0krcXlsZHRYMWZzc2ZGVHJ4bk1MWTZpYWZ2N1lzRmlpQTZWeWQvSGF1bW1DUT09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3BmNmYweWlnU1ZLL0dhb3RlM1VzaEVGUEJydlJJK09jUndjZitsQ3lxWWd4TTVaT3puV0ZLYUo2VDRQN3g5NDkvV0F0UjB5ZGVzQ3lCMlpicldWVHdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5NTgzMDIxCWZpbGU6TE9BIFRyYWNrZXJfMS4yLjNfeDY0LXNldHVwLmV4ZQoxZXdqUjFJRXpoMi9RemYxcnlKbTU0QkQ4L1VObUNMc0lKekZ6SFhGRkhnOTBaNnJwR09aTzRuVmN6SzNBdUV6QUJQUGhsUXRDRDJqUlFTTjY1VDVCdz09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.2.3/LOA.Tracker_1.2.3_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2hzMnZFNzIxZ0Nxakh1QnFsajJqZWkzeVJFVFFBSWxGVVBwdGNTWVU4ZWlMeDFRSWFJN2xRaFNRQTBoRmRwaHlsemZnS3M4cVliSnRqREs2bXZhOUEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5NTc5NTA0CWZpbGU6TE9BIFRyYWNrZXJfMS4yLjNfeDY0LXNldHVwLmV4ZQpkUnAxcUZpd0RTRWJ4WWgydzI2VXRhV1ZNL0kzdDdCN24zb0RxTm93N0krcXlsZHRYMWZzc2ZGVHJ4bk1MWTZpYWZ2N1lzRmlpQTZWeWQvSGF1bW1DUT09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3BmNmYweWlnU1ZLL0dhb3RlM1VzaEVGUEJydlJJK09jUndjZitsQ3lxWWd4TTVaT3puV0ZLYUo2VDRQN3g5NDkvV0F0UjB5ZGVzQ3lCMlpicldWVHdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5NTgzMDIxCWZpbGU6TE9BIFRyYWNrZXJfMS4yLjNfeDY0LXNldHVwLmV4ZQoxZXdqUjFJRXpoMi9RemYxcnlKbTU0QkQ4L1VObUNMc0lKekZ6SFhGRkhnOTBaNnJwR09aTzRuVmN6SzNBdUV6QUJQUGhsUXRDRDJqUlFTTjY1VDVCdz09Cg==",
       "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.2.3/LOA.Tracker_1.2.3_x64-setup.exe"
     }
   }
