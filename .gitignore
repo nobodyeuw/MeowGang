@@ -39,3 +39,4 @@ src-tauri/gen/
 /scripts
 /docs
 /.github
+/supabase
