@@ -103,6 +103,7 @@ impl DatabaseManager {
                     earns_gold BOOLEAN DEFAULT 0,
                     hide_from_dashboard BOOLEAN DEFAULT 0,
                     meow_connect_enabled BOOLEAN DEFAULT 0,
+                    removed_from_roster BOOLEAN DEFAULT 0,
                     class_display_name TEXT,
                     PRIMARY KEY(char_id)
                 )",

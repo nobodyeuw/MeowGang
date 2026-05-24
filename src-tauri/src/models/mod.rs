@@ -284,6 +284,7 @@ pub struct CharacterSettings {
     pub earns_gold: Option<bool>,
     pub hide_from_dashboard: Option<bool>,
     pub meow_connect_enabled: Option<bool>,
+    pub removed_from_roster: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

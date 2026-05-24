@@ -19,6 +19,7 @@ export interface CharacterSettings {
   earns_gold?: boolean;
   hide_from_dashboard?: boolean;
   meow_connect_enabled?: boolean;
+  removed_from_roster?: boolean;
 }
 
 export interface Character {
@@ -33,6 +34,7 @@ export interface Character {
   earns_gold: boolean;
   hide_from_dashboard?: boolean;
   meow_connect_enabled?: boolean;
+  removed_from_roster?: boolean;
   icon_id?: string;
   class_display_name?: string;
   last_active?: string;
@@ -408,9 +410,12 @@ export async function updateCharacter(charId: number, updates: Partial<Character
     console.log(`STORE: Backend call successful for charId: ${charId}`);
     
     // Update local store for immediate UI feedback
-    characters.update(all => all.map(c => 
-      c.char_id === charId ? { ...c, ...updates } : c
-    ));
+    characters.update(all => {
+      if (updates.removed_from_roster) {
+        return all.filter(c => c.char_id !== charId);
+      }
+      return all.map(c => c.char_id === charId ? { ...c, ...updates } : c);
+    });
     console.log(`STORE: Local store updated for charId: ${charId}`);
   } catch (error) {
     console.error('STORE: Failed to save character settings:', error);

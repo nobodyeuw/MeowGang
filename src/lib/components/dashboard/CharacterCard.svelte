@@ -95,6 +95,11 @@
     return Math.max(...(raid?.gates.map(g => g.minIlvl) || [0]));
   }
 
+  function getConfiguredRaidOrder(contentId: string): number {
+    const index = raidConfigs.findIndex(config => config.content_id === contentId);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  }
+
   $: trackedRaidIds = new Set(
     trackingStatus
       .filter(t => Number(t.is_tracked) === 1 && RAIDS.some(raid => raid.id === t.content_id))
@@ -160,10 +165,14 @@
         .slice(0, 3);
     }
 
-    // Non-gold earners: show max 3 tracked raids, sorted by latest/highest required ilvl.
+    // Non-gold earners: show max 3 tracked raids using the same configured raid order as gold earners.
     return raids
       .filter((r: any) => Number(r.is_tracked) === 1)
-      .sort((a: any, b: any) => getRaidMaxIlvl(b.content_id, b.difficulty) - getRaidMaxIlvl(a.content_id, a.difficulty))
+      .sort((a: any, b: any) => {
+        const orderDiff = getConfiguredRaidOrder(a.content_id) - getConfiguredRaidOrder(b.content_id);
+        if (orderDiff !== 0) return orderDiff;
+        return getRaidMaxIlvl(b.content_id, b.difficulty) - getRaidMaxIlvl(a.content_id, a.difficulty);
+      })
       .slice(0, 3);
   })();
 
@@ -284,7 +293,11 @@
 
   
   function formatItemLevel(itemLevel: number): string {
-    return itemLevel.toFixed(2);
+    return itemLevel.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: false
+    });
   }
 
   function formatCombatPower(combatPower: number): string {

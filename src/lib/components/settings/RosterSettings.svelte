@@ -3,10 +3,18 @@
   import type { Character } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
   import { dndzone } from 'svelte-dnd-action';
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { flip } from 'svelte/animate';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { markMeowConnectUnsyncedChanges } from '$lib/services/meow-connect';
+
+  interface SyncMetadata {
+    timestamp: number;
+    sync_status: string;
+    data?: string | null;
+  }
+
+  const DAILY_SCRAPE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
   let showAddRosterDialog = false;
   let showRenameRosterDialog = false;
@@ -20,12 +28,29 @@
   let isDragging = false;
   let rosterDndItems: any[] = [];
   let isRosterDragging = false;
+  let scrapeStatusRosterId = '';
+  let rosterScrapeHistory: SyncMetadata[] = [];
+  let scrapeStatusLoading = false;
+  let currentTime = Date.now();
+  let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  let scrapeStatusRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   // Load all characters for all rosters on component mount
   onMount(async () => {
     console.log('RosterSettings component mounted');
+    countdownTimer = setInterval(() => {
+      currentTime = Date.now();
+    }, 1000);
+    scrapeStatusRefreshTimer = setInterval(() => {
+      if ($activeRosterId) void loadRosterScrapeStatus($activeRosterId, false);
+    }, 60000);
     await loadRosters();
     await loadAllCharacters();
+  });
+
+  onDestroy(() => {
+    if (countdownTimer) clearInterval(countdownTimer);
+    if (scrapeStatusRefreshTimer) clearInterval(scrapeStatusRefreshTimer);
   });
 
   async function loadAllCharacters() {
@@ -135,6 +160,11 @@
   }
 
   $: currentRoster = $rosters.find(r => r.id === $activeRosterId);
+  $: if ($activeRosterId && $activeRosterId !== scrapeStatusRosterId) {
+    scrapeStatusRosterId = $activeRosterId;
+    void loadRosterScrapeStatus($activeRosterId);
+  }
+  $: dailyScrapeBadge = getDailyScrapeBadge(rosterScrapeHistory, currentTime, scrapeStatusLoading);
 
   $: {
     if (!isRosterDragging) {
@@ -212,10 +242,12 @@
         if (newRoster) {
           activeRosterId.set(newRoster.id);
           localStorage.setItem('activeRosterId', newRoster.id);
+          await loadRosterScrapeStatus(newRoster.id);
         } else {
           console.warn('Could not resolve new roster id after scrape; falling back to roster name', rosterName);
           activeRosterId.set(rosterName);
           localStorage.setItem('activeRosterId', rosterName);
+          await loadRosterScrapeStatus(rosterName);
         }
 
         newRosterName = '';
@@ -360,6 +392,80 @@
     // Only set the active roster ID, don't load characters (we already have all characters)
     activeRosterId.set(rosterId);
     localStorage.setItem('activeRosterId', rosterId);
+    void loadRosterScrapeStatus(rosterId);
+  }
+
+  async function loadRosterScrapeStatus(rosterId: string, showLoading = true) {
+    if (!rosterId) {
+      rosterScrapeHistory = [];
+      return;
+    }
+
+    if (showLoading) scrapeStatusLoading = true;
+    try {
+      const history = await invoke<SyncMetadata[]>('get_roster_scrape_history', {
+        rosterId,
+        limit: 5
+      });
+      if ($activeRosterId === rosterId) {
+        rosterScrapeHistory = history;
+      }
+    } catch (error) {
+      console.error('Failed to load roster scrape status:', error);
+      if ($activeRosterId === rosterId) {
+        rosterScrapeHistory = [];
+      }
+    } finally {
+      if (showLoading && $activeRosterId === rosterId) {
+        scrapeStatusLoading = false;
+      }
+    }
+  }
+
+  function getDailyScrapeBadge(history: SyncMetadata[], now: number, loading: boolean) {
+    if (loading) {
+      return {
+        label: 'Checking update',
+        state: 'loading'
+      };
+    }
+
+    const latest = history[0];
+    const latestCompleted = history.find(entry => entry.sync_status === 'completed');
+
+    if (latest?.sync_status === 'started' && (!latestCompleted || latest.timestamp > latestCompleted.timestamp)) {
+      return {
+        label: 'Updating now',
+        state: 'running'
+      };
+    }
+
+    if (!latestCompleted?.timestamp) {
+      return {
+        label: 'Daily update available',
+        state: 'ready'
+      };
+    }
+
+    const remainingMs = latestCompleted.timestamp + DAILY_SCRAPE_COOLDOWN_MS - now;
+    if (remainingMs <= 0) {
+      return {
+        label: 'Daily update available',
+        state: 'ready'
+      };
+    }
+
+    return {
+      label: `Next update in ${formatScrapeCountdown(remainingMs)}`,
+      state: 'cooldown'
+    };
+  }
+
+  function formatScrapeCountdown(ms: number): string {
+    const totalMinutes = Math.max(0, Math.ceil(ms / 60000));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours}h ${minutes.toString().padStart(2, '0')}m` : `${minutes}m`;
   }
 
   function handleRosterDndConsider(event: CustomEvent<any>) {
@@ -499,6 +605,30 @@
     }
   }
 
+  async function softRemoveCharacter(char: any) {
+    const confirmed = window.confirm(`Remove ${char.char_name} from this roster view? This only hides the character locally.`);
+    if (!confirmed) return;
+
+    try {
+      await updateCharacter(char.char_id, {
+        removed_from_roster: true,
+        hide_from_dashboard: true,
+        meow_connect_enabled: false
+      });
+      markMeowConnectUnsyncedChanges(`${char.char_name} removed from roster view.`);
+      successMessage = `${char.char_name} removed from roster view.`;
+      showSuccessMessage = true;
+      setTimeout(() => {
+        successMessage = '';
+        showSuccessMessage = false;
+      }, 3000);
+    } catch (err) {
+      console.error("FRONTEND: Remove character failed:", err);
+      successMessage = `Failed to remove ${char.char_name}.`;
+      showSuccessMessage = true;
+    }
+  }
+
   async function updateCharacterEarnsGold(charId: number, earnsGold: boolean) {
     try {
       await invoke('update_character_earns_gold', { charId, earnsGold });
@@ -607,7 +737,12 @@
   {#if $activeRosterId && currentRoster}
     <div class="character-section">
       <div class="section-header">
-        <h4>Characters in {currentRoster.roster_name}</h4>
+        <div class="character-section-title">
+          <h4>Characters in {currentRoster.roster_name}</h4>
+          <span class:ready={dailyScrapeBadge.state === 'ready'} class:running={dailyScrapeBadge.state === 'running'} class="scrape-countdown-badge">
+            {dailyScrapeBadge.label}
+          </span>
+        </div>
       </div>
       <div class="character-list" 
         use:dndzone={dndOptions} 
@@ -668,6 +803,17 @@
               >
                 <img class="connect-icon" src="/images/meowconnect_tab.png" alt="" />
                 <span>{char.meow_connect_enabled ? 'CONNECTED' : 'OFF'}</span>
+              </button>
+              <button
+                class="icon-btn remove-character"
+                on:click|stopPropagation={() => softRemoveCharacter(char)}
+                title="Remove character from this roster view"
+                aria-label={`Remove ${char.char_name} from roster view`}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" />
+                  <path d="M6 9h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                </svg>
               </button>
             </div>
           </div>
@@ -790,9 +936,25 @@
     font-weight: 600;
   }
 
+  .character-section-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
   .character-count {
     color: var(--md-sys-color-on-surface-variant);
     font-size: 0.9rem;
+  }
+
+  .settings-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .add-button {
@@ -819,6 +981,26 @@
   .add-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .scrape-countdown-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 78%, transparent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.82;
+    white-space: nowrap;
+  }
+
+  .scrape-countdown-badge.ready {
+    color: color-mix(in srgb, var(--md-sys-color-primary) 72%, var(--md-sys-color-on-surface-variant));
+  }
+
+  .scrape-countdown-badge.running {
+    color: color-mix(in srgb, #f59e0b 72%, var(--md-sys-color-on-surface-variant));
   }
 
   /* Roster List */
@@ -1029,6 +1211,35 @@
 
   .toggle-btn.connect {
     min-width: 76px;
+  }
+
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 8px;
+    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .icon-btn svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+  }
+
+  .icon-btn.remove-character:hover {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 58%, var(--md-sys-color-outline));
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 72%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-on-error-container);
+    transform: translateY(-1px);
   }
 
   .visibility-icon {

@@ -764,7 +764,7 @@
         ...rosterTaskStates,
         [taskId]: updatedProgress.completed_this_week >= updatedProgress.weekly_limit
       };
-      window.dispatchEvent(new CustomEvent('roster-event-progress-updated', { detail: { taskId } }));
+      window.dispatchEvent(new CustomEvent('roster-event-progress-updated', { detail: { taskId, source: 'todo' } }));
 
       if (matrixData?.character_states && matrixData.characters) {
         matrixData.characters.forEach(character => {
@@ -783,7 +783,9 @@
   
     
   onMount(() => {
-    const handleRosterEventProgressUpdated = () => {
+    const handleRosterEventProgressUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ source?: string }>).detail;
+      if (detail?.source === 'todo') return;
       loadMatrix();
     };
     const handleRaidCompleted = () => {

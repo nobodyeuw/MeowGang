@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { GAME_CLASSES } from '$lib/data/classes';
   import { RAIDS, type Raid } from '$lib/data/raids';
@@ -7,6 +7,7 @@
     acceptMeowConnectFriendRequest,
     buildMeowConnectAvailabilityRows,
     buildMeowConnectLogEntries,
+    getMeowConnectLastUploadAt,
     getMeowConnectRaidDifficulties,
     fetchMeowConnectRemoteSnapshots,
     getMeowConnectRaidOptions,
@@ -25,8 +26,10 @@
     subscribeMeowConnectChanges,
     uploadMeowConnectSnapshotIfNeeded,
     type MeowConnectAvailabilityRow,
+    type MeowConnectCharacterSnapshot,
     type MeowConnectFriendConnection,
     type MeowConnectLogEntry,
+    type MeowConnectLogParticipant,
     type MeowConnectLocalSnapshot,
     type MeowConnectProfile,
     type MeowConnectRemoteSnapshot
@@ -69,6 +72,12 @@
     selectedDifficulty: string;
   }
 
+  interface LogCharacterToken {
+    key: string;
+    name: string;
+    classId?: string;
+  }
+
   const RAID_VISIBILITY_STORAGE_KEY = 'meowConnect.visibleRaidIds';
   const RAID_DIFFICULTY_FILTER_STORAGE_KEY = 'meowConnect.raidDifficultyFilters';
   const TOGETHER_FRIEND_SELECTION_STORAGE_KEY = 'meowConnect.togetherFriendSelectionIds';
@@ -78,6 +87,7 @@
     .sort((a, b) => a.gates[0].minIlvl - b.gates[0].minIlvl || a.name.localeCompare(b.name));
 
   export let activeSection: MeowConnectTab = 'together';
+  const dispatch = createEventDispatcher<{ pendingRequestsChanged: number }>();
 
   let consentAccepted = false;
   let raidTogetherView = 'pairs' as 'availability' | 'pairs';
@@ -115,6 +125,9 @@
       : $meowConnectHasUnsyncedChanges
         ? 'Sync changes'
         : 'Sync now';
+  $: connectedCharacterCount = localSnapshot?.characters.length || 0;
+  $: unsyncedRosterChangeCount = $meowConnectHasUnsyncedChanges ? '1+' : '0';
+  $: lastSyncLabel = formatLastSyncTime(getMeowConnectLastUploadAt(), currentTime);
   $: visibleRaids = raidOptions.filter((raid) => visibleRaidIds.includes(raid.id));
   $: raidDifficultyFilterItems = visibleRaids.map((raid): RaidDifficultyFilterItem => ({
     raid,
@@ -155,6 +168,7 @@
   $: pendingIncoming = friendConnections.filter(
     (connection) => connection.status === 'pending' && connection.direction === 'incoming'
   );
+  $: dispatch('pendingRequestsChanged', pendingIncoming.length);
   $: filteredFriendOptions = friendOptions
     .filter((friend) => {
       const query = friendSearch.trim().toLowerCase();
@@ -681,6 +695,26 @@
     return new Date(timestamp).toLocaleString();
   }
 
+  function formatLastSyncTime(timestamp: number, _now: number) {
+    if (!timestamp) {
+      return {
+        value: 'Never',
+        caption: 'last synced'
+      };
+    }
+
+    return {
+      value: new Date(timestamp).toLocaleString([], {
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }),
+      caption: 'last synced'
+    };
+  }
+
   function formatLogTime(timestamp: number) {
     if (!timestamp) return 'unknown';
     return new Date(timestamp).toLocaleString([], {
@@ -692,9 +726,88 @@
     });
   }
 
+  function getLogParticipants(entry: MeowConnectLogEntry): MeowConnectLogParticipant[] {
+    return entry.participants?.length
+      ? entry.participants
+      : [{ ownerId: entry.ownerId, ownerName: entry.ownerName, ownerAvatarUrl: entry.ownerAvatarUrl, localPlayer: entry.localPlayer }];
+  }
+
+  function getVisibleLogParticipants(entry: MeowConnectLogEntry): MeowConnectLogParticipant[] {
+    return getLogParticipants(entry).slice(0, 8);
+  }
+
+  function getOverflowLogParticipantCount(entry: MeowConnectLogEntry): number {
+    return Math.max(getLogParticipants(entry).length - 8, 0);
+  }
+
+  function getLogAvatarStyle(index: number): string {
+    return `--avatar-x: ${index % 4}; --avatar-y: ${Math.floor(index / 4)}`;
+  }
+
+  function getLogParticipantCharacters(entry: MeowConnectLogEntry): LogCharacterToken[] {
+    const seen = new Set<string>();
+    const characters: LogCharacterToken[] = [];
+
+    for (const participant of getLogParticipants(entry)) {
+      for (const name of splitLogCharacterNames(participant.localPlayer || participant.ownerName)) {
+        const character = findLogCharacter(name, participant.ownerId);
+        const displayName = character?.charName || name;
+        const key = `${participant.ownerId}:${displayName.trim().toLowerCase()}`;
+
+        if (seen.has(key)) continue;
+        seen.add(key);
+        characters.push({
+          key,
+          name: displayName,
+          classId: character?.classId
+        });
+      }
+    }
+
+    return characters;
+  }
+
+  function splitLogCharacterNames(value: string): string[] {
+    return String(value || '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }
+
+  function findLogCharacter(name: string, ownerId: string): MeowConnectCharacterSnapshot | undefined {
+    const normalizedName = name.trim().toLowerCase();
+    const localOwnerMatches = ownerId === 'local' ||
+      currentProfile?.userId === ownerId ||
+      currentProfile?.discordId === ownerId ||
+      currentProfile?.displayName === ownerId;
+    const localMatch = localOwnerMatches
+      ? localSnapshot?.characters.find((character) => character.charName.trim().toLowerCase() === normalizedName)
+      : undefined;
+
+    if (localMatch) return localMatch;
+
+    const ownerMatch = remoteSnapshots.find((snapshot) =>
+      snapshot.profile.userId === ownerId ||
+      snapshot.profile.discordId === ownerId ||
+      snapshot.profile.displayName === ownerId
+    )?.characters.find((character) => character.charName.trim().toLowerCase() === normalizedName);
+
+    if (ownerMatch) return ownerMatch;
+
+    return [
+      ...(localSnapshot?.characters || []),
+      ...remoteSnapshots.flatMap((snapshot) => snapshot.characters)
+    ]
+      .find((character) => character.charName.trim().toLowerCase() === normalizedName);
+  }
+
+  function formatCharacterItemLevel(value: number): string {
+    return String(Math.round(value || 0));
+  }
+
   function formatCharacterPower(value: number): string {
     if (!value || value <= 0) return 'CP ?';
-    return `CP ${Math.round(value).toLocaleString()}`;
+    return `CP ${Math.round(value)}`;
   }
 </script>
 
@@ -833,7 +946,7 @@
                     <div class="character-copy">
                       <strong>{row.character.charName}</strong>
                       <span class="character-stats-line">
-                        <span>{getClassName(row.character.classId)} · iLvl {Math.round(row.character.itemLevel)} · {formatCharacterPower(row.character.combatPower)}</span>
+                        <span>{getClassName(row.character.classId)} · iLvl {formatCharacterItemLevel(row.character.itemLevel)} · {formatCharacterPower(row.character.combatPower)}</span>
                         <img
                           src="/images/gold.png"
                           alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
@@ -1028,7 +1141,7 @@
                       />
                     </div>
                     <span class="character-stats-line">
-                      <span class="stat-field">iLvl {Math.round(row.character.itemLevel)}</span>
+                      <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
                       <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
                     </span>
                     <small class="availability-meta">
@@ -1058,7 +1171,7 @@
                       />
                     </div>
                     <span class="character-stats-line">
-                      <span class="stat-field">iLvl {Math.round(row.character.itemLevel)}</span>
+                      <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
                       <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
                     </span>
                     <small class="availability-meta">
@@ -1086,7 +1199,7 @@
                       />
                     </div>
                     <span class="character-stats-line">
-                      <span class="stat-field">iLvl {Math.round(row.character.itemLevel)}</span>
+                      <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
                       <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
                     </span>
                     <small class="availability-meta">
@@ -1121,28 +1234,37 @@
           {:else}
             {#each logEntries as entry}
               <article class="log-row">
-                <div class="log-avatar-stack" style={`--avatar-count: ${entry.participants?.length || 1}`}>
-                  {#each (entry.participants?.length ? entry.participants : [{ ownerId: entry.ownerId, ownerName: entry.ownerName, ownerAvatarUrl: entry.ownerAvatarUrl, localPlayer: entry.localPlayer }]) as participant, participantIndex}
+                <div class="log-avatar-stack" style={`--avatar-count: ${getVisibleLogParticipants(entry).length}`}>
+                  {#each getVisibleLogParticipants(entry) as participant, participantIndex}
                     {#if participant.ownerAvatarUrl}
-                      <img src={participant.ownerAvatarUrl} alt="" title={`${participant.ownerName} (${participant.localPlayer})`} style={`--avatar-index: ${participantIndex}`} />
+                      <img src={participant.ownerAvatarUrl} alt="" title={`${participant.ownerName} (${participant.localPlayer})`} style={getLogAvatarStyle(participantIndex)} />
                     {:else}
-                      <span class="avatar-fallback" title={`${participant.ownerName} (${participant.localPlayer})`} style={`--avatar-index: ${participantIndex}`}>{getInitials(participant.ownerName)}</span>
+                      <span class="avatar-fallback" title={`${participant.ownerName} (${participant.localPlayer})`} style={getLogAvatarStyle(participantIndex)}>{getInitials(participant.ownerName)}</span>
                     {/if}
                   {/each}
+                  {#if getOverflowLogParticipantCount(entry) > 0}
+                    <span class="log-avatar-overflow">+{getOverflowLogParticipantCount(entry)}</span>
+                  {/if}
                 </div>
                 <div>
                   <strong>{entry.ownerName} cleared {entry.raidName} {entry.difficulty}</strong>
                   <span>
-                    with {entry.localPlayer}
                     {#if entry.gate}
-                      · {entry.gate}
+                      {entry.gate} ·
                     {/if}
-                    · {entry.source}
+                    {entry.source}
                     · {formatLogTime(entry.clearedAt || entry.fightStart)}
                   </span>
-                  {#if entry.players.length > 0}
-                    <small>{entry.players.join(', ')}</small>
-                  {/if}
+                  <div class="log-character-line">
+                    {#each getLogParticipantCharacters(entry) as character (character.key)}
+                      <span class="log-character-token">
+                        {#if character.classId}
+                          <img src={`/images/classes/${getClassIcon(character.classId)}.png`} alt="" />
+                        {/if}
+                        <span>{character.name}</span>
+                      </span>
+                    {/each}
+                  </div>
                 </div>
               </article>
             {/each}
@@ -1156,10 +1278,7 @@
             <div>
               <h3>Sync</h3>
               <p>
-                {localSnapshot ? `${localSnapshot.characters.length} connected characters · current weekly reset started ${formatResetTime(localSnapshot.weeklyResetMs)}` : 'No local snapshot loaded.'}
-                {#if $meowConnectHasUnsyncedChanges}
-                  · Unsynced local changes
-                {/if}
+                {localSnapshot ? `Current weekly reset started ${formatResetTime(localSnapshot.weeklyResetMs)}` : 'No local snapshot loaded.'}
               </p>
             </div>
             <button
@@ -1172,18 +1291,24 @@
               {manualSyncLabel}
             </button>
           </div>
-        </article>
 
-        <article class="settings-panel compact-panel">
-          <div class="panel-title">
-            <div>
-              <h3>Reset Window</h3>
-              <p>MeowConnect shares current in-game reset data only. Raid clears and encounter logs roll into a fresh weekly window after reset.</p>
+          <div class="sync-status-grid">
+            <div class="sync-status-item">
+              <strong>{connectedCharacterCount}</strong>
+              <span>characters marked connected in roster settings</span>
+            </div>
+            <div class:dirty={$meowConnectHasUnsyncedChanges} class="sync-status-item">
+              <strong>{unsyncedRosterChangeCount}</strong>
+              <span>unsynced roster changes</span>
+            </div>
+            <div class="sync-status-item">
+              <strong>{lastSyncLabel.value}</strong>
+              <span>{lastSyncLabel.caption}</span>
             </div>
           </div>
         </article>
 
-        <article class="settings-panel wide-panel">
+        <article class="settings-panel compact-panel raid-visibility-panel">
           <div class="panel-title">
             <div>
               <h3>Raid Visibility</h3>
@@ -1279,12 +1404,19 @@
             </div>
           </div>
 
+          {#if pendingIncoming.length > 0}
+            <div class="friend-request-notice">
+              <strong>{pendingIncoming.length}</strong>
+              <span>incoming friend request{pendingIncoming.length === 1 ? '' : 's'} waiting</span>
+            </div>
+          {/if}
+
           <div class="friend-list">
             {#if friendConnections.length === 0}
               <p class="column-empty">No MeowConnect friends yet.</p>
             {:else}
               {#each friendConnections as connection}
-                <div class="friend-row">
+                <div class:incoming={connection.status === 'pending' && connection.direction === 'incoming'} class="friend-row">
                   {#if connection.profile.avatarUrl}
                     <img src={connection.profile.avatarUrl} alt="" />
                   {:else}
@@ -1916,11 +2048,15 @@
   }
 
   .availability-card.reserved {
-    opacity: 0.72;
-    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 38%, var(--md-sys-color-surface));
+    opacity: 0.78;
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 30%, var(--md-sys-color-outline));
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-error) 11%, transparent), transparent 58%),
+      color-mix(in srgb, var(--md-sys-color-surface-variant) 62%, var(--md-sys-color-surface));
   }
 
   .availability-card.shared-static {
+    opacity: 1;
     border-color: color-mix(in srgb, var(--md-sys-color-primary) 42%, var(--md-sys-color-outline));
     background: color-mix(in srgb, var(--md-sys-color-primary-container) 34%, var(--md-sys-color-surface));
   }
@@ -2194,7 +2330,7 @@
   .log-row {
     min-width: 0;
     display: grid;
-    grid-template-columns: 4.4rem minmax(0, 1fr);
+    grid-template-columns: 4.55rem minmax(0, 1fr);
     gap: 0.6rem;
     align-items: start;
     padding: 0.55rem;
@@ -2213,16 +2349,35 @@
     --avatar-count: 1;
     position: relative;
     min-width: 2rem;
-    width: 4.4rem;
-    height: 2rem;
+    width: 4.55rem;
+    height: 3.08rem;
   }
 
   .log-avatar-stack img,
   .log-avatar-stack .avatar-fallback {
     position: absolute;
-    top: 0;
-    left: calc(var(--avatar-index, 0) * 1.15rem);
+    top: calc(var(--avatar-y, 0) * 1.26rem);
+    left: calc(var(--avatar-x, 0) * 0.82rem);
+    width: 1.58rem;
+    height: 1.58rem;
     border: 2px solid var(--md-sys-color-surface-variant);
+    box-sizing: border-box;
+  }
+
+  .log-avatar-overflow {
+    position: absolute;
+    top: 1.42rem;
+    left: 3.28rem;
+    display: grid;
+    place-items: center;
+    width: 1.2rem;
+    height: 1.2rem;
+    border: 2px solid var(--md-sys-color-surface-variant);
+    border-radius: 50%;
+    background: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.58rem;
+    font-weight: 900;
     box-sizing: border-box;
   }
 
@@ -2234,6 +2389,49 @@
     white-space: nowrap;
     color: var(--md-sys-color-on-surface-variant);
     font-size: 0.74rem;
+  }
+
+  .log-character-line {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.35rem;
+    align-items: center;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.74rem;
+  }
+
+  .log-character-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    min-width: 0;
+    overflow: visible;
+    white-space: nowrap;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  .log-character-token:not(:last-child)::after {
+    content: "|";
+    margin-left: 0.35rem;
+    color: var(--md-sys-color-outline);
+  }
+
+  .log-character-token img {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 1rem;
+    object-fit: contain;
+  }
+
+  .log-character-token span {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+    color: inherit;
+    font-size: inherit;
   }
 
   .settings-grid {
@@ -2303,10 +2501,56 @@
     grid-column: 1 / -1;
   }
 
+  .sync-status-grid {
+    display: grid;
+    gap: 0.42rem;
+  }
+
+  .sync-status-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.45rem;
+    padding: 0.36rem 0.45rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container) 70%, transparent);
+  }
+
+  .sync-status-item strong {
+    color: var(--md-sys-color-primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .sync-status-item span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sync-status-item.dirty {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 38%, var(--md-sys-color-outline-variant));
+    background: color-mix(in srgb, var(--md-sys-color-error) 8%, var(--md-sys-color-surface));
+  }
+
+  .sync-status-item.dirty strong {
+    color: var(--md-sys-color-error);
+  }
+
   .raid-toggle-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     gap: 0.5rem;
+  }
+
+  .raid-visibility-panel .raid-toggle-grid {
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    gap: 0.35rem;
   }
 
   .raid-toggle-grid label {
@@ -2321,6 +2565,19 @@
     background: var(--md-sys-color-surface);
     cursor: pointer;
     transition: border-color 0.18s ease, background 0.18s ease;
+  }
+
+  .raid-visibility-panel .raid-toggle-grid label {
+    gap: 0.34rem;
+    padding: 0.38rem 0.42rem;
+  }
+
+  .raid-visibility-panel .raid-toggle-grid span {
+    font-size: 0.74rem;
+  }
+
+  .raid-visibility-panel .raid-toggle-grid small {
+    font-size: 0.68rem;
   }
 
   .raid-toggle-grid label:hover {
@@ -2354,6 +2611,31 @@
     gap: 0.5rem;
   }
 
+  .friend-request-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    padding: 0.38rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 52%, var(--md-sys-color-outline-variant));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.75rem;
+  }
+
+  .friend-request-notice strong {
+    display: grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
   .friend-row {
     padding: 0.58rem 0.65rem;
     border: 1px solid var(--md-sys-color-outline-variant);
@@ -2365,6 +2647,11 @@
   .friend-row:hover {
     border-color: var(--md-sys-color-primary);
     background: color-mix(in srgb, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface));
+  }
+
+  .friend-row.incoming {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 52%, var(--md-sys-color-outline-variant));
+    background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface));
   }
 
   .friend-row > div:first-of-type {

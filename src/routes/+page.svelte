@@ -20,11 +20,13 @@
     hasMeowConnectConsent,
     isMeowConnectFeatureEnabled,
     isMeowConnectRealtimeEnabled,
+    loadMeowConnectFriends,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
     meowConnectStatus,
-    uploadMeowConnectSnapshotIfNeeded
+    uploadMeowConnectSnapshotIfNeeded,
+    type MeowConnectFriendConnection
   } from '$lib/services/meow-connect';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
@@ -46,6 +48,9 @@
   let activeSettingsTab = 'roster';
   let activeProgressionTab = 'market_prices';
   let activeMeowConnectTab: MeowConnectSection = 'together';
+  let pendingMeowConnectRequests = 0;
+  let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
+  let meowConnectFriendRequestRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let nextResetTime = '';
   let resetCountdown = '';
   let appReady = false;
@@ -101,9 +106,11 @@
     };
     const handleMeowConnectConsentChanged = () => {
       refreshMeowConnectHeaderStatus();
+      scheduleMeowConnectFriendRequestRefresh();
     };
     const handleMeowConnectFeatureChanged = () => {
       refreshMeowConnectFeatureSettings();
+      scheduleMeowConnectFriendRequestRefresh();
       if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
         switchTab('dashboard');
       }
@@ -146,12 +153,14 @@
     // Refresh backend reset timestamp only once per minute.
     const resetRefreshInterval = setInterval(refreshNextResetTimeFromBackend, 60000);
     const loaLogsStatusInterval = setInterval(clearLoaLogsReminderWhenRunning, 5000);
+    const meowConnectFriendRequestInterval = setInterval(refreshMeowConnectFriendRequests, 60000);
 
     // Cleanup on unmount
     return () => {
       unlistenMeowConnectScrape?.();
       unsubscribeMeowConnectStatus();
       if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
+      if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
       window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
       window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
@@ -160,6 +169,7 @@
       clearInterval(countdownInterval);
       clearInterval(resetRefreshInterval);
       clearInterval(loaLogsStatusInterval);
+      clearInterval(meowConnectFriendRequestInterval);
     };
   });
 
@@ -325,9 +335,11 @@
           ? `MeowConnect startup sync uploaded ${result.snapshot.characters.length} characters.`
           : 'MeowConnect startup sync skipped; local snapshot unchanged.'
       );
+      await refreshMeowConnectFriendRequests();
     } catch (error) {
       markMeowConnectFailure(error);
       console.warn('MeowConnect startup sync failed:', error);
+      await refreshMeowConnectFriendRequests();
     }
   }
 
@@ -346,9 +358,11 @@
           ? `MeowConnect roster scrape sync uploaded ${result.snapshot.characters.length} characters.`
           : 'MeowConnect roster scrape sync skipped.'
       );
+      await refreshMeowConnectFriendRequests();
     } catch (error) {
       markMeowConnectFailure(error);
       console.warn('MeowConnect roster scrape sync failed:', error);
+      await refreshMeowConnectFriendRequests();
     }
   }
 
@@ -385,6 +399,47 @@
     }
 
     goto(`/?${searchParams.toString()}`);
+  }
+
+  function openMeowConnectRequests() {
+    activeMeowConnectTab = 'settings';
+    switchTab('meow-connect');
+  }
+
+  function handlePendingRequestsChanged(count: number) {
+    pendingMeowConnectRequests = count;
+    scheduleMeowConnectFriendRequestRefresh();
+  }
+
+  function scheduleMeowConnectFriendRequestRefresh() {
+    if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
+    meowConnectFriendRequestRefreshTimer = setTimeout(() => {
+      meowConnectFriendRequestRefreshTimer = null;
+      void refreshMeowConnectFriendRequests();
+    }, 500);
+  }
+
+  async function refreshMeowConnectFriendRequests() {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || discordAuthState !== 'approved') {
+      pendingMeowConnectFriendRequests = [];
+      pendingMeowConnectRequests = 0;
+      return;
+    }
+
+    try {
+      const connections = await loadMeowConnectFriends();
+      pendingMeowConnectFriendRequests = connections.filter(
+        (connection) => connection.status === 'pending' && connection.direction === 'incoming'
+      );
+      pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length;
+    } catch (error) {
+      console.warn('Failed to refresh MeowConnect friend request notifications:', error);
+    }
+  }
+
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    return (parts[0]?.[0] || '?').toUpperCase() + (parts[1]?.[0] || '').toUpperCase();
   }
 
   function switchSettingsTab(tab: string) {
@@ -698,6 +753,39 @@
               <span>MeowConnect: {meowConnectHeaderLabel}</span>
             </div>
           {/if}
+          {#if pendingMeowConnectFriendRequests.length > 0}
+            <button
+              type="button"
+              class="meowconnect-request-alert"
+              title={`${pendingMeowConnectRequests} incoming MeowConnect friend request${pendingMeowConnectRequests === 1 ? '' : 's'}`}
+              on:click={openMeowConnectRequests}
+            >
+              <span class="request-avatar-stack">
+                {#each pendingMeowConnectFriendRequests.slice(0, 3) as request, requestIndex}
+                  {#if request.profile.avatarUrl}
+                    <img
+                      src={request.profile.avatarUrl}
+                      alt=""
+                      title={request.profile.displayName}
+                      style={`--request-avatar-index: ${requestIndex}`}
+                    />
+                  {:else}
+                    <span
+                      class="request-avatar-fallback"
+                      title={request.profile.displayName}
+                      style={`--request-avatar-index: ${requestIndex}`}
+                    >
+                      {getInitials(request.profile.displayName)}
+                    </span>
+                  {/if}
+                {/each}
+                {#if pendingMeowConnectRequests > 3}
+                  <span class="request-avatar-overflow">+{pendingMeowConnectRequests - 3}</span>
+                {/if}
+              </span>
+              <span>{pendingMeowConnectRequests} request{pendingMeowConnectRequests === 1 ? '' : 's'}</span>
+            </button>
+          {/if}
           {#if showSetupGuideButton}
             <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>
           {/if}
@@ -787,6 +875,9 @@
             on:click={() => activeMeowConnectTab = 'settings'}
           >
             Settings
+            {#if pendingMeowConnectRequests > 0}
+              <span class="tab-notification-badge">{pendingMeowConnectRequests}</span>
+            {/if}
           </button>
         </div>
       {/if}
@@ -803,7 +894,10 @@
       {:else if activeTab === 'progression'}
         <ProgressionPlanner activeProgressionTab={activeProgressionTab} on:tabChange={(e: CustomEvent<string>) => activeProgressionTab = e.detail} />
       {:else if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
-        <MeowConnect activeSection={activeMeowConnectTab} />
+        <MeowConnect
+          activeSection={activeMeowConnectTab}
+          on:pendingRequestsChanged={(event: CustomEvent<number>) => handlePendingRequestsChanged(event.detail)}
+        />
       {:else if activeTab === 'updates'}
         <UpdateTab />
       {:else if activeTab === 'encounters'}
@@ -1218,6 +1312,73 @@
     opacity: 0.46;
   }
 
+  .meowconnect-request-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    min-height: 1.9rem;
+    padding: 0.22rem 0.52rem 0.22rem 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 52%, var(--md-sys-color-outline));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface-container));
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .meowconnect-request-alert:hover {
+    border-color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 16%, var(--md-sys-color-surface-container));
+  }
+
+  .request-avatar-stack {
+    position: relative;
+    display: block;
+    width: 2.95rem;
+    height: 1.45rem;
+  }
+
+  .request-avatar-stack img,
+  .request-avatar-fallback {
+    position: absolute;
+    top: 0;
+    left: calc(var(--request-avatar-index, 0) * 0.78rem);
+    width: 1.45rem;
+    height: 1.45rem;
+    border: 2px solid var(--md-sys-color-surface-container);
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+
+  .request-avatar-stack img {
+    object-fit: cover;
+  }
+
+  .request-avatar-fallback,
+  .request-avatar-overflow {
+    display: grid;
+    place-items: center;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font-size: 0.58rem;
+    font-weight: 900;
+  }
+
+  .request-avatar-overflow {
+    position: absolute;
+    right: -0.05rem;
+    bottom: -0.08rem;
+    min-width: 0.95rem;
+    height: 0.95rem;
+    padding: 0 0.12rem;
+    border: 2px solid var(--md-sys-color-surface-container);
+    border-radius: 999px;
+    box-sizing: border-box;
+  }
+
   .setup-guide-button {
     border: 1px solid var(--md-sys-color-outline);
     border-radius: 8px;
@@ -1248,6 +1409,9 @@
   }
 
   .settings-tab-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.5rem 1rem;
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
@@ -1270,6 +1434,25 @@
     background: var(--md-sys-color-primary);
     color: var(--md-sys-color-on-primary);
     border-color: var(--md-sys-color-primary);
+  }
+
+  .tab-notification-badge {
+    display: grid;
+    place-items: center;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.22rem;
+    border-radius: 999px;
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .settings-tab-button.active .tab-notification-badge {
+    background: var(--md-sys-color-on-primary);
+    color: var(--md-sys-color-primary);
   }
 
   @media (max-width: 768px) {

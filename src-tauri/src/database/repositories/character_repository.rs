@@ -55,9 +55,9 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled
+                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, COALESCE(removed_from_roster, 0)
              FROM conf_character 
-             WHERE roster_id = ?1
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER)",
         )?;
 
@@ -74,6 +74,7 @@ impl CharacterRepository {
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
                 meow_connect_enabled: row.get(10)?,
+                removed_from_roster: row.get(11)?,
                 class_display_name: None, // Not available in conf_character table
             })
         })?;
@@ -90,7 +91,7 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name
+                    combat_power, display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name, COALESCE(removed_from_roster, 0)
              FROM conf_character 
              WHERE char_id = ?1",
         )?;
@@ -108,7 +109,8 @@ impl CharacterRepository {
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
                 meow_connect_enabled: row.get(10)?,
-                class_display_name: None, // Not available in conf_character table
+                removed_from_roster: row.get(12)?,
+                class_display_name: row.get(11)?,
             })
         })?;
 
@@ -125,6 +127,7 @@ impl CharacterRepository {
                     c.item_level, c.combat_power, c.roster_name, 
                     c.display_order, c.earns_gold, c.hide_from_dashboard, c.meow_connect_enabled
              FROM conf_character c
+             WHERE COALESCE(c.removed_from_roster, 0) = 0
              ORDER BY CAST(c.display_order AS INTEGER), c.char_name",
         )?;
 
@@ -176,6 +179,11 @@ impl CharacterRepository {
             params.push(meow_connect_enabled.into());
         }
 
+        if let Some(removed_from_roster) = settings.removed_from_roster {
+            set_clauses.push("removed_from_roster = ?".to_string());
+            params.push(removed_from_roster.into());
+        }
+
         if set_clauses.is_empty() {
             return Ok(());
         }
@@ -199,9 +207,9 @@ impl CharacterRepository {
     pub fn get_character_matrix_info(&self, roster_id: &str) -> Result<Vec<crate::models::CharacterMatrixInfo>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT char_id, char_name, item_level, combat_power, class_id
+            "SELECT char_id, char_name, item_level, combat_power, class_id, display_order
              FROM conf_character 
-             WHERE roster_id = ?1 
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER), char_name",
         )?;
 
@@ -237,8 +245,6 @@ impl CharacterRepository {
                class_id = excluded.class_id,
                item_level = excluded.item_level,
                combat_power = excluded.combat_power,
-               display_order = excluded.display_order,
-               earns_gold = excluded.earns_gold,
                class_display_name = excluded.class_display_name",
             params![
                 character.char_id,

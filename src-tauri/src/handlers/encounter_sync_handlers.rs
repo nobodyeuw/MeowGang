@@ -22,6 +22,7 @@ pub struct EncounterPreview {
     pub local_player: String,
     pub difficulty: String,
     pub fight_start: i64,
+    pub duration: i64,
     pub cleared: bool,
     pub players: Vec<String>,
 }
@@ -203,18 +204,31 @@ fn get_cleared_encounters(
         weekly_reset_ts
     );
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, current_boss, local_player, difficulty, fight_start, cleared, COALESCE(players, '')
+    let has_duration_column = conn
+        .query_row(
+            "SELECT 1 FROM pragma_table_info('encounter_preview') WHERE name = 'duration' LIMIT 1",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to inspect encounter_preview columns: {}", e))?
+        .unwrap_or(false);
+
+    let duration_select = if has_duration_column { "COALESCE(duration, 0)" } else { "0" };
+    let query = format!(
+        "SELECT id, current_boss, local_player, difficulty, fight_start, {duration_select}, cleared, COALESCE(players, '')
          FROM encounter_preview
          WHERE cleared = 1 AND fight_start >= ?
-         ORDER BY fight_start DESC",
-        )
+         ORDER BY fight_start DESC"
+    );
+
+    let mut stmt = conn
+        .prepare(&query)
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
     let encounters_iter = stmt
         .query_map([weekly_reset_ts], |row| {
-            let players_raw: String = row.get(6).unwrap_or_default();
+            let players_raw: String = row.get(7).unwrap_or_default();
 
             Ok(EncounterPreview {
                 id: row.get(0).unwrap_or(0),
@@ -222,7 +236,8 @@ fn get_cleared_encounters(
                 local_player: row.get(2).unwrap_or_else(|_| "Unknown".to_string()),
                 difficulty: row.get(3).unwrap_or_else(|_| "Unknown".to_string()),
                 fight_start: row.get(4).unwrap_or(0),
-                cleared: row.get::<_, i64>(5).unwrap_or(0) == 1,
+                duration: row.get(5).unwrap_or(0),
+                cleared: row.get::<_, i64>(6).unwrap_or(0) == 1,
                 players: parse_encounter_players(&players_raw),
             })
         })
@@ -484,7 +499,10 @@ fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -
     let conn = todo_repo.pool.get()?;
 
     // Try exact match first
-    let mut stmt = conn.prepare("SELECT char_id FROM conf_character WHERE char_name = ?1")?;
+    let mut stmt = conn.prepare(
+        "SELECT char_id FROM conf_character
+         WHERE char_name = ?1 AND COALESCE(removed_from_roster, 0) = 0",
+    )?;
 
     let result: Option<i64> = stmt.query_row([character_name], |row| row.get(0)).optional()?;
 
@@ -493,7 +511,10 @@ fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -
     }
 
     // If exact match fails, try case-insensitive match
-    let mut stmt = conn.prepare("SELECT char_id FROM conf_character WHERE LOWER(char_name) = LOWER(?1)")?;
+    let mut stmt = conn.prepare(
+        "SELECT char_id FROM conf_character
+         WHERE LOWER(char_name) = LOWER(?1) AND COALESCE(removed_from_roster, 0) = 0",
+    )?;
 
     let result: Option<i64> = stmt.query_row([character_name], |row| row.get(0)).optional()?;
 

@@ -47,6 +47,7 @@ pub struct Character {
     pub earns_gold: bool,
     pub hide_from_dashboard: bool,
     pub meow_connect_enabled: bool,
+    pub removed_from_roster: bool,
     pub class_display_name: Option<String>,
 }
 
@@ -361,6 +362,7 @@ impl HumanizedScraper {
                     earns_gold: false,
                     hide_from_dashboard: false,
                     meow_connect_enabled: false,
+                    removed_from_roster: false,
                     class_display_name: None,
                 });
             }

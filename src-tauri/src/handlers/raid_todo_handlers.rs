@@ -17,7 +17,7 @@ pub async fn get_raid_configs_for_roster(
 
     // Get all characters in this roster
     let mut chars_stmt = conn
-        .prepare("SELECT char_id FROM conf_character WHERE roster_id = ?1")
+        .prepare("SELECT char_id FROM conf_character WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0")
         .map_err(|e: rusqlite::Error| e.to_string())?;
 
     let char_ids: Vec<i64> = chars_stmt

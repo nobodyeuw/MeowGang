@@ -24,7 +24,7 @@ impl TrackingRepository {
         let mut char_stmt = conn.prepare(
             "SELECT char_id, char_name, class_id, item_level, combat_power, display_order
              FROM conf_character 
-             WHERE roster_id = ?1
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER)",
         )?;
 
@@ -62,7 +62,8 @@ impl TrackingRepository {
             "SELECT char_id, content_id, current_value 
              FROM rested_values 
              WHERE char_id IN (
-                 SELECT char_id FROM conf_character WHERE roster_id = ?1
+                 SELECT char_id FROM conf_character
+                 WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              )",
         )?;
 

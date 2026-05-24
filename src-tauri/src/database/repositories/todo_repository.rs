@@ -134,6 +134,7 @@ impl TodoRepository {
         let char_id = conn.query_row(
             "SELECT char_id FROM conf_character
              WHERE roster_id = ?1
+               AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER), char_name, char_id
              LIMIT 1",
             [roster_id],
@@ -171,7 +172,8 @@ impl TodoRepository {
         // Get characters for this roster
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, class_id, item_level, combat_power, earns_gold, display_order 
-             FROM conf_character WHERE roster_id = ?1 
+             FROM conf_character
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER), char_name",
         )?;
 
@@ -211,7 +213,8 @@ impl TodoRepository {
             "SELECT char_id, content_id, current_value 
              FROM rested_values 
              WHERE char_id IN (
-                 SELECT char_id FROM conf_character WHERE roster_id = ?1
+                 SELECT char_id FROM conf_character
+                 WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              )",
         )?;
 

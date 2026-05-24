@@ -534,7 +534,7 @@
     const availability = getCurrentAvailabilityStatus();
 
     if (availability.gate && availability.boss) {
-      return 'Chaos Gate + Field Boss';
+      return 'Chaos Gate | Field Boss';
     }
 
     if (availability.gate) {
@@ -563,18 +563,19 @@
     return eventIds;
   }
 
-  function getCurrentCalendarEventIcon(): string {
+  function getCurrentCalendarEventIcons(): string[] {
     const availability = getCurrentAvailabilityStatus();
+    const icons: string[] = [];
 
     if (availability.gate) {
-      return '/images/chaos_gate.png';
+      icons.push('/images/chaos_gate.png');
     }
 
     if (availability.boss) {
-      return '/images/boss.png';
+      icons.push('/images/boss.png');
     }
 
-    return 'images/calendar_7743808.png';
+    return icons.length > 0 ? icons : ['images/calendar_7743808.png'];
   }
 
 </script>
@@ -646,121 +647,135 @@
     <div class="header-stats">
       {#if totalRaidsPossible > 0}
       <div class="stat-card">
-        <div class="stat-icon">
-          <img src="/images/kazeros-raid.webp" alt="Raids" />
-        </div>
-        <div class="stat-content">
-          <div class="stat-status" class:done={getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}>
-            {#if getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}
-              <span class="stat-status-text">All done</span>
-            {:else}
-              <span class="stat-open-count">{getOpenCount(totalRaidsCompleted, totalRaidsPossible)}</span>
-              <span class="stat-open-label">open</span>
-            {/if}
+        <div class="stat-card-main">
+          <div class="stat-icon">
+            <img src="/images/kazeros-raid.webp" alt="Raids" />
           </div>
-          <div class="stat-label">Raids</div>
+          <div class="stat-content">
+            <div class="stat-status" class:done={getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}>
+              {#if getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}
+                <span class="stat-status-text">All done</span>
+              {:else}
+                <span class="stat-open-count">{getOpenCount(totalRaidsCompleted, totalRaidsPossible)}</span>
+                <span class="stat-open-label">open</span>
+              {/if}
+            </div>
+          </div>
         </div>
+        <div class="stat-label">Raids</div>
       </div>
       {/if}
       {#if totalDailiesTracked > 0}
       <div class="stat-card">
-        <div class="stat-icon">
-          <img src="/images/icons8-last-24-hours-80.png" alt="Dailies" />
-        </div>
-        <div class="stat-content">
-          <div
-            class="stat-status"
-            class:done={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
-            class:idle={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
-          >
-            {#if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
-              <span class="stat-status-text">Resting</span>
-            {:else if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
-              <span class="stat-status-text">All done</span>
-            {:else}
-              <span class="stat-open-count">{getOpenCount(totalDailiesCompleted, totalDailiesPossible)}</span>
-              <span class="stat-open-label">open</span>
-            {/if}
+        <div class="stat-card-main">
+          <div class="stat-icon">
+            <img src="/images/icons8-last-24-hours-80.png" alt="Dailies" />
           </div>
-          <div class="stat-label">Dailies</div>
+          <div class="stat-content">
+            <div
+              class="stat-status"
+              class:done={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
+              class:idle={getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
+            >
+              {#if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'idle'}
+                <span class="stat-status-text">Resting</span>
+              {:else if getOpenStatusKind(totalDailiesCompleted, totalDailiesPossible, totalDailiesTracked) === 'done'}
+                <span class="stat-status-text">All done</span>
+              {:else}
+                <span class="stat-open-count">{getOpenCount(totalDailiesCompleted, totalDailiesPossible)}</span>
+                <span class="stat-open-label">open</span>
+              {/if}
+            </div>
+          </div>
         </div>
+        <div class="stat-label">Dailies</div>
       </div>
       {/if}
       {#if totalWeekliesPossible > 0}
       <div class="stat-card">
-        <div class="stat-icon">
-          <img src="images/calendar_7743808.png" alt="Weeklies" />
-        </div>
-        <div class="stat-content">
-          <div class="stat-status" class:done={getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}>
-            {#if getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}
-              <span class="stat-status-text">All done</span>
-            {:else}
-              <span class="stat-open-count">{getOpenCount(totalWeekliesCompleted, totalWeekliesPossible)}</span>
-              <span class="stat-open-label">open</span>
-            {/if}
+        <div class="stat-card-main">
+          <div class="stat-icon">
+            <img src="images/calendar_7743808.png" alt="Weeklies" />
           </div>
-          <div class="stat-label">Weeklies</div>
+          <div class="stat-content">
+            <div class="stat-status" class:done={getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}>
+              {#if getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}
+                <span class="stat-status-text">All done</span>
+              {:else}
+                <span class="stat-open-count">{getOpenCount(totalWeekliesCompleted, totalWeekliesPossible)}</span>
+                <span class="stat-open-label">open</span>
+              {/if}
+            </div>
+          </div>
         </div>
+        <div class="stat-label">Weeklies</div>
       </div>
       {/if}
-      <div class="stat-card">
-        <div class="stat-icon">
-          <img src={getCurrentCalendarEventIcon()} alt="Calendar Event" />
-        </div>
-        <div class="stat-content">
-          <div
-            class="stat-status"
-            class:done={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
-            class:empty={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
-          >
-            {#if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
-              <span class="stat-status-text">No event</span>
-            {:else if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
-              <span class="stat-status-text">All done</span>
-            {:else}
-              <span class="stat-open-count">{getOpenCount(totalCalendarEventsCompleted, totalCalendarEventsPossible)}</span>
-              <span class="stat-open-label">open</span>
-            {/if}
+      <div class="stat-card calendar-event-card">
+        <div class="stat-card-main">
+          <div class="stat-icon event-icon-stack">
+            {#each getCurrentCalendarEventIcons() as icon, iconIndex}
+              <img src={icon} alt="Calendar Event" style={`--event-icon-index: ${iconIndex}`} />
+            {/each}
           </div>
-          <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
+          <div class="stat-content">
+            <div
+              class="stat-status"
+              class:done={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
+              class:empty={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
+            >
+              {#if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
+                <span class="stat-status-text">No event</span>
+              {:else if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
+                <span class="stat-status-text">All done</span>
+              {:else}
+                <span class="stat-open-count">{getOpenCount(totalCalendarEventsCompleted, totalCalendarEventsPossible)}</span>
+                <span class="stat-open-label">open</span>
+              {/if}
+            </div>
+          </div>
         </div>
+        <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
       </div>
       {#if totalArgeosTracked > 0}
       <div class="stat-card">
-        <div class="stat-icon">
-          <img src="/images/event_quest.webp" alt="Stoopid Argeos" />
-        </div>
-        <div class="stat-content">
-          <div
-            class="stat-status"
-            class:done={getArgeosStatusKind() === 'done'}
-            class:idle={getArgeosStatusKind() === 'today'}
-          >
-            {#if getArgeosStatusKind() === 'done'}
-              <span class="stat-status-text">Fully done</span>
-            {:else if getArgeosStatusKind() === 'today'}
-              <span class="stat-status-text">Done today</span>
-            {:else if getArgeosStatusKind() === 'open'}
-              <span class="stat-open-count">{totalArgeosAvailableToday}</span>
-              <span class="stat-open-label">open</span>
-            {:else}
-              <span class="stat-status-text">Not tracked</span>
-            {/if}
+        <div class="stat-card-main">
+          <div class="stat-icon">
+            <img src="/images/event_quest.webp" alt="Stoopid Argeos" />
           </div>
-          <div class="stat-label event-name">Stoopid Argeos</div>
+          <div class="stat-content">
+            <div
+              class="stat-status"
+              class:done={getArgeosStatusKind() === 'done'}
+              class:idle={getArgeosStatusKind() === 'today'}
+            >
+              {#if getArgeosStatusKind() === 'done'}
+                <span class="stat-status-text">Fully done</span>
+              {:else if getArgeosStatusKind() === 'today'}
+                <span class="stat-status-text">Done today</span>
+              {:else if getArgeosStatusKind() === 'open'}
+                <span class="stat-open-count">{totalArgeosAvailableToday}</span>
+                <span class="stat-open-label">open</span>
+              {:else}
+                <span class="stat-status-text">Not tracked</span>
+              {/if}
+            </div>
+          </div>
         </div>
+        <div class="stat-label event-name">Stoopid Argeos</div>
       </div>
       {/if}
       {#if visibleCharacters.some(c => c.earns_gold)}
       <div class="stat-card">
-        <div class="stat-icon">
-          <img src="/images/gold.png" alt="Gold Earners" />
+        <div class="stat-card-main">
+          <div class="stat-icon">
+            <img src="/images/gold.png" alt="Gold Earners" />
+          </div>
+          <div class="stat-content">
+            <div class="stat-value">{visibleCharacters.filter(c => c.earns_gold).length}</div>
+          </div>
         </div>
-        <div class="stat-content">
-          <div class="stat-value">{visibleCharacters.filter(c => c.earns_gold).length}</div>
-          <div class="stat-label">Gold Earners</div>
-        </div>
+        <div class="stat-label">Gold Earners</div>
       </div>
       {/if}
     </div>
@@ -1088,24 +1103,40 @@
   }
 
   .stat-card {
-    flex: 0 1 132px;
-    min-width: 112px;
-    max-width: 148px;
+    flex: 0 1 138px;
+    min-width: 118px;
+    max-width: 156px;
     box-sizing: border-box;
     background: var(--surface-variant);
     border: 1px solid rgba(255, 140, 0, 0.25);
     border-radius: 8px;
-    padding: 0.42rem 0.52rem;
+    padding: 0.38rem 0.48rem 0.34rem;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
+    gap: 0.14rem;
+  }
+
+  .stat-card-main {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 22px;
+    align-items: center;
+    column-gap: 0.12rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .stat-card-main::after {
+    content: "";
+    width: 22px;
+    height: 1px;
   }
 
   .stat-icon {
-    width: 26px;
-    height: 26px;
-    flex: 0 0 26px;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1114,15 +1145,29 @@
   }
 
   .stat-icon img {
-    width: 17px;
-    height: 17px;
+    width: 15px;
+    height: 15px;
     object-fit: contain;
+  }
+
+  .event-icon-stack {
+    position: relative;
+  }
+
+  .event-icon-stack img {
+    position: absolute;
+    left: calc(var(--event-icon-index, 0) * 7px);
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
   }
 
   .stat-content {
     flex: 1;
     min-width: 0;
     text-align: center;
+    display: flex;
+    justify-content: center;
   }
 
   .stat-value {
@@ -1180,25 +1225,26 @@
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.64rem;
+    font-size: 0.61rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0;
   }
 
   .stat-label {
-    font-size: 0.62rem;
+    align-self: stretch;
+    font-size: 0.54rem;
     color: var(--on-surface-variant);
-    margin-top: 0.16rem;
+    margin-top: 0;
     text-align: center;
-    white-space: nowrap;
-  }
-
-  .stat-label.event-name {
-    font-size: 0.62rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1;
+  }
+
+  .stat-label.event-name {
+    font-size: 0.54rem;
   }
 
   /* Characters Grid */

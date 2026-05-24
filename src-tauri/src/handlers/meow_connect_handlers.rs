@@ -83,6 +83,7 @@ pub async fn get_meow_connect_local_snapshot(
                     COALESCE(meow_connect_enabled, 0)
              FROM conf_character
              WHERE COALESCE(meow_connect_enabled, 0) = 1
+               AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY roster_display_order, CAST(display_order AS INTEGER), char_name, char_id",
         )
         .map_err(|e| e.to_string())?;
@@ -125,7 +126,9 @@ pub async fn get_meow_connect_local_snapshot(
              FROM completion_status
              WHERE (timestamp IS NULL OR timestamp >= ?1)
                AND char_id IN (
-                 SELECT char_id FROM conf_character WHERE COALESCE(meow_connect_enabled, 0) = 1
+                 SELECT char_id FROM conf_character
+                 WHERE COALESCE(meow_connect_enabled, 0) = 1
+                   AND COALESCE(removed_from_roster, 0) = 0
                )
              ORDER BY timestamp DESC, rowid DESC",
         )
@@ -165,7 +168,9 @@ pub async fn get_meow_connect_local_snapshot(
                     MAX(COALESCE(reserved_for_static, 0))
              FROM conf_raid
              WHERE char_id IN (
-               SELECT char_id FROM conf_character WHERE COALESCE(meow_connect_enabled, 0) = 1
+               SELECT char_id FROM conf_character
+               WHERE COALESCE(meow_connect_enabled, 0) = 1
+                 AND COALESCE(removed_from_roster, 0) = 0
              )
              GROUP BY roster_id, char_id, content_id, difficulty",
         )

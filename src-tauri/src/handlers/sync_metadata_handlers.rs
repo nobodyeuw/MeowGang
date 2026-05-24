@@ -108,7 +108,11 @@ pub fn get_rosters_needing_daily_scrape(todo_repo: &TodoRepository) -> Result<Ve
 
     // Get all unique roster IDs
     let mut stmt = conn
-        .prepare("SELECT DISTINCT roster_id FROM conf_character WHERE roster_id IS NOT NULL")
+        .prepare(
+            "SELECT DISTINCT roster_id
+             FROM conf_character
+             WHERE roster_id IS NOT NULL AND COALESCE(removed_from_roster, 0) = 0",
+        )
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
     let roster_iter = stmt
@@ -210,14 +214,9 @@ async fn scrape_roster_for_updates(todo_repo: &TodoRepository, roster_id: &str) 
     // Scrape the entire roster at once
     match scraper.scrape_roster().await {
         Ok(scraper_result) => {
-            // Update each character from the scraped data
+            // Upsert each character from the scraped data so new roster members are added too.
             for scraped_char in scraper_result.mapped_for_models.roster.characters {
-                if update_character_stats(
-                    todo_repo,
-                    &scraped_char.char_name,
-                    scraped_char.item_level,
-                    scraped_char.combat_power,
-                )? {
+                if upsert_scraped_character(todo_repo, &scraped_char, roster_id)? {
                     updated_count += 1;
                 }
             }
@@ -238,7 +237,11 @@ pub fn get_characters_for_roster(todo_repo: &TodoRepository, roster_id: &str) ->
         .map_err(|e| format!("Database connection failed: {}", e))?;
 
     let mut stmt = conn
-        .prepare("SELECT char_name, char_id FROM conf_character WHERE roster_id = ?1")
+        .prepare(
+            "SELECT char_name, char_id
+             FROM conf_character
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0",
+        )
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
     let char_iter = stmt
@@ -287,6 +290,54 @@ pub fn update_character_stats(
             params![formatted_item_level, combat_power, char_name],
         )
         .map_err(|e| format!("Failed to update character: {}", e))?;
+
+    Ok(rows_affected > 0)
+}
+
+/// Insert newly discovered characters and refresh existing scraper-managed stats.
+pub fn upsert_scraped_character(
+    todo_repo: &TodoRepository,
+    character: &crate::roster::Character,
+    roster_id: &str,
+) -> Result<bool, String> {
+    let conn = todo_repo
+        .pool
+        .get()
+        .map_err(|e| format!("Database connection failed: {}", e))?;
+
+    let formatted_item_level = (character.item_level * 100.0).round() / 100.0;
+
+    let rows_affected = conn
+        .execute(
+            "INSERT INTO conf_character
+             (char_id, char_name, roster_id, roster_name, class_id, item_level,
+              combat_power, display_order, roster_display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name)
+             VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6, ?7,
+                     COALESCE((SELECT MIN(roster_display_order) FROM conf_character WHERE roster_id = ?3), 0),
+                     ?8, ?9, ?10, ?11)
+             ON CONFLICT(char_id) DO UPDATE SET
+               char_name = excluded.char_name,
+               roster_id = excluded.roster_id,
+               roster_name = excluded.roster_name,
+               class_id = excluded.class_id,
+               item_level = excluded.item_level,
+               combat_power = excluded.combat_power,
+               class_display_name = excluded.class_display_name",
+            params![
+                character.char_id,
+                character.char_name,
+                roster_id,
+                character.class_id,
+                formatted_item_level,
+                character.combat_power,
+                character.display_order,
+                character.earns_gold,
+                false,
+                character.meow_connect_enabled,
+                character.class_display_name.as_deref()
+            ],
+        )
+        .map_err(|e| format!("Failed to upsert scraped character: {}", e))?;
 
     Ok(rows_affected > 0)
 }

@@ -21,6 +21,7 @@ impl RosterRepository {
                     COALESCE(MIN(roster_display_order), 0) as roster_display_order,
                     NULL as last_updated
              FROM conf_character
+             WHERE COALESCE(removed_from_roster, 0) = 0
              GROUP BY roster_id
              ORDER BY roster_display_order, roster_name",
         )?;
@@ -45,9 +46,9 @@ impl RosterRepository {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT char_id, char_name, roster_id, roster_name, class_id, item_level, 
-                    combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard, meow_connect_enabled
+                    combat_power, CAST(display_order AS INTEGER), earns_gold, hide_from_dashboard, meow_connect_enabled, COALESCE(removed_from_roster, 0)
              FROM conf_character 
-             WHERE roster_id = ?1 
+             WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER), char_name",
         )?;
 
@@ -64,6 +65,7 @@ impl RosterRepository {
                 earns_gold: row.get(8)?,
                 hide_from_dashboard: row.get(9)?,
                 meow_connect_enabled: row.get(10)?,
+                removed_from_roster: row.get(11)?,
                 class_display_name: None,
             })
         })?;
@@ -94,9 +96,7 @@ impl RosterRepository {
                    roster_name = excluded.roster_name,
                    class_id = excluded.class_id,
                    item_level = excluded.item_level,
-                   combat_power = excluded.combat_power,
-                   display_order = excluded.display_order,
-                   earns_gold = excluded.earns_gold",
+                   combat_power = excluded.combat_power",
                 params![
                     character.char_id,
                     character.char_name,

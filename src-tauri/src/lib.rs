@@ -235,7 +235,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 14;
+            const TARGET_VERSION: i32 = 15;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -336,11 +336,10 @@ pub fn run() {
                                     let mut updated_count = 0;
                                     for scraped_char in scraper_result.mapped_for_models.roster.characters {
                                         if let Ok(true) =
-                                            crate::handlers::sync_metadata_handlers::update_character_stats(
+                                            crate::handlers::sync_metadata_handlers::upsert_scraped_character(
                                                 &*todo_repo_for_scraping,
-                                                &scraped_char.char_name,
-                                                scraped_char.item_level,
-                                                scraped_char.combat_power,
+                                                &scraped_char,
+                                                &roster_id,
                                             )
                                         {
                                             updated_count += 1;

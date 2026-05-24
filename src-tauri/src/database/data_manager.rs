@@ -411,6 +411,13 @@ impl DataManager {
             )?;
         }
 
+        if current_version < 15 && !Self::column_exists(&tx, "conf_character", "removed_from_roster") {
+            tx.execute(
+                "ALTER TABLE conf_character ADD COLUMN removed_from_roster BOOLEAN DEFAULT 0",
+                [],
+            )?;
+        }
+
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;
         println!(
