@@ -34,6 +34,9 @@
   let currentTime = Date.now();
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let scrapeStatusRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  let deleteConfirmCharacter: Character | null = null;
+  let deleteConfirmRemaining = 0;
+  let deleteConfirmTimer: ReturnType<typeof setInterval> | null = null;
 
   // Load all characters for all rosters on component mount
   onMount(async () => {
@@ -51,6 +54,7 @@
   onDestroy(() => {
     if (countdownTimer) clearInterval(countdownTimer);
     if (scrapeStatusRefreshTimer) clearInterval(scrapeStatusRefreshTimer);
+    if (deleteConfirmTimer) clearInterval(deleteConfirmTimer);
   });
 
   async function loadAllCharacters() {
@@ -605,9 +609,31 @@
     }
   }
 
-  async function softRemoveCharacter(char: any) {
-    const confirmed = window.confirm(`Remove ${char.char_name} from this roster view? This only hides the character locally.`);
-    if (!confirmed) return;
+  function requestSoftRemoveCharacter(char: Character) {
+    deleteConfirmCharacter = char;
+    deleteConfirmRemaining = 5;
+    if (deleteConfirmTimer) clearInterval(deleteConfirmTimer);
+    deleteConfirmTimer = setInterval(() => {
+      deleteConfirmRemaining = Math.max(deleteConfirmRemaining - 1, 0);
+      if (deleteConfirmRemaining === 0 && deleteConfirmTimer) {
+        clearInterval(deleteConfirmTimer);
+        deleteConfirmTimer = null;
+      }
+    }, 1000);
+  }
+
+  function cancelSoftRemoveCharacter() {
+    deleteConfirmCharacter = null;
+    deleteConfirmRemaining = 0;
+    if (deleteConfirmTimer) {
+      clearInterval(deleteConfirmTimer);
+      deleteConfirmTimer = null;
+    }
+  }
+
+  async function softRemoveCharacter() {
+    if (!deleteConfirmCharacter || deleteConfirmRemaining > 0) return;
+    const char = deleteConfirmCharacter;
 
     try {
       await updateCharacter(char.char_id, {
@@ -622,6 +648,7 @@
         successMessage = '';
         showSuccessMessage = false;
       }, 3000);
+      cancelSoftRemoveCharacter();
     } catch (err) {
       console.error("FRONTEND: Remove character failed:", err);
       successMessage = `Failed to remove ${char.char_name}.`;
@@ -806,7 +833,7 @@
               </button>
               <button
                 class="icon-btn remove-character"
-                on:click|stopPropagation={() => softRemoveCharacter(char)}
+                on:click|stopPropagation={() => requestSoftRemoveCharacter(char)}
                 title="Remove character from this roster view"
                 aria-label={`Remove ${char.char_name} from roster view`}
               >
@@ -827,6 +854,38 @@
     </div>
   {/if}
 </div>
+
+{#if deleteConfirmCharacter}
+  <div
+    class="dialog-overlay"
+    on:click={cancelSoftRemoveCharacter}
+    role="presentation"
+    on:keydown={(e) => e.key === 'Escape' && cancelSoftRemoveCharacter()}
+  >
+    <div class="dialog delete-character-dialog" on:click|stopPropagation role="dialog" tabindex="-1" aria-modal="true">
+      <div class="dialog-header delete-dialog-header">
+        <h3>🛑 Confirm Character Deletion</h3>
+        <button class="close-button" on:click={cancelSoftRemoveCharacter}>×</button>
+      </div>
+      <div class="dialog-content delete-dialog-content">
+        <p>
+          There is no restoring available. This character will be gone forever and wiped from existence from all active app tabs.
+        </p>
+        <p class="delete-character-name">{deleteConfirmCharacter.char_name}</p>
+      </div>
+      <div class="dialog-actions">
+        <button class="button secondary" on:click={cancelSoftRemoveCharacter}>Keep Them</button>
+        <button
+          class="button evaporate"
+          on:click={softRemoveCharacter}
+          disabled={deleteConfirmRemaining > 0}
+        >
+          {deleteConfirmRemaining > 0 ? `Evaporate (${deleteConfirmRemaining})` : 'Evaporate'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Rename Roster Dialog -->
 {#if showRenameRosterDialog}
@@ -1353,6 +1412,29 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
+  .delete-character-dialog {
+    max-width: 460px;
+  }
+
+  .delete-dialog-header h3 {
+    color: color-mix(in srgb, var(--md-sys-color-error) 78%, var(--md-sys-color-primary));
+  }
+
+  .delete-dialog-content {
+    color: var(--md-sys-color-on-surface);
+    line-height: 1.45;
+  }
+
+  .delete-dialog-content p {
+    margin: 0;
+  }
+
+  .delete-character-name {
+    margin-top: 1rem !important;
+    color: var(--md-sys-color-on-surface-variant);
+    font-weight: 700;
+  }
+
   .dialog-header {
     display: flex;
     justify-content: space-between;
@@ -1466,6 +1548,17 @@
   .button.secondary:hover:not(:disabled) {
     background: var(--md-sys-color-surface-container);
     border-color: var(--md-sys-color-primary);
+  }
+
+  .button.evaporate {
+    background: color-mix(in srgb, var(--md-sys-color-error) 82%, #000000);
+    color: var(--md-sys-color-on-error);
+  }
+
+  .button.evaporate:hover:not(:disabled) {
+    background: var(--md-sys-color-error);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--md-sys-color-error) 34%, transparent);
   }
 
   .button:disabled {

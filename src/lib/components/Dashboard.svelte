@@ -1294,22 +1294,41 @@
 
   .roster-section {
     --roster-border-color: rgba(255, 140, 0, 0.45);
+    --roster-hover-color: rgba(255, 190, 90, 0.55);
     box-sizing: border-box;
     background: var(--surface-variant);
     border-radius: 8px;
     padding: 0.7rem 0.75rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
     border: 1px solid var(--roster-border-color);
     position: relative;
     width: 100%;
     max-width: none;
   }
 
+  .roster-section::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    box-shadow:
+      inset 0 0 0 1px var(--roster-hover-color),
+      0 0 12px rgba(255, 190, 90, 0.16);
+  }
+
   .roster-section:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-    border-color: rgba(255, 140, 0, 0.5);
+    border-color: var(--roster-hover-color);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.1),
+      0 0 16px rgba(255, 190, 90, 0.12);
+  }
+
+  .roster-section:hover::after {
+    opacity: 1;
   }
 
   .roster-separator {

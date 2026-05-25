@@ -53,6 +53,7 @@
   let meowConnectFriendRequestRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let nextResetTime = '';
   let resetCountdown = '';
+  let showHeaderCountdown = true;
   let appReady = false;
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
@@ -104,6 +105,10 @@
       const customEvent = event as CustomEvent<boolean>;
       showSetupGuideButton = customEvent.detail;
     };
+    const handleHeaderCountdownChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<boolean>;
+      showHeaderCountdown = customEvent.detail;
+    };
     const handleMeowConnectConsentChanged = () => {
       refreshMeowConnectHeaderStatus();
       scheduleMeowConnectFriendRequestRefresh();
@@ -129,10 +134,12 @@
     let unlistenMeowConnectScrape: (() => void) | null = null;
 
     window.addEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
+    window.addEventListener('header-countdown:changed', handleHeaderCountdownChanged);
     window.addEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
     window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
     window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
     window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
+    refreshHeaderCountdownPreference();
     refreshMeowConnectFeatureSettings();
     refreshMeowConnectHeaderStatus();
 
@@ -162,6 +169,7 @@
       if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
       if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
+      window.removeEventListener('header-countdown:changed', handleHeaderCountdownChanged);
       window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
       window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
       window.removeEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
@@ -172,6 +180,10 @@
       clearInterval(meowConnectFriendRequestInterval);
     };
   });
+
+  function refreshHeaderCountdownPreference() {
+    showHeaderCountdown = localStorage.getItem('showHeaderCountdown') !== '0';
+  }
 
   async function checkStoredDiscordAuth() {
     try {
@@ -737,7 +749,7 @@
           >
             <img src="/images/LOAtracker_header.png" alt="LOA Tracker" class="app-title-logo" />
           </button>
-          {#if resetCountdown}
+          {#if showHeaderCountdown && resetCountdown}
             <div class="reset-countdown">{resetCountdown}</div>
           {/if}
           {#if meowConnectFeatureEnabled}
@@ -750,7 +762,7 @@
               title={meowConnectHeaderMessage}
             >
               <img src="/images/meowconnect_tab.png" alt="" />
-              <span>MeowConnect: {meowConnectHeaderLabel}</span>
+              <span>{meowConnectHeaderLabel}</span>
             </div>
           {/if}
           {#if pendingMeowConnectFriendRequests.length > 0}

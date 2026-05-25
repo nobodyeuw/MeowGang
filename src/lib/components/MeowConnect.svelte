@@ -144,7 +144,10 @@
   }));
   $: displayedRaidSections = raidSections;
   $: logEntries = buildMeowConnectLogEntries(localSnapshot, remoteSnapshots, visibleRaidIds, currentProfile).slice(0, 80);
-  $: acceptedFriendConnections = friendConnections.filter((connection) => connection.status === 'accepted');
+  $: acceptedFriendConnections = friendConnections
+    .filter((connection) => connection.status === 'accepted')
+    .sort(sortFriendConnections);
+  $: sortedFriendConnections = [...friendConnections].sort(sortFriendConnections);
   $: if (!togetherFriendSelectionInitialized && acceptedFriendConnections.length > 0) {
     selectedTogetherFriendIds = loadTogetherFriendSelectionIds(acceptedFriendConnections);
     togetherFriendSelectionInitialized = true;
@@ -305,12 +308,21 @@
       groups.set(key, group);
     }
 
-    return Array.from(groups.values()).sort((a, b) =>
-      Number(b.ownerId === 'local') - Number(a.ownerId === 'local') ||
-      b.openCount - a.openCount ||
-      a.reservedCount - b.reservedCount ||
-      a.ownerName.localeCompare(b.ownerName)
-    );
+    return Array.from(groups.values()).sort(sortProfileGroups);
+  }
+
+  function sortProfileGroups(a: ProfileRaidGroup, b: ProfileRaidGroup): number {
+    const aLocal = a.ownerId === 'local';
+    const bLocal = b.ownerId === 'local';
+    if (aLocal !== bLocal) return aLocal ? -1 : 1;
+
+    const aConnection = getFriendConnectionForProfile(a.ownerId, a.ownerName);
+    const bConnection = getFriendConnectionForProfile(b.ownerId, b.ownerName);
+    const aStatic = Boolean(aConnection?.sharesStatic);
+    const bStatic = Boolean(bConnection?.sharesStatic);
+    if (aStatic !== bStatic) return aStatic ? -1 : 1;
+
+    return a.ownerName.localeCompare(b.ownerName, undefined, { sensitivity: 'base' });
   }
 
   function openProfileGroup(group: ProfileRaidGroup) {
@@ -715,6 +727,34 @@
     };
   }
 
+  function sortFriendConnections(a: MeowConnectFriendConnection, b: MeowConnectFriendConnection): number {
+    if (a.sharesStatic !== b.sharesStatic) return a.sharesStatic ? -1 : 1;
+    const aIncoming = a.status === 'pending' && a.direction === 'incoming';
+    const bIncoming = b.status === 'pending' && b.direction === 'incoming';
+    if (aIncoming !== bIncoming) return aIncoming ? -1 : 1;
+    return getFriendDisplayName(a).localeCompare(getFriendDisplayName(b), undefined, { sensitivity: 'base' });
+  }
+
+  function getFriendDisplayName(connection: MeowConnectFriendConnection): string {
+    return connection.profile.displayName || connection.profile.userId || '';
+  }
+
+  function getFriendConnectionForProfile(ownerId: string, ownerName: string): MeowConnectFriendConnection | undefined {
+    const normalizedOwnerId = normalizeId(ownerId);
+    const normalizedOwnerName = normalizeName(ownerName);
+    return friendConnections.find((connection) => {
+      const ids = [
+        connection.profile.discordId,
+        connection.profile.userId,
+        connection.friendUserId,
+        connection.userId
+      ].map(normalizeId).filter(Boolean);
+
+      return ids.includes(normalizedOwnerId) ||
+        normalizeName(connection.profile.displayName) === normalizedOwnerName;
+    });
+  }
+
   function formatLogTime(timestamp: number) {
     if (!timestamp) return 'unknown';
     return new Date(timestamp).toLocaleString([], {
@@ -724,6 +764,34 @@
       minute: '2-digit',
       hour12: false
     });
+  }
+
+  function formatLogClock(timestamp: number) {
+    if (!timestamp) return 'unknown';
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
+
+  function formatLogTimeRange(entry: MeowConnectLogEntry) {
+    const start = entry.fightStart || entry.clearedAt || 0;
+    if (!start) return 'unknown';
+
+    if (entry.source === 'Manual') {
+      return formatLogTime(start);
+    }
+
+    const end = entry.clearedAt || (entry.fightStart ? entry.fightStart + Math.max(entry.duration || 0, 0) : start);
+    const startDay = new Date(start).toDateString();
+    const endDay = new Date(end).toDateString();
+
+    if (startDay === endDay) {
+      return `${formatLogTime(start)} - ${formatLogClock(end)}`;
+    }
+
+    return `${formatLogTime(start)} - ${formatLogTime(end)}`;
   }
 
   function getLogParticipants(entry: MeowConnectLogEntry): MeowConnectLogParticipant[] {
@@ -1253,7 +1321,7 @@
                       {entry.gate} ·
                     {/if}
                     {entry.source}
-                    · {formatLogTime(entry.clearedAt || entry.fightStart)}
+                    · {formatLogTimeRange(entry)}
                   </span>
                   <div class="log-character-line">
                     {#each getLogParticipantCharacters(entry) as character (character.key)}
@@ -1415,7 +1483,7 @@
             {#if friendConnections.length === 0}
               <p class="column-empty">No MeowConnect friends yet.</p>
             {:else}
-              {#each friendConnections as connection}
+              {#each sortedFriendConnections as connection}
                 <div class:incoming={connection.status === 'pending' && connection.direction === 'incoming'} class="friend-row">
                   {#if connection.profile.avatarUrl}
                     <img src={connection.profile.avatarUrl} alt="" />
@@ -2057,8 +2125,10 @@
 
   .availability-card.shared-static {
     opacity: 1;
-    border-color: color-mix(in srgb, var(--md-sys-color-primary) 42%, var(--md-sys-color-outline));
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 34%, var(--md-sys-color-surface));
+    border-color: color-mix(in srgb, #22c55e 30%, var(--md-sys-color-outline));
+    background:
+      linear-gradient(90deg, color-mix(in srgb, #22c55e 10%, transparent), transparent 58%),
+      color-mix(in srgb, var(--md-sys-color-surface-variant) 62%, var(--md-sys-color-surface));
   }
 
   .availability-card.cleared {
@@ -2778,5 +2848,3 @@
     }
   }
 </style>
-
-

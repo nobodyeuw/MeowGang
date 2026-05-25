@@ -355,22 +355,32 @@
       class:has-labels={hasCompactLabels}
       class:has-weeklies={compactWeeklyTasks.length > 0}
     >
-      <div class="compact-identity">
+      <button
+        type="button"
+        class="compact-identity identity-link"
+        on:click={handleCharacterClick}
+        title={`Open ${character.char_name} in To Do`}
+      >
         <img
           src={getClassIconUrl(iconId)}
           alt={displayName}
           class="class-icon compact-class-icon"
           on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <button type="button" class="character-name compact-name name-link" on:click={handleCharacterClick}>
+        <span class="character-name compact-name">
           {character.char_name}
-        </button>
-      </div>
+        </span>
+      </button>
 
-      <div class="compact-stats">
+      <button
+        type="button"
+        class="compact-stats stats-link"
+        on:click={handleCharacterClick}
+        title={`Open ${character.char_name} in To Do`}
+      >
         <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
         <span class="combat-power">CP {formatCombatPower(character.combat_power)}</span>
-      </div>
+      </button>
 
       {#if hasCompactLabels || chaosConfigured || guardianConfigured}
         <div class="compact-daily-icons" aria-label="Daily task status">
@@ -523,7 +533,12 @@
     <!-- Interactive Header -->
     <div class="card-header">
       <div class="character-info">
-        <div class="class-section">
+        <button
+          type="button"
+          class="class-section identity-link"
+          on:click={handleCharacterClick}
+          title={`Open ${character.char_name} in To Do`}
+        >
           <img
             src={getClassIconUrl(iconId)}
             alt={displayName}
@@ -531,15 +546,15 @@
             on:error={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
           <div class="character-details">
-            <button type="button" class="character-name name-link" on:click={handleCharacterClick}>
+            <span class="character-name">
               {character.char_name}
-            </button>
+            </span>
             <div class="character-stats">
               <span class="item-level">iLvl {formatItemLevel(character.item_level)}</span>
               <span class="combat-power">CP {formatCombatPower(character.combat_power)}</span>
             </div>
           </div>
-        </div>
+        </button>
             </div>
     </div>
 
@@ -826,6 +841,22 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .identity-link,
+  .stats-link {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    text-align: left;
+  }
+
+  .identity-link:hover .character-name {
+    color: var(--primary);
+  }
+
   .character-card.compact:not(.minimal-card) .compact-stats .item-level {
     width: 4.9rem;
   }
@@ -1018,6 +1049,7 @@
     align-items: center;
     gap: 0.6rem;
     min-width: 0;
+    width: 100%;
   }
 
   .class-icon {
@@ -1045,20 +1077,6 @@
     font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.2;
-  }
-
-  .name-link {
-    appearance: none;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-family: inherit;
-    padding: 0;
-    text-align: left;
-  }
-
-  .name-link:hover {
-    color: var(--primary);
   }
 
   .character-card.minimal-card:not(.compact) .character-name {

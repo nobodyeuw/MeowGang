@@ -27,6 +27,7 @@
   let startWithLoaLogs = false;
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
+  let showHeaderCountdown = true;
   let meowConnectEnabled = true;
   let meowConnectRealtimeEnabled = true;
   let dashboardView: 'cards' | 'compact' = 'compact';
@@ -79,6 +80,7 @@
       startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
+      showHeaderCountdown = localStorage.getItem('showHeaderCountdown') !== '0';
       meowConnectEnabled = isMeowConnectFeatureEnabled();
       meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
       dashboardView = localStorage.getItem('dashboardView') === 'cards' ? 'cards' : 'compact';
@@ -242,6 +244,14 @@
     } catch (err) {
       showError(`Failed to update welcome screen: ${err}`);
     }
+  }
+
+  function toggleHeaderCountdown() {
+    const newValue = !showHeaderCountdown;
+    showHeaderCountdown = newValue;
+    localStorage.setItem('showHeaderCountdown', newValue ? '1' : '0');
+    window.dispatchEvent(new CustomEvent('header-countdown:changed', { detail: newValue }));
+    showSuccess(`Header countdown ${newValue ? 'shown' : 'hidden'}!`);
   }
 
   function toggleMeowConnectEnabled() {
@@ -490,6 +500,29 @@
                   type="checkbox"
                   checked={showAuthWelcome}
                   on:change={toggleAuthWelcome}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Show Header Countdown</h4>
+                <p>Show daily and weekly reset timing in the app header</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={showHeaderCountdown}
+                  on:change={toggleHeaderCountdown}
                 />
                 <span class="toggle-slider"></span>
               </label>

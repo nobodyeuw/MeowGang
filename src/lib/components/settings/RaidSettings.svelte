@@ -1,10 +1,13 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from 'svelte';
   import { activeRosterId } from '$lib/store';
   import { RAIDS } from '$lib/data/raids';
   import { GAME_CLASSES } from '$lib/data/classes';
   import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
   import { markMeowConnectUnsyncedChanges } from '$lib/services/meow-connect';
+
+  const COLLAPSE_UNTRACKED_RAID_ROWS_STORAGE_KEY = 'raidSettings.collapseUntrackedRows';
 
   // Interfaces
   interface RaidGate {
@@ -45,6 +48,7 @@
     class_id: string;
     earns_gold: boolean;
     raid_configs: RaidConfig[];
+    tracked_raid_ids: string[];
     available_difficulties: string[];
     master_difficulty: string;
     is_locked: boolean;
@@ -70,6 +74,7 @@
   let showSuccessMessage = false;
   let expandedRaids = new Set<string>();
   let lastLoadedRosterId: string = '';
+  let collapseUntrackedRaidRows = loadCollapseUntrackedRaidRows();
   
   // Reactive checkbox states to force UI updates
   let checkboxUpdateTrigger = 0;
@@ -78,8 +83,45 @@
   $: matrixData = {
     character_states: raidMatrix.length > 0 ? raidMatrix[0].characters : []
   };
+  $: visibleRaidMatrix = collapseUntrackedRaidRows ? raidMatrix.filter(isRaidRowEnabled) : raidMatrix;
+  $: hasHiddenRaidRows = raidMatrix.some((raid) => !isRaidRowEnabled(raid));
   
   let raidsToDisplay = RAIDS;
+
+  function loadCollapseUntrackedRaidRows(): boolean {
+    try {
+      return localStorage.getItem(COLLAPSE_UNTRACKED_RAID_ROWS_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function setCollapseUntrackedRaidRows(value: boolean) {
+    collapseUntrackedRaidRows = value;
+    try {
+      localStorage.setItem(COLLAPSE_UNTRACKED_RAID_ROWS_STORAGE_KEY, value ? '1' : '0');
+    } catch {
+      // Ignore storage failures; the in-memory view state still updates.
+    }
+  }
+
+  function isRaidRowEnabled(raid: RaidMatrixData): boolean {
+    return raid.characters.some((char) => {
+      if ((char.tracked_raid_ids || []).includes(raid.content_id)) return true;
+      const config = char.raid_configs.find((raidConfig) => raidConfig.content_id === raid.content_id);
+      return Boolean(config?.gates?.some((gate: any) => gate.take_gold || gate.buy_box || gate.reserved_for_static));
+    });
+  }
+
+  function getTrackedRaidIdsForCharacter(trackingStates: any[], charId: number): string[] {
+    return trackingStates
+      .filter((state: any) =>
+        state.char_id === charId &&
+        state.tracked === true &&
+        RAIDS.some((raid) => raid.id === state.content_id)
+      )
+      .map((state: any) => state.content_id);
+  }
 
   // Group raids by content_id and process data
   function processRaidData() {
@@ -127,10 +169,17 @@
         throw new Error('No active roster selected');
       }
       
-      // Get characters and their raid configurations
-      const result = await invoke('get_raid_matrix_data', { 
-        rosterId: $activeRosterId 
-      });
+      // Get characters, their raid configuration, and tracking state.
+      const [result, trackingMatrix] = await Promise.all([
+        invoke('get_raid_matrix_data', {
+          rosterId: $activeRosterId
+        }),
+        invoke<any>('get_tracking_config_matrix', {
+          rosterId: $activeRosterId,
+          tasks: [],
+          raids: []
+        })
+      ]);
       
       const { characters, raid_configs } = result as { characters: any[], raid_configs: any[] };
       
@@ -141,6 +190,7 @@
       }
       
       const raidGroups = processRaidData();
+      const trackingStates = trackingMatrix?.character_states || [];
       
       // Transform raids and sort by min_ilvl, grouping by base name
     const raidsMap = new Map<string, Raid[]>();
@@ -206,6 +256,7 @@
               class_id: char.class_id,
               earns_gold: char.earns_gold,
               raid_configs: [],
+              tracked_raid_ids: getTrackedRaidIdsForCharacter(trackingStates, char.char_id),
               available_difficulties: [],
               master_difficulty: '',
               is_locked: true,
@@ -249,6 +300,7 @@
               ...config,
               gates: config.gates ? config.gates.map((gate: any) => ({ ...gate })) : []
             })),
+            tracked_raid_ids: getTrackedRaidIdsForCharacter(trackingStates, char.char_id),
             available_difficulties: availableDifficulties,
             master_difficulty: masterDifficulty,
             is_locked: availableDifficulties.length === 0,
@@ -1205,6 +1257,20 @@
     lastLoadedRosterId = $activeRosterId;
     loadRaidConfiguration();
   }
+
+  onMount(() => {
+    const handleTrackingConfigChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      if (detail?.type === 'raid' && $activeRosterId) {
+        void loadRaidConfiguration();
+      }
+    };
+
+    window.addEventListener('tracking-config-changed', handleTrackingConfigChanged);
+    return () => {
+      window.removeEventListener('tracking-config-changed', handleTrackingConfigChanged);
+    };
+  });
 </script>
 
 <div class="raid-matrix-settings">
@@ -1237,7 +1303,22 @@
         <table class="raid-matrix">
           <thead>
             <tr class="header-row">
-              <th class="sticky-col first-col">Raid \ Character</th>
+              <th class="sticky-col first-col">
+                <div class="matrix-corner-header">
+                  <span>Raid \ Character</span>
+                  {#if hasHiddenRaidRows}
+                    <button
+                      type="button"
+                      class:active={collapseUntrackedRaidRows}
+                      class="collapse-empty-rows-btn"
+                      title={collapseUntrackedRaidRows ? 'Show untracked raids' : 'Hide untracked raids'}
+                      on:click={() => setCollapseUntrackedRaidRows(!collapseUntrackedRaidRows)}
+                    >
+                      {collapseUntrackedRaidRows ? '+' : '-'}
+                    </button>
+                  {/if}
+                </div>
+              </th>
               {#each raidMatrix[0]?.characters || [] as char}
                 <th class="char-header sticky-col">
                   <div class="char-info">
@@ -1258,7 +1339,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each raidMatrix as raid (raid.unique_key || raid.content_id)}
+            {#each visibleRaidMatrix as raid (raid.unique_key || raid.content_id)}
               <!-- Master Row -->
               <tr class="master-row">
                 <td class="raid-name-cell sticky-col first-col">
@@ -1554,6 +1635,31 @@
 
   .header-row th.first-col {
     z-index: 30;
+  }
+
+  .matrix-corner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+
+  .collapse-empty-rows-btn {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 6px;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .collapse-empty-rows-btn.active {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface-container-high));
   }
 
   .char-header {

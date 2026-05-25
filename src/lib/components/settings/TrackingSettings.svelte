@@ -6,6 +6,8 @@
   import { RAIDS } from '$lib/data/raids';
   import RosterButtonGroup from '$lib/components/common/RosterButtonGroup.svelte';
 
+  const COLLAPSE_UNTRACKED_ROWS_STORAGE_KEY = 'trackingSettings.collapseUntrackedRows';
+
   let selectedCharacterId: number | null = null;
 
   let matrixData: any | null = null;
@@ -14,6 +16,17 @@
   let lastLoadedRosterId: string = '';
   let warningMessage = '';
   let rosterEventProgress: Record<string, RosterEventProgress> = {};
+  let collapseUntrackedRows = loadCollapseUntrackedRows();
+  $: visibleDailyTasks = getVisibleTrackingRows(matrixData?.daily_tasks || [], collapseUntrackedRows);
+  $: visibleWeeklyTasks = getVisibleTrackingRows(matrixData?.weekly_tasks || [], collapseUntrackedRows);
+  $: visibleRosterTasks = getVisibleTrackingRows(matrixData?.roster_tasks || [], collapseUntrackedRows);
+  $: visibleRaids = getVisibleTrackingRows(matrixData?.raids || [], collapseUntrackedRows);
+  $: hasHiddenTrackingRows = Boolean(matrixData) && [
+    ...(matrixData?.daily_tasks || []),
+    ...(matrixData?.weekly_tasks || []),
+    ...(matrixData?.roster_tasks || []),
+    ...(matrixData?.raids || [])
+  ].some((row: any) => !isTrackingRowEnabled(row));
 
   interface RosterEventProgress {
     task_id: string;
@@ -25,6 +38,31 @@
 
   function isRosterEventTask(taskId: string): boolean {
     return taskId === 'event_argeos_winter';
+  }
+
+  function loadCollapseUntrackedRows(): boolean {
+    try {
+      return localStorage.getItem(COLLAPSE_UNTRACKED_ROWS_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function setCollapseUntrackedRows(value: boolean) {
+    collapseUntrackedRows = value;
+    try {
+      localStorage.setItem(COLLAPSE_UNTRACKED_ROWS_STORAGE_KEY, value ? '1' : '0');
+    } catch {
+      // Ignore storage failures; the in-memory view state still updates.
+    }
+  }
+
+  function getVisibleTrackingRows(rows: any[], collapseRows: boolean) {
+    return collapseRows ? rows.filter(isTrackingRowEnabled) : rows;
+  }
+
+  function isTrackingRowEnabled(row: any): boolean {
+    return (row?.character_states || []).some((state: any) => state.tracked === true);
   }
 
   async function loadRosterEventProgress() {
@@ -367,6 +405,9 @@
         };
       });
       matrixData = { ...matrixData };
+      window.dispatchEvent(new CustomEvent('tracking-config-changed', {
+        detail: { type: 'raid', characterId: charId, contentId: raidId, tracked: newState }
+      }));
        
     } catch (err) {
       console.error('Failed to toggle raid:', err);
@@ -489,6 +530,9 @@
         });
       }
       matrixData = { ...matrixData };
+      window.dispatchEvent(new CustomEvent('tracking-config-changed', {
+        detail: { type: 'raid', contentId: raidId, tracked: newState }
+      }));
       
     } catch (err) {
       console.error('Failed to toggle all characters for raid:', err);
@@ -575,7 +619,22 @@
         <table class="tracking-matrix">
           <thead>
             <tr class="header-row">
-              <th class="sticky-col first-col">Tasks/Character</th>
+              <th class="sticky-col first-col">
+                <div class="matrix-corner-header">
+                  <span>Tasks/Character</span>
+                  {#if hasHiddenTrackingRows}
+                    <button
+                      type="button"
+                      class:active={collapseUntrackedRows}
+                      class="collapse-empty-rows-btn"
+                      title={collapseUntrackedRows ? 'Show untracked rows' : 'Hide untracked rows'}
+                      on:click={() => setCollapseUntrackedRows(!collapseUntrackedRows)}
+                    >
+                      {collapseUntrackedRows ? '+' : '-'}
+                    </button>
+                  {/if}
+                </div>
+              </th>
               {#each matrixData.characters as char}
                 <th class="char-header sticky-col">
                   <div class="char-info">
@@ -598,7 +657,7 @@
             </td>
             <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
-          {#each matrixData.daily_tasks as task}
+          {#each visibleDailyTasks as task}
             <tr>
               <td class="task-name-cell sticky-col first-col">
                 <div class="task-info">
@@ -682,7 +741,7 @@
             </td>
             <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
-          {#each matrixData.weekly_tasks as task}
+          {#each visibleWeeklyTasks as task}
             <tr>
               <td class="task-name-cell sticky-col first-col">
                 <div class="task-info">
@@ -725,7 +784,7 @@
             </td>
             <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
-          {#each matrixData.roster_tasks as task}
+          {#each visibleRosterTasks as task}
             <tr>
               <td class="task-name-cell sticky-col first-col">{task.content_name}</td>
               <td class="toggle-cell roster-toggle-cell" colspan={matrixData.characters.length}>
@@ -771,7 +830,7 @@
             </td>
             <td class="section-fill-cell" colspan={matrixData.characters.length}></td>
           </tr>
-          {#each matrixData.raids as raid}
+          {#each visibleRaids as raid}
             <tr>
               <td class="task-name-cell sticky-col first-col">
                 <div class="raid-info">
@@ -960,6 +1019,31 @@
     z-index: 30;
   }
 
+  .matrix-corner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+
+  .collapse-empty-rows-btn {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 6px;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .collapse-empty-rows-btn.active {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface-container-high));
+  }
+
   .char-header {
     min-width: 120px;
     border-left: 1px solid var(--md-sys-color-outline);
@@ -1121,7 +1205,7 @@
     z-index: 12;
     width: max-content;
     box-sizing: border-box;
-    margin: 0 auto;
+    padding: 0.5rem;
     transform: translateX(-50%);
   }
 

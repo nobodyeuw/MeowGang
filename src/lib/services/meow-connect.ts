@@ -979,7 +979,7 @@ function buildSnapshotRows(
         openGates: Math.max(0, totalGates - clearedGates),
         status,
         clearedDifficulty,
-        reservedForStatic: detailedReservation || character.character.hasStaticReservation,
+        reservedForStatic: detailedReservation,
         staticReservationDetailsVisible: detailedReservation,
         sources: Array.from(
           new Set(
@@ -1039,7 +1039,7 @@ function buildSnapshotLogEntries(
       const matchingCompletionTime = findMatchingEncounterCompletionTime(encounter, snapshot.completionSnapshots, characterById);
       return {
         ...encounter,
-        clearedAt: matchingCompletionTime || encounter.clearedAt,
+        clearedAt: encounter.clearedAt || matchingCompletionTime,
         ownerId,
         ownerName: snapshot.profile.displayName,
         ownerAvatarUrl: snapshot.profile.avatarUrl,
@@ -1144,13 +1144,16 @@ function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowC
     ]);
     const players = dedupeStrings([...existing.players, ...entry.players]);
 
+    const fightStart = getEarliestLogStart(existing, entry);
+    const clearedAt = Math.max(getLogEndTimestamp(existing), getLogEndTimestamp(entry)) || undefined;
+
     combined.set(key, {
       ...existing,
       difficulty: existing.difficulty || entry.difficulty,
       gate: existing.gate || entry.gate,
-      fightStart: Math.max(existing.fightStart || 0, entry.fightStart || 0),
-      duration: Math.max(existing.duration || 0, entry.duration || 0),
-      clearedAt: Math.max(existing.clearedAt || 0, entry.clearedAt || 0) || undefined,
+      fightStart,
+      duration: clearedAt && fightStart ? Math.max(clearedAt - fightStart, 0) : Math.max(existing.duration || 0, entry.duration || 0),
+      clearedAt,
       ownerId: participants.map((participant) => participant.ownerId).join('+'),
       ownerName: formatParticipantNames(participants),
       ownerAvatarUrl: existing.ownerAvatarUrl || entry.ownerAvatarUrl,
@@ -1200,13 +1203,16 @@ function combineEncounterGateLogEntries(entries: MeowConnectLogEntry[]): MeowCon
     const players = dedupeStrings([...existing.players, ...entry.players]);
     const gate = formatCombinedGateLabel([existing.gate, entry.gate]);
 
+    const fightStart = getEarliestLogStart(existing, entry);
+    const clearedAt = Math.max(getLogEndTimestamp(existing), getLogEndTimestamp(entry)) || undefined;
+
     combined.set(key, {
       ...existing,
       difficulty: existing.difficulty || entry.difficulty,
       gate,
-      fightStart: Math.max(existing.fightStart || 0, entry.fightStart || 0),
-      duration: Math.max(existing.duration || 0, entry.duration || 0),
-      clearedAt: Math.max(existing.clearedAt || 0, entry.clearedAt || 0) || undefined,
+      fightStart,
+      duration: clearedAt && fightStart ? Math.max(clearedAt - fightStart, 0) : Math.max(existing.duration || 0, entry.duration || 0),
+      clearedAt,
       ownerId: participants.map((participant) => participant.ownerId).join('+'),
       ownerName: formatParticipantNames(participants),
       ownerAvatarUrl: existing.ownerAvatarUrl || entry.ownerAvatarUrl,
@@ -1384,12 +1390,21 @@ function findMatchingEncounterCompletionTime(
 }
 
 function getLogDisplayTimestamp(entry: MeowConnectLogEntry): number {
-  return entry.clearedAt || entry.fightStart || 0;
+  return getLogEndTimestamp(entry);
 }
 
 function getEncounterClearedAt(fightStart: number, duration: number): number | undefined {
   if (!fightStart) return undefined;
   return fightStart + Math.max(duration || 0, 0);
+}
+
+function getLogEndTimestamp(entry: Pick<MeowConnectEncounterSnapshot, 'fightStart' | 'duration' | 'clearedAt'>): number {
+  return entry.clearedAt || getEncounterClearedAt(entry.fightStart || 0, entry.duration || 0) || entry.fightStart || 0;
+}
+
+function getEarliestLogStart(...entries: Pick<MeowConnectEncounterSnapshot, 'fightStart'>[]): number {
+  const starts = entries.map((entry) => entry.fightStart || 0).filter(Boolean);
+  return starts.length ? Math.min(...starts) : 0;
 }
 
 function dedupeStrings(values: string[]): string[] {
