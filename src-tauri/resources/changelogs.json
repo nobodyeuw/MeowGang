@@ -1,68 +1,78 @@
 {
   "versions": [
     {
-      "version": "1.2.6",
+      "version": "1.2.7",
       "date": "2026-05-25",
       "changes": [
         {
           "type": "Fixed",
-          "description": "Updater waits for reachable release assets.",
-          "details": "The update check no longer uses a fixed first-seen delay. It now only hides or blocks a new update when the generated installer URL is not reachable yet, avoiding broken 404 installs without forcing a full 10-minute wait."
+          "description": "Raid bulk toggles keep individual difficulties.",
+          "details": "Bulk Take Gold and Static/Friends changes now preserve each character and gate difficulty instead of temporarily forcing rows into the same difficulty state. The settings view updates immediately without requiring a tab swap or reload."
         },
         {
           "type": "Fixed",
-          "description": "Legacy Roaming files are cleaned up.",
-          "details": "Discord auth state is migrated from the old Roaming app folder into the LocalAppData LOA Tracker folder, and obsolete update delay state plus legacy party plan cache files are removed so the Roaming folder is left for window state only."
-        },
-        {
-          "type": "Fixed",
-          "description": "LOA Logs monitoring no longer enables autostart.",
-          "details": "The Monitor LOA Logs Startup option now only watches while LOA Tracker is running and no longer registers a Windows startup entry unless Start with Windows or Start with Lost Ark is enabled."
+          "description": "Static bulk toggles update existing rows correctly.",
+          "details": "Set Static and Clear Static now re-read the latest raid row state while processing characters, so partially marked rows update correctly and no longer report zero changed characters from stale state."
         },
         {
           "type": "Added",
-          "description": "App can start hidden in the tray.",
-          "details": "General settings now includes a Hide on Launch option that starts LOA Tracker hidden in the tray area, including Windows startup launches when Start with Windows is enabled."
+          "description": "MeowConnect groups are available.",
+          "details": "MeowConnect now supports creating groups through Supabase-backed group tables, member invites, compact group management, and group-aware raid assignment data for shared static or friend runs."
         },
         {
-          "type": "Changed",
-          "description": "Release notes come from changelogs.",
-          "details": "The release workflow now builds GitHub release notes from changelogs.json, so latest.json can stay untouched until the signed updater metadata is generated after release assets exist."
+          "type": "Added",
+          "description": "Group invites connect to notifications.",
+          "details": "Group invite requests are included in the global MeowConnect request notification, so pending group activity can be noticed from outside the MeowConnect settings view."
+        },
+        {
+          "type": "Added",
+          "description": "Group invites suggest existing profiles.",
+          "details": "The group invite field now previews matching MeowConnect profiles while typing without exposing Discord IDs in the visible suggestion list."
+        },
+        {
+          "type": "Added",
+          "description": "Static characters can be assigned to groups.",
+          "details": "Expanded Raid Together character rows now show a compact group selector for your own static-marked characters, allowing a static raid reservation to be linked to one of your MeowConnect groups."
+        },
+        {
+          "type": "Added",
+          "description": "Groups support fixed short tags.",
+          "details": "Groups can store an optional uppercase tag of up to five characters. The tag is kept stable for future local dashboard group badges while the current dashboard Static badge remains unchanged."
+        },
+        {
+          "type": "Added",
+          "description": "Group owners can rename or delete groups.",
+          "details": "Owned MeowConnect groups now include compact rename and delete actions. Group names are capped to keep assignment UI clean, while tags stay fixed after creation."
+        },
+        {
+          "type": "Added",
+          "description": "Group members can leave groups.",
+          "details": "Non-owner group members can leave groups from the same management panel, and group deletion cleans up related members and assignments through Supabase cascade rules."
+        },
+        {
+          "type": "Added",
+          "description": "Raid settings can bulk toggle gold and static.",
+          "details": "Raid Settings rows now include compact bulk toggles under each raid name for Take Gold and Static/Friends across eligible characters. Buy Box remains individually controlled."
         },
         {
           "type": "Improved",
-          "description": "System settings layout is tighter.",
-          "details": "General system settings now use denser section spacing, smaller cards, and more compact controls so more options fit on screen without changing the clean settings structure."
+          "description": "Group management is more compact.",
+          "details": "Friends and Groups now sit side by side, group rows use tighter spacing, members are shown as stacked round avatars, rename opens only on demand, and delete uses an icon-only action so multiple groups fit cleanly."
         },
         {
           "type": "Improved",
-          "description": "Updates tab labels roadmap items clearly.",
-          "details": "The known issues area is now labeled Coming Changes & Known Issues so low-priority roadmap ideas and active issues can live in the same section without confusing users."
+          "description": "MeowConnect static display uses group context.",
+          "details": "Expanded MeowConnect profile rows keep the familiar Static badge while adding group assignment controls for your own static-marked characters and group context for shared reservations."
         },
         {
           "type": "Improved",
-          "description": "Updates tab uses space more efficiently.",
-          "details": "The updates view now uses a tighter layout with changelogs on the left and separate Known Issues and Coming Features panels stacked on the right."
+          "description": "Duplicate character protection is stricter.",
+          "details": "Before uploading shared roster data, MeowConnect checks whether a character ID already belongs to another Discord profile. Duplicates are skipped, shown in a toast, logged with the blocked character ID, remembered for 24 hours, and rechecked after the cooldown."
         },
         {
           "type": "Improved",
-          "description": "Known issues use compact detail rows.",
-          "details": "Known Issues and Coming Features now show short row descriptions with Details buttons for longer explanations, matching the changelog interaction pattern."
-        },
-        {
-          "type": "Improved",
-          "description": "Updates tab is optimized for smaller windows.",
-          "details": "Updates, changelogs, known issues, and coming features now use tighter typography, smaller labels, and a cleaner responsive layout for quarter-width and half-height window sizes."
-        },
-        {
-          "type": "Improved",
-          "description": "Update labels use clearer color groups.",
-          "details": "Changelog labels now use softer colors, known issues use severity labels from Critical downward, and coming features use separate priority labels such as No Prio, Low Prio, Mid Prio, and High Prio."
-        },
-        {
-          "type": "Improved",
-          "description": "Roadmap data is easier to maintain.",
-          "details": "Known issues and coming features are now split into separate resource sections, with additional roadmap items and clearer priorities for future work."
+          "description": "Group data security uses focused RPC checks.",
+          "details": "Supabase group and duplicate-character checks now use focused RPC helpers so the client can validate ownership conflicts without exposing broader profile identifiers in the UI."
         }
       ]
     }

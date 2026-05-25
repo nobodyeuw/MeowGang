@@ -96,6 +96,8 @@
     }
   }
 
+  type RaidBulkToggleType = 'take_gold' | 'reserved_for_static';
+
   function setCollapseUntrackedRaidRows(value: boolean) {
     collapseUntrackedRaidRows = value;
     try {
@@ -896,12 +898,47 @@
     checkboxUpdateTrigger++;
   }
 
+  function cloneRaidConfigs(raidConfigs: RaidConfig[]): RaidConfig[] {
+    return raidConfigs.map((config: any) => ({
+      ...config,
+      gates: config.gates ? config.gates.map((gate: any) => ({ ...gate })) : []
+    }));
+  }
+
+  function refreshCharacterAcrossRaidRows(charId: number, updatedRaidConfigs: RaidConfig[]) {
+    raidMatrix = raidMatrix.map(raidGroup => ({
+      ...raidGroup,
+      characters: raidGroup.characters.map((matrixChar) => {
+        if (matrixChar.char_id !== charId) {
+          return {
+            ...matrixChar,
+            raid_configs: cloneRaidConfigs(matrixChar.raid_configs)
+          };
+        }
+
+        const raidConfigs = cloneRaidConfigs(updatedRaidConfigs);
+        const refreshedChar = {
+          ...matrixChar,
+          raid_configs: raidConfigs,
+          master_difficulty: getMasterDifficulty(raidGroup, raidConfigs)
+        };
+
+        return {
+          ...refreshedChar,
+          gold_values: getRaidGoldValues(refreshedChar, raidGroup.content_id)
+        };
+      })
+    }));
+
+    checkboxUpdateTrigger++;
+  }
+
   // Check if character has reached gold limit (for disabling checkboxes)
   function hasReachedGoldLimit(char: any): boolean {
     if (!char.earns_gold) return false; // Non-gold earners have no limit
     
-    const currentGoldRaidsCount = char.raid_configs.filter(r => 
-      r.gates && r.gates.some(gate => gate.take_gold === true)
+    const currentGoldRaidsCount = char.raid_configs.filter((r: any) =>
+      r.gates && r.gates.some((gate: any) => gate.take_gold === true)
     ).length;
     
     return currentGoldRaidsCount >= 3;
@@ -909,9 +946,61 @@
 
   // Check if this specific raid is already active (for enabling/disabling)
   function isRaidAlreadyActive(char: any, raidId: string): boolean {
-    const raidConfig = char.raid_configs.find(r => r.content_id === raidId);
+    const raidConfig = char.raid_configs.find((r: any) => r.content_id === raidId);
     return raidConfig && raidConfig.gates && 
-      raidConfig.gates.some(gate => gate.take_gold === true);
+      raidConfig.gates.some((gate: any) => gate.take_gold === true);
+  }
+
+  function getBulkToggleCharacters(raid: RaidMatrixData, type: RaidBulkToggleType, targetValue?: boolean): CharacterRaidConfig[] {
+    return raid.characters.filter((char) => {
+      if (char.is_locked) return false;
+      if (type === 'take_gold' && !char.earns_gold) return false;
+      if (type === 'take_gold' && targetValue === true && hasReachedGoldLimit(char) && !isRaidAlreadyActive(char, raid.content_id)) {
+        return false;
+      }
+      return Boolean(RAIDS.find((entry) => entry.id === raid.content_id && entry.difficulty === char.master_difficulty));
+    });
+  }
+
+  function areAllEligibleRaidMastersActive(raid: RaidMatrixData, type: RaidBulkToggleType): boolean {
+    const eligibleCharacters = getBulkToggleCharacters(raid, type);
+    if (eligibleCharacters.length === 0) return false;
+    return eligibleCharacters.every((char) => isMasterActiveReactive(char, raid.content_id, char.master_difficulty, type));
+  }
+
+  function getRaidRowCharacter(contentId: string, charId: number): CharacterRaidConfig | undefined {
+    return raidMatrix
+      .find((raidGroup) => raidGroup.content_id === contentId)
+      ?.characters.find((char) => char.char_id === charId);
+  }
+
+  async function toggleAllRaidMasters(raid: RaidMatrixData, type: RaidBulkToggleType) {
+    const targetValue = !areAllEligibleRaidMastersActive(raid, type);
+    const eligibleCharacters = getBulkToggleCharacters(raid, type, targetValue);
+    let changedCount = 0;
+
+    for (const char of eligibleCharacters) {
+      const latestChar = getRaidRowCharacter(raid.content_id, char.char_id);
+      if (!latestChar) continue;
+
+      const currentValue = isMasterActiveReactive(latestChar, raid.content_id, latestChar.master_difficulty, type);
+      if (currentValue === targetValue) continue;
+      await toggleMasterRaid(latestChar.char_id, raid.content_id, latestChar.master_difficulty, type, targetValue);
+      changedCount++;
+    }
+
+    const skippedGoldLimit = type === 'take_gold' && targetValue
+      ? raid.characters.filter((char) => !char.is_locked && char.earns_gold && hasReachedGoldLimit(char) && !isRaidAlreadyActive(char, raid.content_id)).length
+      : 0;
+
+    successMessage = skippedGoldLimit > 0
+      ? `Updated ${changedCount} characters. ${skippedGoldLimit} skipped due to the 3 raid gold limit.`
+      : `${targetValue ? 'Enabled' : 'Disabled'} ${type === 'take_gold' ? 'Take Gold' : 'Static/Friends'} for ${changedCount} characters.`;
+    showSuccessMessage = true;
+    setTimeout(() => {
+      successMessage = '';
+      showSuccessMessage = false;
+    }, 3000);
   }
 
   // Handle click on disabled checkbox (show message only)
@@ -920,7 +1009,7 @@
   }
 
   // Toggle master raid settings - Optimized for Svelte 5
-  async function toggleMasterRaid(charId: number, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static' | 'difficulty') {
+  async function toggleMasterRaid(charId: number, raidId: string, difficulty: string, type: 'take_gold' | 'buy_box' | 'reserved_for_static' | 'difficulty', forcedTargetValue?: boolean) {
     // Find character across all raid groups
     const characterRaids = raidMatrix
       .flatMap(raidGroup => raidGroup.characters)
@@ -934,13 +1023,13 @@
     if (!raidDef) return;
 
     // Determine target value (take status of first gate and negate it)
-    const raidConfig = char.raid_configs.find(r => r.content_id === raidId);
-    const targetValue = raidConfig && raidConfig.gates && raidConfig.gates.length > 0 ? !raidConfig.gates[0][type] : true;
+    const raidConfig = char.raid_configs.find((r: any) => r.content_id === raidId);
+    const targetValue = forcedTargetValue ?? (raidConfig && raidConfig.gates && raidConfig.gates.length > 0 ? !raidConfig.gates[0][type] : true);
 
     // GOLD LIMIT CHECK for Master-Toggle
     if (type === 'take_gold' && targetValue === true) {
-      const currentGoldRaidsCount = char.raid_configs.filter(r => 
-        r.gates && r.gates.some(gate => gate.take_gold === true)
+      const currentGoldRaidsCount = char.raid_configs.filter((r: any) =>
+        r.gates && r.gates.some((gate: any) => gate.take_gold === true)
       ).length;
       if (char.earns_gold && currentGoldRaidsCount >= 3) {
         successMessage = `Limit reached! ${char.char_name} can only get gold from 3 raids.`;
@@ -988,17 +1077,7 @@
         }
       }
 
-      // Force Svelte 5 reactivity with deeper assignment
-    raidMatrix = raidMatrix.map(raidGroup => ({
-      ...raidGroup,
-      characters: raidGroup.characters.map(char => ({
-        ...char,
-        raid_configs: char.raid_configs.map(config => ({
-          ...config,
-          gates: config.gates ? [...config.gates] : []
-        }))
-      }))
-    }));
+      refreshCharacterAcrossRaidRows(charId, char.raid_configs);
 
       // 2. Backend Updates
       try {
@@ -1041,7 +1120,7 @@
         gateConfig = {
           gate: gateDef.gate,
           difficulty: difficulty,
-          take_gold: targetValue,
+          take_gold: type === 'take_gold' ? targetValue : false,
           buy_box: type === 'buy_box' ? targetValue : false,
           reserved_for_static: type === 'reserved_for_static' ? targetValue : false
         };
@@ -1073,38 +1152,23 @@
             return { totalGold, tradableGold, boundGold, boxPrice };
           };
           
-          // Update gold values for this character across all raid groups
-          raidMatrix.forEach(raidGroup => {
-            const charIndex = raidGroup.characters.findIndex(c => c.char_id === charId);
-            if (charIndex !== -1) {
-              raidGroup.characters[charIndex].gold_values = getGoldValues();
-            }
-          });
+          char.gold_values = getGoldValues();
         }
       }
     }
 
-    // Force Svelte 5 reactivity with deeper assignment
-    raidMatrix = raidMatrix.map(raidGroup => ({
-      ...raidGroup,
-      characters: raidGroup.characters.map(char => ({
-        ...char,
-        raid_configs: char.raid_configs.map(config => ({
-          ...config,
-          gates: config.gates ? [...config.gates] : []
-        }))
-      }))
-    }));
+    refreshCharacterAcrossRaidRows(charId, char.raid_configs);
 
     // 2. Backend Updates (We send a request for each gate)
     try {
       for (const gateDef of raidDef.gates) {
+        const savedGateConfig = config?.gates?.find((gate: any) => gate.gate === gateDef.gate);
         await invoke('update_raid_gate_config', {
           rosterId: $activeRosterId,
           charId,
           contentId: raidId,
           gate: gateDef.gate,
-          difficulty: difficulty,
+          difficulty: savedGateConfig?.difficulty || difficulty,
           takeGold: type === 'take_gold' ? targetValue : undefined,
           buyBox: type === 'buy_box' ? targetValue : undefined,
           reservedForStatic: type === 'reserved_for_static' ? targetValue : undefined
@@ -1352,6 +1416,24 @@
                       <span class="expand-icon">{raid.is_expanded ? '▼' : '▶'}</span>
                     </button>
                     <span class="raid-name">{raid.raid_name}</span>
+                    <div class="raid-bulk-actions">
+                      <button
+                        class="toggle-all-btn static-all-btn"
+                        type="button"
+                        title="Toggle Static/Friends for all eligible characters"
+                        on:click={() => toggleAllRaidMasters(raid, 'reserved_for_static')}
+                      >
+                        {areAllEligibleRaidMastersActive(raid, 'reserved_for_static') ? 'Clear Static' : 'Set Static'}
+                      </button>
+                      <button
+                        class="toggle-all-btn gold-all-btn"
+                        type="button"
+                        title="Toggle Take Gold for all eligible gold earners"
+                        on:click={() => toggleAllRaidMasters(raid, 'take_gold')}
+                      >
+                        {areAllEligibleRaidMastersActive(raid, 'take_gold') ? 'Clear Gold' : 'Set Gold'}
+                      </button>
+                    </div>
                   </div>
                 </td>
                 
@@ -1748,9 +1830,45 @@
   }
 
   .raid-master-info {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 8px;
     align-items: center;
-    gap: 8px;
+  }
+
+  .raid-bulk-actions {
+    grid-column: 2;
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    justify-self: start;
+  }
+
+  .toggle-all-btn {
+    align-self: flex-start;
+    padding: 2px 6px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 4px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .toggle-all-btn:hover {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+  }
+
+  .gold-all-btn {
+    color: var(--md-sys-color-tertiary);
+  }
+
+  .static-all-btn {
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   .expand-button {

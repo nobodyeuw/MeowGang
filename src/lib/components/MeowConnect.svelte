@@ -5,29 +5,40 @@
   import { RAIDS, type Raid } from '$lib/data/raids';
   import {
     acceptMeowConnectFriendRequest,
+    acceptMeowConnectGroupInvite,
+    assignMeowConnectRaidToGroup,
     buildMeowConnectAvailabilityRows,
     buildMeowConnectLogEntries,
+    createMeowConnectGroup,
+    deleteMeowConnectGroup,
     getMeowConnectLastUploadAt,
     getMeowConnectRaidDifficulties,
     fetchMeowConnectRemoteSnapshots,
     getMeowConnectRaidOptions,
     hasMeowConnectConsent,
+    inviteMeowConnectGroupMember,
     isMeowConnectRealtimeEnabled,
+    leaveMeowConnectGroup,
     loadMeowConnectFriends,
+    loadMeowConnectGroups,
     loadMeowConnectLocalSnapshot,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
     meowConnectHasUnsyncedChanges,
+    removeMeowConnectRaidGroupAssignment,
     removeMeowConnectFriend,
+    renameMeowConnectGroup,
+    searchMeowConnectProfiles,
     sendMeowConnectFriendRequest,
-    setMeowConnectStaticFriend,
     setMeowConnectConsent,
     subscribeMeowConnectChanges,
     uploadMeowConnectSnapshotIfNeeded,
     type MeowConnectAvailabilityRow,
     type MeowConnectCharacterSnapshot,
     type MeowConnectFriendConnection,
+    type MeowConnectGroup,
+    type MeowConnectGroupMember,
     type MeowConnectLogEntry,
     type MeowConnectLogParticipant,
     type MeowConnectLocalSnapshot,
@@ -100,19 +111,31 @@
   let localSnapshot: MeowConnectLocalSnapshot | null = null;
   let remoteSnapshots: MeowConnectRemoteSnapshot[] = [];
   let friendConnections: MeowConnectFriendConnection[] = [];
+  let meowGroups: MeowConnectGroup[] = [];
   let selectedTogetherFriendIds = new Set<string>();
   let togetherFriendSelectionInitialized = false;
   let friendOptions: FriendOption[] = [];
   let friendSearch = '';
   let friendDiscordId = '';
+  let groupName = '';
+  let groupTag = '';
+  let activeGroupRenameId = '';
+  let groupRenameInputs: Record<string, string> = {};
+  let groupInviteInputs: Record<string, string> = {};
+  let expandedGroupMemberIds = new Set<string>();
+  let groupInviteOptions: MeowConnectProfile[] = [];
+  let activeGroupInviteId = '';
   let showFriendPopover = false;
   let isLoading = false;
   let friendActionBusy = false;
+  let groupActionBusy = false;
+  let groupAssignmentBusyKey = '';
   let currentTime = Date.now();
   let toastMessage = '';
   let toastKind: 'success' | 'error' | 'info' = 'info';
   let unsubscribeRealtime: (() => void) | null = null;
   let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let groupInviteSearchTimer: ReturnType<typeof setTimeout> | null = null;
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -168,10 +191,13 @@
     ? raidTogetherRows.flatMap((row) => row.groups).find((group) => group.key === activeProfileGroup?.key) || null
     : null;
   $: connectedFriends = acceptedFriendConnections.length;
+  $: ownedGroupCount = meowGroups.filter((group) => group.role === 'owner').length;
+  $: pendingGroupInvites = meowGroups.filter((group) => group.role === 'invited');
+  $: assignableGroups = meowGroups.filter((group) => group.role !== 'invited');
   $: pendingIncoming = friendConnections.filter(
     (connection) => connection.status === 'pending' && connection.direction === 'incoming'
   );
-  $: dispatch('pendingRequestsChanged', pendingIncoming.length);
+  $: dispatch('pendingRequestsChanged', pendingIncoming.length + pendingGroupInvites.length);
   $: filteredFriendOptions = friendOptions
     .filter((friend) => {
       const query = friendSearch.trim().toLowerCase();
@@ -198,6 +224,7 @@
     return () => {
       unsubscribeRealtime?.();
       if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+      if (groupInviteSearchTimer) clearTimeout(groupInviteSearchTimer);
       if (clockTimer) clearInterval(clockTimer);
       if (toastTimer) clearTimeout(toastTimer);
       document.removeEventListener('mousedown', handleDocumentMouseDown);
@@ -230,17 +257,28 @@
         : { snapshot, uploaded: false };
       localSnapshot = uploadResult.snapshot;
       friendConnections = await loadMeowConnectFriends();
+      meowGroups = await loadMeowConnectGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(uploadResult.snapshot.weeklyResetMs || 0));
       if (manual) {
         setStoredTimestamp(LAST_MANUAL_SYNC_STORAGE_KEY, Date.now());
         currentTime = Date.now();
       }
-      showToast(
-        uploadResult.uploaded
-          ? `Synced ${uploadResult.snapshot.characters.length} characters.`
-          : `Loaded MeowConnect. Last upload unchanged.`,
-        uploadResult.uploaded ? 'success' : 'info'
-      );
+      if (uploadResult.duplicateCharacters?.length) {
+        const duplicate = uploadResult.duplicateCharacters[0];
+        const extra = uploadResult.duplicateCharacters.length > 1 ? ` +${uploadResult.duplicateCharacters.length - 1} more` : '';
+        const syncedCount = uploadResult.uploadedCharacterCount ?? uploadResult.snapshot.characters.length;
+        showToast(
+          `Synced ${syncedCount} characters. Skipped ${duplicate.charName}${extra}: already exists under ${duplicate.ownerDisplayName}.`,
+          'error'
+        );
+      } else {
+        showToast(
+          uploadResult.uploaded
+            ? `Synced ${uploadResult.uploadedCharacterCount ?? uploadResult.snapshot.characters.length} characters.`
+            : `Loaded MeowConnect. Last upload unchanged.`,
+          uploadResult.uploaded ? 'success' : 'info'
+        );
+      }
       markMeowConnectActive(uploadResult.uploaded ? 'MeowConnect sync succeeded.' : 'MeowConnect is connected.');
     } catch (err) {
       markMeowConnectFailure(err);
@@ -316,12 +354,6 @@
     const bLocal = b.ownerId === 'local';
     if (aLocal !== bLocal) return aLocal ? -1 : 1;
 
-    const aConnection = getFriendConnectionForProfile(a.ownerId, a.ownerName);
-    const bConnection = getFriendConnectionForProfile(b.ownerId, b.ownerName);
-    const aStatic = Boolean(aConnection?.sharesStatic);
-    const bStatic = Boolean(bConnection?.sharesStatic);
-    if (aStatic !== bStatic) return aStatic ? -1 : 1;
-
     return a.ownerName.localeCompare(b.ownerName, undefined, { sensitivity: 'base' });
   }
 
@@ -381,10 +413,6 @@
       : row.raid.difficulty;
   }
 
-  function getStaticReservationLabel(row: MeowConnectAvailabilityRow): string {
-    return row.staticReservationDetailsVisible ? 'static with you' : 'reserved for static';
-  }
-
   function getProfileGroupIlvlLabel(group: ProfileRaidGroup): string {
     const selectedDifficulty = raidDifficultyFilters[group.raidId];
     const raid = selectedDifficulty
@@ -439,6 +467,10 @@
 
   function normalizeName(value?: string | null): string {
     return String(value || '').trim().toLowerCase();
+  }
+
+  function sameText(a: string, b: string): boolean {
+    return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
   }
 
   function toggleRaidVisibility(raidId: string) {
@@ -589,28 +621,271 @@
     }
   }
 
-  async function toggleStaticFriend(connection: MeowConnectFriendConnection) {
-    friendActionBusy = true;
+  async function createGroup() {
+    groupActionBusy = true;
 
     try {
-      await setMeowConnectStaticFriend(connection, !connection.sharesStatic);
-      friendConnections = await loadMeowConnectFriends();
-      remoteSnapshots = localSnapshot
-        ? await fetchMeowConnectRemoteSnapshots(String(localSnapshot.weeklyResetMs || 0))
-        : remoteSnapshots;
+      await createMeowConnectGroup(groupName, groupTag);
+      groupName = '';
+      groupTag = '';
+      meowGroups = await loadMeowConnectGroups();
       markMeowConnectActive('MeowConnect is connected.');
-      showToast(
-        connection.sharesStatic
-          ? `${connection.profile.displayName} will only see generic static reservations.`
-          : `${connection.profile.displayName} can now see your static reservation details.`,
-        'success'
-      );
+      showToast('Group created.', 'success');
     } catch (err) {
       markMeowConnectFailure(err);
-      showToast(`Failed to update static sharing: ${err}`, 'error');
+      showToast(`Failed to create group: ${err}`, 'error');
     } finally {
-      friendActionBusy = false;
+      groupActionBusy = false;
     }
+  }
+
+  async function inviteGroupMember(group: MeowConnectGroup) {
+    const discordId = groupInviteInputs[group.groupId] || '';
+    groupActionBusy = true;
+
+    try {
+      await inviteMeowConnectGroupMember(group.groupId, discordId);
+      groupInviteInputs = { ...groupInviteInputs, [group.groupId]: '' };
+      meowGroups = await loadMeowConnectGroups();
+      markMeowConnectActive('MeowConnect is connected.');
+      showToast(`Invite sent for ${group.groupName}.`, 'success');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to invite group member: ${err}`, 'error');
+    } finally {
+      groupActionBusy = false;
+    }
+  }
+
+  async function renameGroup(group: MeowConnectGroup) {
+    const nextName = (groupRenameInputs[group.groupId] ?? group.groupName).trim();
+    if (nextName === group.groupName) return;
+    groupActionBusy = true;
+
+    try {
+      await renameMeowConnectGroup(group.groupId, nextName);
+      groupRenameInputs = { ...groupRenameInputs, [group.groupId]: '' };
+      activeGroupRenameId = '';
+      meowGroups = await loadMeowConnectGroups();
+      markMeowConnectActive('MeowConnect is connected.');
+      showToast(`Renamed group to ${nextName}.`, 'success');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to rename group: ${err}`, 'error');
+    } finally {
+      groupActionBusy = false;
+    }
+  }
+
+  function startGroupRename(group: MeowConnectGroup) {
+    activeGroupRenameId = group.groupId;
+    groupRenameInputs = { ...groupRenameInputs, [group.groupId]: group.groupName };
+  }
+
+  function cancelGroupRename(group: MeowConnectGroup) {
+    activeGroupRenameId = '';
+    groupRenameInputs = { ...groupRenameInputs, [group.groupId]: group.groupName };
+  }
+
+  async function deleteGroup(group: MeowConnectGroup) {
+    groupActionBusy = true;
+
+    try {
+      await deleteMeowConnectGroup(group.groupId);
+      meowGroups = await loadMeowConnectGroups();
+      markMeowConnectActive('MeowConnect is connected.');
+      showToast(`${group.groupName} deleted.`, 'success');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to delete group: ${err}`, 'error');
+    } finally {
+      groupActionBusy = false;
+    }
+  }
+
+  async function leaveGroup(group: MeowConnectGroup) {
+    groupActionBusy = true;
+
+    try {
+      await leaveMeowConnectGroup(group.groupId);
+      meowGroups = await loadMeowConnectGroups();
+      markMeowConnectActive('MeowConnect is connected.');
+      showToast(`Left ${group.groupName}.`, 'success');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to leave group: ${err}`, 'error');
+    } finally {
+      groupActionBusy = false;
+    }
+  }
+
+  function scheduleGroupInviteProfileSearch(groupId: string, query: string) {
+    activeGroupInviteId = groupId;
+    if (groupInviteSearchTimer) clearTimeout(groupInviteSearchTimer);
+
+    const cleanQuery = query.trim();
+    if (cleanQuery.length === 0) {
+      groupInviteOptions = [];
+      return;
+    }
+
+    groupInviteSearchTimer = setTimeout(async () => {
+      try {
+        groupInviteOptions = await searchMeowConnectProfiles(cleanQuery);
+      } catch (err) {
+        console.warn('Failed to search MeowConnect profiles:', err);
+        groupInviteOptions = [];
+      }
+    }, 180);
+  }
+
+  function selectGroupInviteOption(group: MeowConnectGroup, profile: MeowConnectProfile) {
+    groupInviteInputs = { ...groupInviteInputs, [group.groupId]: profile.discordId };
+    activeGroupInviteId = group.groupId;
+    groupInviteOptions = [];
+  }
+
+  function canAssignRowToGroup(row: MeowConnectAvailabilityRow): boolean {
+    return row.ownerId === 'local' && row.reservedForStatic && assignableGroups.length > 0;
+  }
+
+  function hasGroupState(row: MeowConnectAvailabilityRow): boolean {
+    return row.reservedForStatic || getAssignedGroupNames(row).length > 0;
+  }
+
+  function getGroupAssignmentKey(row: MeowConnectAvailabilityRow): string {
+    return `${row.character.charId}:${row.raid.id}:${row.raid.difficulty || ''}`;
+  }
+
+  function getRowGroupAssignments(row: MeowConnectAvailabilityRow) {
+    const ownerUserId = getRowOwnerUserId(row);
+    return assignableGroups.flatMap((group) =>
+      group.assignments
+        .filter((assignment) =>
+          (!ownerUserId || assignment.userId === ownerUserId) &&
+          assignment.charId === row.character.charId &&
+          assignment.contentId === row.raid.id &&
+          sameText(assignment.difficulty, row.raid.difficulty || '')
+        )
+        .map((assignment) => ({ group, assignment }))
+    );
+  }
+
+  function getRowOwnerUserId(row: MeowConnectAvailabilityRow): string {
+    if (row.ownerId === 'local') return currentProfile?.userId || row.ownerUserId || '';
+    return row.ownerUserId || '';
+  }
+
+  function getAssignedGroupId(row: MeowConnectAvailabilityRow): string {
+    return getRowGroupAssignments(row)[0]?.group.groupId || '';
+  }
+
+  function getAssignedGroupNames(row: MeowConnectAvailabilityRow): string[] {
+    return getRowGroupAssignments(row).map(({ group }) => group.groupName);
+  }
+
+  function getAssignedGroupTags(row: MeowConnectAvailabilityRow): string[] {
+    return getRowGroupAssignments(row).map(({ group }) => group.groupTag).filter(Boolean);
+  }
+
+  function getGroupAssignmentLabel(row: MeowConnectAvailabilityRow): string {
+    const groupNames = getAssignedGroupNames(row);
+    if (groupNames.length > 0) return groupNames.join(', ');
+    if (row.ownerId === 'local') return 'No group assigned';
+    return 'Reserved';
+  }
+
+  function getGroupStateText(row: MeowConnectAvailabilityRow): string {
+    return getAssignedGroupTags(row)[0] || getAssignedGroupNames(row)[0] || (row.ownerId === 'local' ? 'No group' : 'Reserved');
+  }
+
+  async function changeRowGroupAssignment(row: MeowConnectAvailabilityRow, groupId: string) {
+    const busyKey = getGroupAssignmentKey(row);
+    groupAssignmentBusyKey = busyKey;
+
+    try {
+      const existingAssignments = getRowGroupAssignments(row);
+      await Promise.all(existingAssignments.map(({ assignment }) =>
+        removeMeowConnectRaidGroupAssignment({
+          groupId: assignment.groupId,
+          charId: row.character.charId,
+          contentId: row.raid.id,
+          difficulty: row.raid.difficulty || ''
+        })
+      ));
+
+      if (groupId) {
+        await assignMeowConnectRaidToGroup({
+          groupId,
+          rosterId: row.character.rosterId,
+          charId: row.character.charId,
+          contentId: row.raid.id,
+          difficulty: row.raid.difficulty || '',
+          reservedForStatic: true
+        });
+      }
+
+      meowGroups = await loadMeowConnectGroups();
+      showToast(groupId ? `Assigned ${row.character.charName} to group.` : `Removed group assignment for ${row.character.charName}.`, 'success');
+      markMeowConnectActive('MeowConnect is connected.');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to update group assignment: ${err}`, 'error');
+    } finally {
+      groupAssignmentBusyKey = '';
+    }
+  }
+
+  async function acceptGroupInvite(group: MeowConnectGroup) {
+    groupActionBusy = true;
+
+    try {
+      await acceptMeowConnectGroupInvite(group.groupId);
+      meowGroups = await loadMeowConnectGroups();
+      markMeowConnectActive('MeowConnect is connected.');
+      showToast(`Joined ${group.groupName}.`, 'success');
+    } catch (err) {
+      markMeowConnectFailure(err);
+      showToast(`Failed to accept group invite: ${err}`, 'error');
+    } finally {
+      groupActionBusy = false;
+    }
+  }
+
+  function getActiveGroupMembers(group: MeowConnectGroup): MeowConnectGroupMember[] {
+    return group.members.filter((member) => member.status !== 'removed' && member.status !== 'declined');
+  }
+
+  function isGroupMembersExpanded(group: MeowConnectGroup): boolean {
+    return expandedGroupMemberIds.has(group.groupId);
+  }
+
+  function toggleGroupMembersExpanded(group: MeowConnectGroup) {
+    const next = new Set(expandedGroupMemberIds);
+    if (next.has(group.groupId)) {
+      next.delete(group.groupId);
+    } else {
+      next.add(group.groupId);
+    }
+    expandedGroupMemberIds = next;
+  }
+
+  function getVisibleGroupMembers(group: MeowConnectGroup): MeowConnectGroupMember[] {
+    const members = getActiveGroupMembers(group);
+    return isGroupMembersExpanded(group) ? members : members.slice(0, 4);
+  }
+
+  function getOverflowGroupMemberCount(group: MeowConnectGroup): number {
+    if (isGroupMembersExpanded(group)) return 0;
+    return Math.max(getActiveGroupMembers(group).length - getVisibleGroupMembers(group).length, 0);
+  }
+
+  function isGroupMemberStackCompact(group: MeowConnectGroup): boolean {
+    return getActiveGroupMembers(group).length > 4 && !isGroupMembersExpanded(group);
+  }
+
+  function getGroupMemberName(member: MeowConnectGroupMember): string {
+    return member.profile?.displayName || (member.userId === currentProfile?.userId ? 'You' : 'Unknown');
   }
 
   function handleDocumentMouseDown(event: MouseEvent) {
@@ -647,6 +922,7 @@
 
     try {
       friendConnections = await loadMeowConnectFriends();
+      meowGroups = await loadMeowConnectGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(localSnapshot.weeklyResetMs || 0));
       markMeowConnectActive('MeowConnect realtime refresh succeeded.');
     } catch (err) {
@@ -728,7 +1004,6 @@
   }
 
   function sortFriendConnections(a: MeowConnectFriendConnection, b: MeowConnectFriendConnection): number {
-    if (a.sharesStatic !== b.sharesStatic) return a.sharesStatic ? -1 : 1;
     const aIncoming = a.status === 'pending' && a.direction === 'incoming';
     const bIncoming = b.status === 'pending' && b.direction === 'incoming';
     if (aIncoming !== bIncoming) return aIncoming ? -1 : 1;
@@ -737,22 +1012,6 @@
 
   function getFriendDisplayName(connection: MeowConnectFriendConnection): string {
     return connection.profile.displayName || connection.profile.userId || '';
-  }
-
-  function getFriendConnectionForProfile(ownerId: string, ownerName: string): MeowConnectFriendConnection | undefined {
-    const normalizedOwnerId = normalizeId(ownerId);
-    const normalizedOwnerName = normalizeName(ownerName);
-    return friendConnections.find((connection) => {
-      const ids = [
-        connection.profile.discordId,
-        connection.profile.userId,
-        connection.friendUserId,
-        connection.userId
-      ].map(normalizeId).filter(Boolean);
-
-      return ids.includes(normalizedOwnerId) ||
-        normalizeName(connection.profile.displayName) === normalizedOwnerName;
-    });
   }
 
   function formatLogTime(timestamp: number) {
@@ -1026,9 +1285,6 @@
                       <small>
                         {row.status === 'open' ? `${row.openGates}/${row.totalGates} gates open` : 'cleared'}
                         · {getAvailabilityDifficultyLabel(row)}
-                        {#if row.reservedForStatic}
-                          · {getStaticReservationLabel(row)}
-                        {/if}
                       </small>
                     </div>
                   </article>
@@ -1214,11 +1470,31 @@
                     </span>
                     <small class="availability-meta">
                       <span>{row.openGates}/{row.totalGates} gates open · {getAvailabilityDifficultyLabel(row)}</span>
-                      {#if row.reservedForStatic}
-                        <span class="static-badge">Static</span>
-                      {/if}
                     </small>
                   </div>
+
+                  {#if canAssignRowToGroup(row)}
+                    <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                      <span>Group</span>
+                      <select
+                        value={getAssignedGroupId(row)}
+                        disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                        on:change={(event) => {
+                          const select = event.currentTarget as HTMLSelectElement;
+                          void changeRowGroupAssignment(row, select.value);
+                        }}
+                      >
+                        <option value="">None</option>
+                        {#each assignableGroups as group}
+                          <option value={group.groupId}>{group.groupName}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  {:else if hasGroupState(row)}
+                    <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                      {getGroupStateText(row)}
+                    </span>
+                  {/if}
                 </article>
               {/each}
 
@@ -1243,10 +1519,32 @@
                       <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
                     </span>
                     <small class="availability-meta">
-                      <span>{getStaticReservationLabel(row)} · {getAvailabilityDifficultyLabel(row)}</span>
-                      <span class="static-badge">Static</span>
+                      <span>{getAvailabilityDifficultyLabel(row)}</span>
                     </small>
                   </div>
+
+                  {#if canAssignRowToGroup(row)}
+                    <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                      <span>Group</span>
+                      <select
+                        value={getAssignedGroupId(row)}
+                        disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                        on:change={(event) => {
+                          const select = event.currentTarget as HTMLSelectElement;
+                          void changeRowGroupAssignment(row, select.value);
+                        }}
+                      >
+                        <option value="">None</option>
+                        {#each assignableGroups as group}
+                          <option value={group.groupId}>{group.groupName}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  {:else if hasGroupState(row)}
+                    <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                      {getGroupStateText(row)}
+                    </span>
+                  {/if}
                 </article>
               {/each}
 
@@ -1272,11 +1570,31 @@
                     </span>
                     <small class="availability-meta">
                       <span>cleared · {getAvailabilityDifficultyLabel(row)}</span>
-                      {#if row.reservedForStatic}
-                        <span class="static-badge">Static</span>
-                      {/if}
                     </small>
                   </div>
+
+                  {#if canAssignRowToGroup(row)}
+                    <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                      <span>Group</span>
+                      <select
+                        value={getAssignedGroupId(row)}
+                        disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                        on:change={(event) => {
+                          const select = event.currentTarget as HTMLSelectElement;
+                          void changeRowGroupAssignment(row, select.value);
+                        }}
+                      >
+                        <option value="">None</option>
+                        {#each assignableGroups as group}
+                          <option value={group.groupId}>{group.groupName}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  {:else if hasGroupState(row)}
+                    <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                      {getGroupStateText(row)}
+                    </span>
+                  {/if}
                 </article>
               {/each}
 
@@ -1403,7 +1721,231 @@
           </div>
         </article>
 
-        <article class="settings-panel wide-panel">
+        <article class="settings-panel">
+          <div class="panel-title">
+            <div>
+              <h3>Groups</h3>
+              <p>{ownedGroupCount} owned · {pendingGroupInvites.length} pending invite{pendingGroupInvites.length === 1 ? '' : 's'}</p>
+            </div>
+            <div class="group-create-control">
+              <input
+                bind:value={groupName}
+                maxlength="24"
+                placeholder="Group name"
+                disabled={groupActionBusy}
+                on:keydown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void createGroup();
+                  }
+                }}
+              />
+              <input
+                class="group-tag-input"
+                bind:value={groupTag}
+                maxlength="5"
+                placeholder="Tag"
+                title="Optional group tag, maximum 5 characters"
+                disabled={groupActionBusy}
+                on:input={() => groupTag = groupTag.toUpperCase()}
+                on:keydown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void createGroup();
+                  }
+                }}
+              />
+              <button
+                class="primary-button"
+                type="button"
+                disabled={groupActionBusy || groupName.trim().length < 2}
+                on:click={createGroup}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+
+          <div class="group-list">
+            {#if meowGroups.length === 0}
+              <p class="column-empty">No groups yet.</p>
+            {:else}
+              {#each meowGroups as group}
+                <div class:invited={group.role === 'invited'} class="group-row">
+                  <div class="group-row-main">
+                    <div class="group-title-line">
+                      <strong>
+                        {#if group.groupTag}
+                          <span class="group-tag-chip">{group.groupTag}</span>
+                        {/if}
+                        {group.groupName}
+                      </strong>
+                      <span class="group-role-label">{group.role === 'owner' ? 'Owner' : group.role === 'invited' ? 'Invite pending' : 'Member'}</span>
+                    </div>
+                    <div
+                      class:compact={isGroupMemberStackCompact(group)}
+                      class:expanded={isGroupMembersExpanded(group)}
+                      class="group-member-stack"
+                      title={getActiveGroupMembers(group).map(getGroupMemberName).join(', ') || 'No members yet'}
+                    >
+                      {#each getVisibleGroupMembers(group) as member}
+                        {#if member.profile?.avatarUrl}
+                          <img src={member.profile.avatarUrl} alt={getGroupMemberName(member)} />
+                        {:else}
+                          <span class="avatar-fallback">{getInitials(getGroupMemberName(member))}</span>
+                        {/if}
+                      {/each}
+                      {#if getOverflowGroupMemberCount(group) > 0}
+                        <button
+                          class="group-avatar-overflow"
+                          type="button"
+                          aria-label={`Show all ${getActiveGroupMembers(group).length} group members`}
+                          title="Show all members"
+                          on:click={() => toggleGroupMembersExpanded(group)}
+                        >
+                          +{getOverflowGroupMemberCount(group)}
+                        </button>
+                      {:else if isGroupMembersExpanded(group) && getActiveGroupMembers(group).length > 4}
+                        <button class="group-member-collapse" type="button" on:click={() => toggleGroupMembersExpanded(group)}>
+                          Show less
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+
+                  {#if group.role === 'owner'}
+                    <div class="group-owner-controls">
+                      {#if activeGroupRenameId === group.groupId}
+                        <div class="group-rename-control active">
+                          <input
+                            value={groupRenameInputs[group.groupId] || group.groupName}
+                            maxlength="24"
+                            placeholder="Group name"
+                            disabled={groupActionBusy}
+                            on:input={(event) => {
+                              const input = event.currentTarget as HTMLInputElement;
+                              groupRenameInputs = { ...groupRenameInputs, [group.groupId]: input.value };
+                            }}
+                            on:keydown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void renameGroup(group);
+                              } else if (event.key === 'Escape') {
+                                cancelGroupRename(group);
+                              }
+                            }}
+                          />
+                          <button
+                            class="mini-button"
+                            type="button"
+                            disabled={groupActionBusy || !(groupRenameInputs[group.groupId] || group.groupName).trim() || (groupRenameInputs[group.groupId] || group.groupName).trim() === group.groupName}
+                            on:click={() => renameGroup(group)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            class="mini-button subtle"
+                            type="button"
+                            disabled={groupActionBusy}
+                            on:click={() => cancelGroupRename(group)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      {:else}
+                        <button
+                          class="mini-button"
+                          type="button"
+                          disabled={groupActionBusy}
+                          on:click={() => startGroupRename(group)}
+                        >
+                          Rename
+                        </button>
+                      {/if}
+
+                      <div class="group-invite-control">
+                        <input
+                          value={groupInviteInputs[group.groupId] || ''}
+                          placeholder="Type MeowConnect name"
+                          disabled={groupActionBusy}
+                          on:focus={() => scheduleGroupInviteProfileSearch(group.groupId, groupInviteInputs[group.groupId] || '')}
+                          on:input={(event) => {
+                            const input = event.currentTarget as HTMLInputElement;
+                            groupInviteInputs = { ...groupInviteInputs, [group.groupId]: input.value };
+                            scheduleGroupInviteProfileSearch(group.groupId, input.value);
+                          }}
+                          on:keydown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              void inviteGroupMember(group);
+                            }
+                          }}
+                        />
+                        {#if activeGroupInviteId === group.groupId && groupInviteOptions.length > 0}
+                          <div class="group-invite-suggestions">
+                            {#each groupInviteOptions as profile}
+                              <button type="button" on:click={() => selectGroupInviteOption(group, profile)}>
+                                {#if profile.avatarUrl}
+                                  <img src={profile.avatarUrl} alt="" />
+                                {:else}
+                                  <span class="avatar-fallback">{getInitials(profile.displayName)}</span>
+                                {/if}
+                                <span>
+                                  <strong>{profile.displayName}</strong>
+                                </span>
+                              </button>
+                            {/each}
+                          </div>
+                        {/if}
+                        <button
+                          class="mini-button"
+                          type="button"
+                          disabled={groupActionBusy || !(groupInviteInputs[group.groupId] || '').trim()}
+                          on:click={() => inviteGroupMember(group)}
+                        >
+                          Invite
+                        </button>
+                      </div>
+
+                      <button
+                        class="mini-icon-button danger"
+                        type="button"
+                        aria-label={`Delete ${group.groupName}`}
+                        title="Delete group"
+                        disabled={groupActionBusy}
+                        on:click={() => deleteGroup(group)}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 7v8h2v-8h-2Zm4 0v8h2v-8h-2ZM7 8h10l-1 13H8L7 8Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  {:else if group.role === 'invited'}
+                    <button
+                      class="mini-button"
+                      type="button"
+                      disabled={groupActionBusy}
+                      on:click={() => acceptGroupInvite(group)}
+                    >
+                      Accept
+                    </button>
+                  {:else}
+                    <button
+                      class="mini-button subtle"
+                      type="button"
+                      disabled={groupActionBusy}
+                      on:click={() => leaveGroup(group)}
+                    >
+                      Leave
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </article>
+
+        <article class="settings-panel">
           <div class="panel-title">
             <div>
               <h3>Friends</h3>
@@ -1492,24 +2034,12 @@
                   {/if}
                   <div>
                     <strong>{connection.profile.displayName}</strong>
-                    <span>{connection.status}{connection.status === 'pending' && connection.direction === 'incoming' ? ' incoming' : ''}{connection.sharesStatic ? ' · static' : ''}</span>
+                    <span>{connection.status}{connection.status === 'pending' && connection.direction === 'incoming' ? ' incoming' : ''}</span>
                   </div>
                   <div class="friend-actions">
                     {#if connection.status === 'pending' && connection.direction === 'incoming'}
                       <button class="mini-button" type="button" disabled={friendActionBusy} on:click={() => acceptFriendRequest(connection)}>
                         Accept
-                      </button>
-                    {/if}
-                    {#if connection.status === 'accepted'}
-                      <button
-                        class:active={connection.sharesStatic}
-                        class="mini-button"
-                        type="button"
-                        disabled={friendActionBusy}
-                        title={connection.sharesStatic ? 'This friend can see your exact static reservations' : 'Let this friend see your exact static reservations'}
-                        on:click={() => toggleStaticFriend(connection)}
-                      >
-                        {connection.sharesStatic ? 'Static' : 'Mark static'}
                       </button>
                     {/if}
                     <button class="mini-button subtle" type="button" disabled={friendActionBusy} on:click={() => removeFriend(connection)}>
@@ -2105,7 +2635,7 @@
   .availability-card {
     position: relative;
     display: grid;
-    grid-template-columns: 1.65rem minmax(0, 1fr);
+    grid-template-columns: 1.65rem minmax(0, 1fr) auto;
     gap: 0.45rem;
     align-items: center;
     min-height: 3.35rem;
@@ -2245,17 +2775,58 @@
     white-space: nowrap;
   }
 
-  .availability-meta .static-badge {
-    flex-shrink: 0;
-    border-radius: 3px;
-    padding: 0.03rem 0.16rem;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary) 28%, transparent);
-    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 32%, transparent);
-    color: #ffffff;
-    font-size: 0.41rem;
-    font-weight: 650;
-    line-height: 1.2;
+  .group-assignment-control {
+    min-width: 8.4rem;
+    display: grid;
+    gap: 0.12rem;
+    justify-self: end;
+  }
+
+  .group-assignment-control span {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
     text-transform: uppercase;
+  }
+
+  .group-assignment-control select {
+    width: 8.4rem;
+    min-width: 0;
+    padding: 0.28rem 0.42rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .group-assignment-control select:disabled {
+    opacity: 0.58;
+    cursor: wait;
+  }
+
+  .group-assignment-badge {
+    justify-self: end;
+    max-width: 8.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.28rem 0.48rem;
+    border: 1px solid color-mix(in srgb, #22c55e 30%, var(--md-sys-color-outline-variant));
+    border-radius: 7px;
+    background: color-mix(in srgb, #22c55e 10%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .group-assignment-badge.reserved {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 28%, var(--md-sys-color-outline-variant));
+    background: color-mix(in srgb, var(--md-sys-color-error) 8%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   .character-copy strong,
@@ -2507,6 +3078,7 @@
   .settings-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 0.85rem;
     padding: 1rem;
     border: 1px solid var(--md-sys-color-outline-variant);
@@ -2516,6 +3088,7 @@
 
   .settings-panel {
     display: grid;
+    align-content: start;
     gap: 0.75rem;
     padding: 0.85rem;
     border: 1px solid var(--md-sys-color-outline-variant);
@@ -2676,6 +3249,264 @@
     font-size: 0.72rem;
   }
 
+  .group-create-control,
+  .group-owner-controls,
+  .group-rename-control,
+  .group-invite-control {
+    min-width: 0;
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+  }
+
+  .group-owner-controls {
+    display: grid;
+    grid-template-columns: auto minmax(8.5rem, 1fr) auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    width: min(100%, 22rem);
+  }
+
+  .group-rename-control.active {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .group-invite-control {
+    position: relative;
+  }
+
+  .group-create-control input,
+  .group-rename-control input,
+  .group-invite-control input {
+    min-width: 0;
+    width: 11rem;
+    padding: 0.42rem 0.55rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.76rem;
+  }
+
+  .group-invite-control input {
+    width: 9.5rem;
+  }
+
+  .group-rename-control input {
+    width: 7.9rem;
+  }
+
+  .group-create-control .group-tag-input {
+    width: 4.5rem;
+    text-transform: uppercase;
+  }
+
+  .group-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 4.7rem;
+    margin-right: 0.35rem;
+    padding: 0.08rem 0.26rem;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, var(--md-sys-color-outline-variant));
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-primary);
+    font-size: 0.58rem;
+    font-weight: 800;
+    line-height: 1.1;
+    vertical-align: middle;
+  }
+
+  .group-invite-suggestions {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    z-index: 25;
+    width: min(18rem, calc(100vw - 2rem));
+    max-height: 13rem;
+    overflow-y: auto;
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.35rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface-container-highest);
+    box-shadow: 0 8px 18px color-mix(in srgb, black 24%, transparent);
+  }
+
+  .group-invite-suggestions button {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 1.55rem minmax(0, 1fr);
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.36rem 0.42rem;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .group-invite-suggestions button:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+  }
+
+  .group-invite-suggestions img,
+  .group-invite-suggestions .avatar-fallback {
+    width: 1.55rem;
+    height: 1.55rem;
+  }
+
+  .group-invite-suggestions span {
+    min-width: 0;
+  }
+
+  .group-invite-suggestions strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .group-invite-suggestions strong {
+    font-size: 0.76rem;
+  }
+
+  .group-list {
+    display: grid;
+    gap: 0.32rem;
+  }
+
+  .group-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: start;
+    padding: 0.38rem 0.5rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface);
+  }
+
+  .group-row.invited {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 52%, var(--md-sys-color-outline-variant));
+    background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface));
+  }
+
+  .group-row-main {
+    min-width: 0;
+    display: grid;
+    gap: 0.24rem;
+    align-items: start;
+  }
+
+  .group-title-line {
+    min-width: 0;
+    display: flex;
+    gap: 0.45rem;
+    align-items: baseline;
+  }
+
+  .group-title-line strong,
+  .group-role-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .group-title-line strong {
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.8rem;
+  }
+
+  .group-role-label {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.72rem;
+  }
+
+  .group-member-stack {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    height: 2rem;
+    padding-left: 0.02rem;
+  }
+
+  .group-member-stack.compact {
+    height: 1.7rem;
+  }
+
+  .group-member-stack.expanded {
+    flex-wrap: wrap;
+    gap: 0.18rem;
+    width: 100%;
+    height: auto;
+    padding-top: 0.05rem;
+  }
+
+  .group-member-stack img,
+  .group-member-stack .avatar-fallback {
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    margin-left: -0.42rem;
+    border: 2px solid var(--md-sys-color-surface);
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+
+  .group-member-stack img:first-child,
+  .group-member-stack .avatar-fallback:first-child {
+    margin-left: 0;
+  }
+
+  .group-member-stack.compact img,
+  .group-member-stack.compact .avatar-fallback {
+    width: 1.58rem;
+    height: 1.58rem;
+    margin-left: -0.34rem;
+  }
+
+  .group-member-stack.expanded img,
+  .group-member-stack.expanded .avatar-fallback {
+    margin-left: 0;
+  }
+
+  .group-avatar-overflow {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 1.58rem;
+    height: 1.58rem;
+    margin-left: -0.34rem;
+    border: 2px solid var(--md-sys-color-surface);
+    border-radius: 50%;
+    background: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.58rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .group-member-collapse {
+    align-self: center;
+    padding: 0.14rem 0.38rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.62rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
   .friend-list {
     display: grid;
     gap: 0.5rem;
@@ -2746,6 +3577,57 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
+  .mini-button.danger {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 38%, var(--md-sys-color-outline-variant));
+    color: var(--md-sys-color-error);
+  }
+
+  .mini-button.danger:hover:not(:disabled) {
+    border-color: var(--md-sys-color-error);
+    background: color-mix(in srgb, var(--md-sys-color-error) 8%, var(--md-sys-color-surface));
+  }
+
+  .mini-icon-button {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 7px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  }
+
+  .mini-icon-button svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+  }
+
+  .mini-icon-button:hover:not(:disabled) {
+    border-color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface));
+    color: var(--md-sys-color-primary);
+  }
+
+  .mini-icon-button.danger {
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 38%, var(--md-sys-color-outline-variant));
+    color: var(--md-sys-color-error);
+  }
+
+  .mini-icon-button.danger:hover:not(:disabled) {
+    border-color: var(--md-sys-color-error);
+    background: color-mix(in srgb, var(--md-sys-color-error) 8%, var(--md-sys-color-surface));
+  }
+
+  .mini-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
   .empty-state {
     padding: 0.75rem 0.85rem;
     color: var(--md-sys-color-on-surface-variant);
@@ -2811,6 +3693,22 @@
       justify-content: flex-start;
     }
 
+    .group-create-control,
+    .group-owner-controls,
+    .group-rename-control,
+    .group-invite-control,
+    .group-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      justify-items: stretch;
+    }
+
+    .group-create-control input,
+    .group-rename-control input,
+    .group-invite-control input {
+      width: 100%;
+    }
+
     .friend-popover {
       top: calc(100% + 0.45rem);
       right: auto;
@@ -2835,6 +3733,26 @@
 
     .profile-detail-popover {
       max-height: min(82vh, 42rem);
+    }
+
+    .availability-card {
+      grid-template-columns: 1.65rem minmax(0, 1fr);
+    }
+
+    .group-assignment-control {
+      grid-column: 2;
+      width: 100%;
+      justify-self: stretch;
+    }
+
+    .group-assignment-control select {
+      width: 100%;
+    }
+
+    .group-assignment-badge {
+      grid-column: 2;
+      justify-self: stretch;
+      max-width: none;
     }
 
     .friend-row {

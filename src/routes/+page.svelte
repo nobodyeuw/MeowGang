@@ -21,12 +21,14 @@
     isMeowConnectFeatureEnabled,
     isMeowConnectRealtimeEnabled,
     loadMeowConnectFriends,
+    loadMeowConnectGroups,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
     meowConnectStatus,
     uploadMeowConnectSnapshotIfNeeded,
-    type MeowConnectFriendConnection
+    type MeowConnectFriendConnection,
+    type MeowConnectGroup
   } from '$lib/services/meow-connect';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
@@ -50,6 +52,7 @@
   let activeMeowConnectTab: MeowConnectSection = 'together';
   let pendingMeowConnectRequests = 0;
   let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
+  let pendingMeowConnectGroupInvites: MeowConnectGroup[] = [];
   let meowConnectFriendRequestRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let nextResetTime = '';
   let resetCountdown = '';
@@ -434,16 +437,21 @@
   async function refreshMeowConnectFriendRequests() {
     if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || discordAuthState !== 'approved') {
       pendingMeowConnectFriendRequests = [];
+      pendingMeowConnectGroupInvites = [];
       pendingMeowConnectRequests = 0;
       return;
     }
 
     try {
-      const connections = await loadMeowConnectFriends();
+      const [connections, groups] = await Promise.all([
+        loadMeowConnectFriends(),
+        loadMeowConnectGroups()
+      ]);
       pendingMeowConnectFriendRequests = connections.filter(
         (connection) => connection.status === 'pending' && connection.direction === 'incoming'
       );
-      pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length;
+      pendingMeowConnectGroupInvites = groups.filter((group) => group.role === 'invited');
+      pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length + pendingMeowConnectGroupInvites.length;
     } catch (error) {
       console.warn('Failed to refresh MeowConnect friend request notifications:', error);
     }
@@ -765,32 +773,36 @@
               <span>{meowConnectHeaderLabel}</span>
             </div>
           {/if}
-          {#if pendingMeowConnectFriendRequests.length > 0}
+          {#if pendingMeowConnectRequests > 0}
             <button
               type="button"
               class="meowconnect-request-alert"
-              title={`${pendingMeowConnectRequests} incoming MeowConnect friend request${pendingMeowConnectRequests === 1 ? '' : 's'}`}
+              title={`${pendingMeowConnectRequests} incoming MeowConnect request${pendingMeowConnectRequests === 1 ? '' : 's'}`}
               on:click={openMeowConnectRequests}
             >
               <span class="request-avatar-stack">
-                {#each pendingMeowConnectFriendRequests.slice(0, 3) as request, requestIndex}
-                  {#if request.profile.avatarUrl}
-                    <img
-                      src={request.profile.avatarUrl}
-                      alt=""
-                      title={request.profile.displayName}
-                      style={`--request-avatar-index: ${requestIndex}`}
-                    />
-                  {:else}
-                    <span
-                      class="request-avatar-fallback"
-                      title={request.profile.displayName}
-                      style={`--request-avatar-index: ${requestIndex}`}
-                    >
-                      {getInitials(request.profile.displayName)}
-                    </span>
-                  {/if}
-                {/each}
+                {#if pendingMeowConnectFriendRequests.length > 0}
+                  {#each pendingMeowConnectFriendRequests.slice(0, 3) as request, requestIndex}
+                    {#if request.profile.avatarUrl}
+                      <img
+                        src={request.profile.avatarUrl}
+                        alt=""
+                        title={request.profile.displayName}
+                        style={`--request-avatar-index: ${requestIndex}`}
+                      />
+                    {:else}
+                      <span
+                        class="request-avatar-fallback"
+                        title={request.profile.displayName}
+                        style={`--request-avatar-index: ${requestIndex}`}
+                      >
+                        {getInitials(request.profile.displayName)}
+                      </span>
+                    {/if}
+                  {/each}
+                {:else}
+                  <img src="/images/meowconnect_tab.png" alt="" style="--request-avatar-index: 0" />
+                {/if}
                 {#if pendingMeowConnectRequests > 3}
                   <span class="request-avatar-overflow">+{pendingMeowConnectRequests - 3}</span>
                 {/if}

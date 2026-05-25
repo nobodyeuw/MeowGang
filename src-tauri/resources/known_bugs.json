@@ -23,6 +23,11 @@
       "details": "Explore a custom app frame/title bar that could hold global status, reset countdowns, and contextual sub-tabs while reducing the current header footprint."
     },
     {
+      "priority": "Long Term",
+      "description": "Theme options.",
+      "details": "Add selectable app themes so users can switch from the current orange dark theme to alternatives such as white and dark or metallic silver and dark."
+    },
+    {
       "priority": "Low Prio",
       "description": "Multi static groups.",
       "details": "Create MeowConnect static groups, invite friends to those groups, and assign static-marked character raids to a specific group."

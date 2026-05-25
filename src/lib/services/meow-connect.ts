@@ -75,8 +75,42 @@ export interface MeowConnectFriendConnection {
   updatedAt: string;
 }
 
+export interface MeowConnectGroupMember {
+  groupId: string;
+  userId: string;
+  status: 'invited' | 'accepted' | 'declined' | 'removed';
+  profile?: MeowConnectProfile;
+  invitedByUserId?: string;
+  updatedAt: string;
+}
+
+export interface MeowConnectGroup {
+  groupId: string;
+  ownerUserId: string;
+  groupName: string;
+  groupTag: string;
+  role: 'owner' | 'member' | 'invited';
+  members: MeowConnectGroupMember[];
+  assignments: MeowConnectGroupRaidAssignment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeowConnectGroupRaidAssignment {
+  assignmentId?: string;
+  groupId: string;
+  userId: string;
+  rosterId: string;
+  charId: number;
+  contentId: string;
+  difficulty: string;
+  reservedForStatic: boolean;
+  updatedAt?: string;
+}
+
 export interface MeowConnectAvailabilityRow {
   ownerId: string;
+  ownerUserId?: string;
   ownerName: string;
   ownerAvatarUrl?: string;
   favoriteKey: string;
@@ -136,12 +170,23 @@ const REALTIME_ENABLED_STORAGE_KEY = 'meowConnect.realtimeEnabled';
 const LAST_UPLOAD_STORAGE_KEY = 'meowConnect.lastUploadAt';
 const LAST_UPLOAD_SIGNATURE_STORAGE_KEY = 'meowConnect.lastUploadSignature';
 const UNSYNCED_CHANGES_STORAGE_KEY = 'meowConnect.unsyncedChanges';
+const BLOCKED_DUPLICATE_CHARACTERS_STORAGE_KEY = 'meowConnect.blockedDuplicateCharacters';
 const DEFAULT_AUTO_UPLOAD_COOLDOWN_MS = 15 * 60 * 1000;
+const DUPLICATE_CHARACTER_RECHECK_MS = 24 * 60 * 60 * 1000;
 let unsyncedReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+
+export interface MeowConnectCharacterConflict {
+  charId: number;
+  charName: string;
+  ownerDisplayName: string;
+  blockedAt?: number;
+}
 
 export interface MeowConnectUploadResult {
   snapshot: MeowConnectLocalSnapshot;
   uploaded: boolean;
+  uploadedCharacterCount?: number;
+  duplicateCharacters?: MeowConnectCharacterConflict[];
   skippedReason?: 'unchanged';
 }
 
@@ -179,8 +224,34 @@ export async function loadMeowConnectLocalSnapshot(): Promise<MeowConnectLocalSn
   return { ...snapshot, encounterSnapshots };
 }
 
-export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot): Promise<void> {
+export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot): Promise<{
+  syncedSnapshot: MeowConnectLocalSnapshot;
+  duplicateCharacters: MeowConnectCharacterConflict[];
+}> {
   const profile = await getCurrentSupabaseDiscordProfile();
+  const snapshotCharacterIds = new Set(snapshot.characters.map((character) => character.charId));
+  const blockedConflicts = getStoredBlockedDuplicateCharacters();
+  const storedBlockedConflicts = blockedConflicts.filter((conflict) => snapshotCharacterIds.has(conflict.charId));
+  const freshBlockedConflicts = storedBlockedConflicts.filter((conflict) => !shouldRecheckBlockedDuplicate(conflict));
+  const recheckBlockedConflicts = storedBlockedConflicts.filter(shouldRecheckBlockedDuplicate);
+  const freshBlockedCharacterIds = new Set(freshBlockedConflicts.map((conflict) => conflict.charId));
+  const duplicateCharacters = await findMeowConnectCharacterConflicts(
+    snapshot.characters.filter((character) => !freshBlockedCharacterIds.has(character.charId))
+  );
+  const duplicateCharacterIds = new Set(duplicateCharacters.map((conflict) => conflict.charId));
+  const releasedBlockedConflicts = recheckBlockedConflicts.filter((conflict) => !duplicateCharacterIds.has(conflict.charId));
+  forgetBlockedDuplicateCharacters(releasedBlockedConflicts);
+  logBlockedDuplicateCharacters('info', freshBlockedConflicts, 'Skipped locally blocked duplicate character upload');
+  logBlockedDuplicateCharacters('warn', duplicateCharacters, 'Blocked duplicate character upload');
+  logReleasedDuplicateCharacters(releasedBlockedConflicts);
+  rememberBlockedDuplicateCharacters(duplicateCharacters);
+  const blockedCharacterIds = new Set(freshBlockedConflicts.map((conflict) => conflict.charId));
+  for (const duplicate of duplicateCharacters) {
+    blockedCharacterIds.add(duplicate.charId);
+  }
+  const blockedDuplicateCharacters = dedupeCharacterConflicts([...freshBlockedConflicts, ...duplicateCharacters]);
+
+  const syncedSnapshot = filterSnapshotForBlockedCharacters(snapshot, blockedCharacterIds);
   const resetCycle = String(snapshot.weeklyResetMs || 0);
 
   await throwIfSupabaseError(
@@ -198,16 +269,16 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
   await throwIfSupabaseError(supabase.from('meow_raid_reservations').delete().eq('user_id', profile.userId));
   await throwIfSupabaseError(supabase.from('meow_characters').delete().eq('user_id', profile.userId));
 
-  if (snapshot.characters.length > 0) {
+  if (syncedSnapshot.characters.length > 0) {
     const reservedCharacterIds = new Set(
-      (snapshot.raidReservations || [])
+      (syncedSnapshot.raidReservations || [])
         .filter((reservation) => reservation.reservedForStatic)
         .map((reservation) => reservation.charId)
     );
 
     await throwIfSupabaseError(
       supabase.from('meow_characters').upsert(
-        snapshot.characters.map((character) => ({
+        syncedSnapshot.characters.map((character) => ({
           user_id: profile.userId,
           char_id: character.charId,
           roster_id: character.rosterId,
@@ -226,10 +297,10 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
     );
   }
 
-  if (snapshot.completionSnapshots.length > 0) {
+  if (syncedSnapshot.completionSnapshots.length > 0) {
     await throwIfSupabaseError(
       supabase.from('meow_completion_snapshots').upsert(
-        snapshot.completionSnapshots.map((completion) => ({
+        syncedSnapshot.completionSnapshots.map((completion) => ({
           user_id: profile.userId,
           roster_id: completion.rosterId,
           char_id: completion.charId,
@@ -246,7 +317,7 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
     );
   }
 
-  const reservations = snapshot.raidReservations.filter((reservation) => reservation.reservedForStatic);
+  const reservations = syncedSnapshot.raidReservations.filter((reservation) => reservation.reservedForStatic);
   if (reservations.length > 0) {
     await throwIfSupabaseError(
       supabase.from('meow_raid_reservations').upsert(
@@ -262,10 +333,10 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
     );
   }
 
-  if ((snapshot.encounterSnapshots || []).length > 0) {
+  if ((syncedSnapshot.encounterSnapshots || []).length > 0) {
     await throwIfSupabaseError(
       supabase.from('meow_encounter_snapshots').upsert(
-        (snapshot.encounterSnapshots || []).map((encounter) => ({
+        (syncedSnapshot.encounterSnapshots || []).map((encounter) => ({
           user_id: profile.userId,
           local_player: encounter.localPlayer,
           content_id: encounter.contentId,
@@ -282,6 +353,8 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
       )
     );
   }
+
+  return { syncedSnapshot, duplicateCharacters: blockedDuplicateCharacters };
 }
 
 export async function uploadMeowConnectSnapshotIfNeeded(options: {
@@ -303,12 +376,17 @@ export async function uploadMeowConnectSnapshotIfNeeded(options: {
     return { snapshot, uploaded: false, skippedReason: 'unchanged' };
   }
 
-  await syncMeowConnectSnapshot(snapshot);
+  const syncResult = await syncMeowConnectSnapshot(snapshot);
   localStorage.setItem(LAST_UPLOAD_SIGNATURE_STORAGE_KEY, signature);
   setStoredTimestamp(LAST_UPLOAD_STORAGE_KEY, Date.now());
   clearMeowConnectUnsyncedChanges();
 
-  return { snapshot, uploaded: true };
+  return {
+    snapshot,
+    uploaded: true,
+    uploadedCharacterCount: syncResult.syncedSnapshot.characters.length,
+    duplicateCharacters: syncResult.duplicateCharacters
+  };
 }
 
 export function getMeowConnectLastUploadAt(): number {
@@ -332,6 +410,120 @@ function getStoredTimestamp(key: string): number {
 
 function setStoredTimestamp(key: string, value: number) {
   localStorage.setItem(key, String(value));
+}
+
+async function findMeowConnectCharacterConflicts(characters: MeowConnectCharacterSnapshot[]): Promise<MeowConnectCharacterConflict[]> {
+  const charIds = Array.from(new Set(characters.map((character) => character.charId).filter(Boolean)));
+  if (charIds.length === 0) return [];
+
+  const { data } = await throwIfSupabaseError(
+    supabase.rpc('meow_find_character_conflicts', {
+      character_ids: charIds
+    })
+  );
+  const conflicts = ((data || []) as MeowCharacterConflictRow[]).map((row) => ({
+    charId: Number(row.char_id),
+    charName: row.char_name || characters.find((character) => character.charId === Number(row.char_id))?.charName || String(row.char_id),
+    ownerDisplayName: row.owner_display_name || 'another MeowConnect user'
+  }));
+
+  return conflicts.filter((conflict) => Number.isFinite(conflict.charId));
+}
+
+function filterSnapshotForBlockedCharacters(
+  snapshot: MeowConnectLocalSnapshot,
+  blockedCharacterIds: Set<number>
+): MeowConnectLocalSnapshot {
+  if (blockedCharacterIds.size === 0) return snapshot;
+
+  return {
+    ...snapshot,
+    characters: snapshot.characters.filter((character) => !blockedCharacterIds.has(character.charId)),
+    completionSnapshots: snapshot.completionSnapshots.filter((completion) => !blockedCharacterIds.has(completion.charId)),
+    raidReservations: snapshot.raidReservations.filter((reservation) => !blockedCharacterIds.has(reservation.charId)),
+    encounterSnapshots: (snapshot.encounterSnapshots || []).map((encounter) => ({
+      ...encounter,
+      matchedCharacterIds: (encounter.matchedCharacterIds || []).filter((charId) => !blockedCharacterIds.has(charId))
+    }))
+  };
+}
+
+function getStoredBlockedDuplicateCharacters(): MeowConnectCharacterConflict[] {
+  if (typeof localStorage === 'undefined') return [];
+
+  try {
+    const values = JSON.parse(localStorage.getItem(BLOCKED_DUPLICATE_CHARACTERS_STORAGE_KEY) || '[]') as MeowConnectCharacterConflict[];
+    const now = Date.now();
+    return Array.isArray(values)
+      ? values.filter((value) => Number.isFinite(Number(value.charId))).map((value) => ({
+          charId: Number(value.charId),
+          charName: String(value.charName || value.charId),
+          ownerDisplayName: String(value.ownerDisplayName || 'another MeowConnect user'),
+          blockedAt: Number.isFinite(Number(value.blockedAt)) ? Number(value.blockedAt) : now - DUPLICATE_CHARACTER_RECHECK_MS
+        }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberBlockedDuplicateCharacters(conflicts: MeowConnectCharacterConflict[]) {
+  if (typeof localStorage === 'undefined' || conflicts.length === 0) return;
+
+  const now = Date.now();
+  const byCharId = new Map(getStoredBlockedDuplicateCharacters().map((conflict) => [conflict.charId, conflict]));
+  for (const conflict of conflicts) {
+    byCharId.set(conflict.charId, { ...conflict, blockedAt: now });
+  }
+  localStorage.setItem(
+    BLOCKED_DUPLICATE_CHARACTERS_STORAGE_KEY,
+    JSON.stringify(Array.from(byCharId.values()).sort((a, b) => a.charId - b.charId))
+  );
+}
+
+function forgetBlockedDuplicateCharacters(conflicts: MeowConnectCharacterConflict[]) {
+  if (typeof localStorage === 'undefined' || conflicts.length === 0) return;
+
+  const releasedIds = new Set(conflicts.map((conflict) => conflict.charId));
+  const keptConflicts = getStoredBlockedDuplicateCharacters().filter((conflict) => !releasedIds.has(conflict.charId));
+  localStorage.setItem(
+    BLOCKED_DUPLICATE_CHARACTERS_STORAGE_KEY,
+    JSON.stringify(keptConflicts.sort((a, b) => a.charId - b.charId))
+  );
+}
+
+function shouldRecheckBlockedDuplicate(conflict: MeowConnectCharacterConflict): boolean {
+  return Date.now() - Number(conflict.blockedAt || 0) >= DUPLICATE_CHARACTER_RECHECK_MS;
+}
+
+function logBlockedDuplicateCharacters(
+  level: 'info' | 'warn',
+  conflicts: MeowConnectCharacterConflict[],
+  prefix: string
+) {
+  for (const conflict of conflicts) {
+    writeMeowConnectLog(
+      level,
+      `${prefix}: ${conflict.charName} (char_id ${conflict.charId}) already exists under ${conflict.ownerDisplayName}.`
+    );
+  }
+}
+
+function dedupeCharacterConflicts(conflicts: MeowConnectCharacterConflict[]): MeowConnectCharacterConflict[] {
+  const byCharId = new Map<number, MeowConnectCharacterConflict>();
+  for (const conflict of conflicts) {
+    byCharId.set(conflict.charId, conflict);
+  }
+  return Array.from(byCharId.values()).sort((a, b) => a.charName.localeCompare(b.charName, undefined, { sensitivity: 'base' }));
+}
+
+function logReleasedDuplicateCharacters(conflicts: MeowConnectCharacterConflict[]) {
+  for (const conflict of conflicts) {
+    writeMeowConnectLog(
+      'info',
+      `Released duplicate character block after recheck: ${conflict.charName} (char_id ${conflict.charId}) no longer exists under another MeowConnect profile.`
+    );
+  }
 }
 
 export async function fetchMeowConnectRemoteSnapshots(resetCycle?: string): Promise<MeowConnectRemoteSnapshot[]> {
@@ -447,6 +639,257 @@ export async function setMeowConnectStaticFriend(connection: MeowConnectFriendCo
       target_user_id: connection.profile.userId,
       enabled
     })
+  );
+}
+
+export async function loadMeowConnectGroups(): Promise<MeowConnectGroup[]> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+
+  try {
+    const { data: groups } = await throwIfSupabaseError(
+      supabase
+        .from('meow_groups')
+        .select('*')
+        .order('updated_at', { ascending: false })
+    );
+    const groupRows = (groups || []) as MeowGroupRow[];
+    const groupIds = groupRows.map((group) => group.group_id);
+
+    if (groupIds.length === 0) {
+      return [];
+    }
+
+    const { data: members } = await throwIfSupabaseError(
+      supabase
+        .from('meow_group_members')
+        .select('*')
+        .in('group_id', groupIds)
+        .order('updated_at', { ascending: false })
+    );
+    const { data: assignments } = await throwIfSupabaseError(
+      supabase
+        .from('meow_group_raid_assignments')
+        .select('*')
+        .in('group_id', groupIds)
+    );
+    const memberRows = (members || []) as MeowGroupMemberRow[];
+    const assignmentRows = (assignments || []) as MeowGroupAssignmentRow[];
+    const profileIds = Array.from(new Set(memberRows.map((member) => member.user_id).filter(Boolean)));
+    const profilesById = new Map<string, MeowConnectProfile>();
+
+    if (profileIds.length > 0) {
+      const { data: profileRows } = await throwIfSupabaseError(
+        supabase.from('meow_profiles').select('user_id, discord_id, display_name, avatar_url').in('user_id', profileIds)
+      );
+
+      for (const row of (profileRows || []) as MeowProfileRow[]) {
+        profilesById.set(row.user_id, {
+          userId: row.user_id,
+          discordId: row.discord_id,
+          displayName: await resolveDiscordWhitelistDisplayName(row.discord_id, row.display_name),
+          avatarUrl: row.avatar_url || undefined
+        });
+      }
+    }
+
+    const membersByGroup = new Map<string, MeowConnectGroupMember[]>();
+    for (const member of memberRows) {
+      const entries = membersByGroup.get(member.group_id) || [];
+      entries.push({
+        groupId: member.group_id,
+        userId: member.user_id,
+        status: member.status,
+        invitedByUserId: member.invited_by_user_id || undefined,
+        profile: profilesById.get(member.user_id),
+        updatedAt: member.updated_at || member.created_at || ''
+      });
+      membersByGroup.set(member.group_id, entries);
+    }
+
+    const assignmentsByGroup = new Map<string, MeowConnectGroupRaidAssignment[]>();
+    for (const assignment of assignmentRows) {
+      const entries = assignmentsByGroup.get(assignment.group_id) || [];
+      entries.push({
+        assignmentId: assignment.assignment_id,
+        groupId: assignment.group_id,
+        userId: assignment.user_id,
+        rosterId: assignment.roster_id,
+        charId: Number(assignment.char_id),
+        contentId: assignment.content_id,
+        difficulty: assignment.difficulty || '',
+        reservedForStatic: Boolean(assignment.reserved_for_static),
+        updatedAt: assignment.updated_at || assignment.created_at || ''
+      });
+      assignmentsByGroup.set(assignment.group_id, entries);
+    }
+
+    return groupRows.map((group) => {
+      const groupMembers = (membersByGroup.get(group.group_id) || [])
+        .sort((a, b) => {
+          if (a.userId === group.owner_user_id) return -1;
+          if (b.userId === group.owner_user_id) return 1;
+          if (a.status !== b.status) return a.status === 'accepted' ? -1 : 1;
+          return (a.profile?.displayName || '').localeCompare(b.profile?.displayName || '', undefined, { sensitivity: 'base' });
+        });
+      const currentMembership = groupMembers.find((member) => member.userId === profile.userId);
+      const role = group.owner_user_id === profile.userId
+        ? 'owner'
+        : currentMembership?.status === 'invited'
+          ? 'invited'
+          : 'member';
+
+      return {
+        groupId: group.group_id,
+        ownerUserId: group.owner_user_id,
+        groupName: group.group_name,
+        groupTag: group.group_tag || '',
+        role,
+        members: groupMembers,
+        assignments: assignmentsByGroup.get(group.group_id) || [],
+        createdAt: group.created_at || '',
+        updatedAt: group.updated_at || group.created_at || ''
+      };
+    }).sort((a, b) => {
+      if (a.role !== b.role) return a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : a.role === 'invited' ? -1 : 1;
+      return a.groupName.localeCompare(b.groupName, undefined, { sensitivity: 'base' });
+    });
+  } catch (err) {
+    if (isMissingMeowGroupSchemaError(err)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function createMeowConnectGroup(groupName: string, groupTag = ''): Promise<void> {
+  const cleanName = groupName.trim();
+  const cleanTag = groupTag.trim().toUpperCase();
+  if (cleanName.length < 2 || cleanName.length > 24) {
+    throw new Error('Group name must be 2 to 24 characters.');
+  }
+  if (cleanTag.length > 5) {
+    throw new Error('Group tag must be 5 characters or less.');
+  }
+
+  await throwIfSupabaseError(
+    supabase.rpc('meow_create_group', {
+      group_name: cleanName,
+      group_tag: cleanTag
+    })
+  );
+}
+
+export async function renameMeowConnectGroup(groupId: string, groupName: string): Promise<void> {
+  const cleanName = groupName.trim();
+  if (cleanName.length < 2 || cleanName.length > 24) {
+    throw new Error('Group name must be 2 to 24 characters.');
+  }
+
+  await throwIfSupabaseError(
+    supabase
+      .from('meow_groups')
+      .update({ group_name: cleanName })
+      .eq('group_id', groupId)
+  );
+}
+
+export async function deleteMeowConnectGroup(groupId: string): Promise<void> {
+  await throwIfSupabaseError(
+    supabase
+      .from('meow_groups')
+      .delete()
+      .eq('group_id', groupId)
+  );
+}
+
+export async function leaveMeowConnectGroup(groupId: string): Promise<void> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+
+  await throwIfSupabaseError(
+    supabase
+      .from('meow_group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', profile.userId)
+  );
+}
+
+export async function inviteMeowConnectGroupMember(groupId: string, discordId: string): Promise<void> {
+  const cleanDiscordId = discordId.trim();
+  if (!cleanDiscordId) {
+    throw new Error('Enter a Discord ID first.');
+  }
+
+  await throwIfSupabaseError(
+    supabase.rpc('meow_invite_group_member', {
+      target_group_id: groupId,
+      target_discord_id: cleanDiscordId
+    })
+  );
+}
+
+export async function searchMeowConnectProfiles(query: string): Promise<MeowConnectProfile[]> {
+  try {
+    const { data } = await throwIfSupabaseError(
+      supabase.rpc('meow_search_profiles', {
+        search_text: query.trim()
+      })
+    );
+
+    const rows = (data || []) as MeowProfileRow[];
+    return Promise.all(rows.map(async (row) => ({
+      userId: row.user_id,
+      discordId: row.discord_id,
+      displayName: await resolveDiscordWhitelistDisplayName(row.discord_id, row.display_name),
+      avatarUrl: row.avatar_url || undefined
+    })));
+  } catch (err) {
+    if (isMissingMeowProfileSearchError(err)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function acceptMeowConnectGroupInvite(groupId: string): Promise<void> {
+  await throwIfSupabaseError(
+    supabase.rpc('meow_accept_group_invite', {
+      target_group_id: groupId
+    })
+  );
+}
+
+export async function assignMeowConnectRaidToGroup(assignment: Omit<MeowConnectGroupRaidAssignment, 'assignmentId' | 'userId' | 'updatedAt'>): Promise<void> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+
+  await throwIfSupabaseError(
+    supabase.from('meow_group_raid_assignments').upsert(
+      {
+        group_id: assignment.groupId,
+        user_id: profile.userId,
+        roster_id: assignment.rosterId,
+        char_id: assignment.charId,
+        content_id: assignment.contentId,
+        difficulty: assignment.difficulty || '',
+        reserved_for_static: assignment.reservedForStatic
+      },
+      { onConflict: 'group_id,user_id,char_id,content_id,difficulty' }
+    )
+  );
+}
+
+export async function removeMeowConnectRaidGroupAssignment(assignment: Pick<MeowConnectGroupRaidAssignment, 'groupId' | 'charId' | 'contentId' | 'difficulty'>): Promise<void> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+
+  await throwIfSupabaseError(
+    supabase
+      .from('meow_group_raid_assignments')
+      .delete()
+      .eq('group_id', assignment.groupId)
+      .eq('user_id', profile.userId)
+      .eq('char_id', assignment.charId)
+      .eq('content_id', assignment.contentId)
+      .eq('difficulty', assignment.difficulty || '')
   );
 }
 
@@ -818,7 +1261,7 @@ export function buildMeowConnectAvailabilityRows(
     ? buildSnapshotRows(
         {
           profile: {
-            userId: 'local',
+            userId: localProfile?.userId || 'local',
             discordId: 'local',
             displayName: 'You',
             avatarUrl: localProfile?.avatarUrl
@@ -968,6 +1411,7 @@ function buildSnapshotRows(
 
       return {
         ownerId: snapshot.profile.discordId || snapshot.profile.userId,
+        ownerUserId: snapshot.profile.userId,
         ownerName: snapshot.profile.displayName,
         ownerAvatarUrl: snapshot.profile.avatarUrl,
         favoriteKey: getMeowConnectFavoriteKey(snapshot.profile.discordId || snapshot.profile.userId, character.character.charId),
@@ -1604,6 +2048,12 @@ interface MeowCharacterRow {
   has_static_reservation?: boolean;
 }
 
+interface MeowCharacterConflictRow {
+  char_id: number | string;
+  char_name?: string | null;
+  owner_display_name?: string | null;
+}
+
 interface MeowCompletionRow {
   user_id: string;
   roster_id: string;
@@ -1654,8 +2104,52 @@ interface MeowFriendConnectionRow {
   updated_at?: string;
 }
 
+interface MeowGroupRow {
+  group_id: string;
+  owner_user_id: string;
+  group_name: string;
+  group_tag?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface MeowGroupMemberRow {
+  group_id: string;
+  user_id: string;
+  invited_by_user_id?: string | null;
+  status: 'invited' | 'accepted' | 'declined' | 'removed';
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface MeowGroupAssignmentRow {
+  assignment_id?: string;
+  group_id: string;
+  user_id: string;
+  roster_id: string;
+  char_id: number;
+  content_id: string;
+  difficulty: string;
+  reserved_for_static: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 function getOtherUserId(connection: MeowFriendConnectionRow, currentUserId: string): string {
   return connection.user_id === currentUserId ? connection.friend_user_id : connection.user_id;
+}
+
+function isMissingMeowGroupSchemaError(err: unknown): boolean {
+  const message = String((err as { message?: string })?.message || err || '').toLowerCase();
+  return message.includes('meow_groups') ||
+    message.includes('meow_group_members') ||
+    message.includes('meow_group_raid_assignments') ||
+    message.includes('could not find the table');
+}
+
+function isMissingMeowProfileSearchError(err: unknown): boolean {
+  const message = String((err as { message?: string })?.message || err || '').toLowerCase();
+  return message.includes('meow_search_profiles') || message.includes('could not find the function');
 }
 
 function buildRemoteSnapshots(
