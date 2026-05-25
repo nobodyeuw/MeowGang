@@ -2,7 +2,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 use sysinfo::System;
 use tauri::State;
 
@@ -16,6 +16,7 @@ pub struct SystemSettings {
     pub loa_logs_exe_path: Option<String>,
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
+    pub hide_on_launch: bool,
     pub show_setup_guide_button: bool,
     pub show_auth_welcome: bool,
 }
@@ -86,6 +87,7 @@ pub async fn get_system_settings(
         start_with_windows: settings.system.start_with_windows,
         start_with_lost_ark: settings.system.start_with_lost_ark,
         start_with_loa_logs,
+        hide_on_launch: settings.system.hide_on_launch,
         show_setup_guide_button: settings.system.show_setup_guide_button,
         show_auth_welcome: settings.system.show_auth_welcome,
         extra: settings.system.extra,
@@ -127,6 +129,25 @@ pub async fn set_show_auth_welcome(
         .map_err(|e| format!("Failed to save settings: {}", e))?;
 
     crate::log_info!("Set Discord welcome screen visibility to: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_hide_on_launch(
+    enabled: bool,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<(), String> {
+    let mut settings = settings_manager
+        .read()
+        .map_err(|e| format!("Failed to read settings: {}", e))?
+        .unwrap_or_else(|| settings_manager.get_default());
+
+    settings.system.hide_on_launch = enabled;
+    settings_manager
+        .save(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    crate::log_info!("Set hide on launch to: {}", enabled);
     Ok(())
 }
 
@@ -467,16 +488,15 @@ pub(crate) fn refresh_startup_registration(
     settings: &crate::settings::Settings,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let enabled = settings.system.start_with_windows
-        || settings.system.start_with_lost_ark
-        || settings.system.start_with_loa_logs;
+        || settings.system.start_with_lost_ark;
     let background_monitor = !settings.system.start_with_windows
-        && (settings.system.start_with_lost_ark || settings.system.start_with_loa_logs);
+        && settings.system.start_with_lost_ark;
 
     refresh_startup_registration_impl(enabled, background_monitor)
 }
 
 pub(crate) fn should_keep_background_monitor(settings: &crate::settings::Settings) -> bool {
-    settings.system.start_with_lost_ark || settings.system.start_with_loa_logs
+    settings.system.start_with_lost_ark
 }
 
 #[cfg(target_os = "windows")]
@@ -918,7 +938,6 @@ use crate::services::logging_service;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
-const UPDATE_READY_GRACE_PERIOD_SECONDS: i64 = 10 * 60;
 const UPDATE_METADATA_URL: &str = "https://raw.githubusercontent.com/nobodyeuw/MeowGang/main/latest.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -932,13 +951,12 @@ pub struct UpdateInfo {
 #[derive(Debug, Deserialize)]
 struct UpdateMetadata {
     version: String,
-    pub_date: Option<String>,
+    platforms: Option<HashMap<String, UpdatePlatformMetadata>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct SeenUpdateState {
-    version: String,
-    first_seen_at: i64,
+#[derive(Debug, Deserialize)]
+struct UpdatePlatformMetadata {
+    url: Option<String>,
 }
 
 enum UpdateReleaseDelay {
@@ -948,7 +966,16 @@ enum UpdateReleaseDelay {
 }
 
 async fn update_release_delay_status(version: &str) -> UpdateReleaseDelay {
-    let client = reqwest::Client::new();
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+    {
+        Ok(client) => client,
+        Err(e) => {
+            logging_service::warn(&format!("Failed to build update metadata client: {}", e));
+            return UpdateReleaseDelay::Unknown;
+        }
+    };
     let metadata = match client
         .get(UPDATE_METADATA_URL)
         .header("User-Agent", "LOA Tracker")
@@ -972,72 +999,56 @@ async fn update_release_delay_status(version: &str) -> UpdateReleaseDelay {
         return UpdateReleaseDelay::Unknown;
     }
 
-    let Some(pub_date) = metadata.pub_date else {
-        return UpdateReleaseDelay::Unknown;
-    };
-
-    let published_at = match chrono::DateTime::parse_from_rfc3339(&pub_date) {
-        Ok(date) => date.with_timezone(&chrono::Utc),
-        Err(e) => {
-            logging_service::warn(&format!("Failed to parse update pub_date for delay check: {}", e));
-            return UpdateReleaseDelay::Unknown;
-        }
-    };
-
-    let elapsed_seconds = chrono::Utc::now()
-        .signed_duration_since(published_at)
-        .num_seconds()
-        .max(0);
-
-    if elapsed_seconds < UPDATE_READY_GRACE_PERIOD_SECONDS {
-        UpdateReleaseDelay::Remaining(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
-    } else {
-        UpdateReleaseDelay::Ready
+    if !update_asset_urls_ready(&client, &metadata).await {
+        return UpdateReleaseDelay::Remaining(60);
     }
+
+    UpdateReleaseDelay::Ready
 }
 
-fn update_first_seen_delay_remaining_seconds(app: &AppHandle, version: &str) -> Option<i64> {
-    let now = chrono::Utc::now().timestamp();
-    let app_data_dir = match app.path().app_data_dir() {
-        Ok(path) => path,
-        Err(e) => {
-            logging_service::warn(&format!("Failed to resolve app data dir for update delay: {}", e));
-            return Some(UPDATE_READY_GRACE_PERIOD_SECONDS);
-        }
+async fn update_asset_urls_ready(client: &reqwest::Client, metadata: &UpdateMetadata) -> bool {
+    let Some(platforms) = metadata.platforms.as_ref() else {
+        return true;
     };
 
-    if let Err(e) = fs::create_dir_all(&app_data_dir) {
-        logging_service::warn(&format!("Failed to create app data dir for update delay: {}", e));
-        return Some(UPDATE_READY_GRACE_PERIOD_SECONDS);
+    let mut urls: Vec<String> = Vec::new();
+    for platform in platforms.values() {
+        let Some(url) = platform.url.as_deref() else {
+            continue;
+        };
+        if !urls.iter().any(|existing| existing == url) {
+            urls.push(url.to_string());
+        }
     }
 
-    let state_path = app_data_dir.join("update_first_seen.json");
-    let stored_state = fs::read_to_string(&state_path)
-        .ok()
-        .and_then(|content| serde_json::from_str::<SeenUpdateState>(&content).ok());
+    if urls.is_empty() {
+        return true;
+    }
 
-    let state = match stored_state {
-        Some(state) if state.version.trim_start_matches('v') == version.trim_start_matches('v') => state,
-        _ => {
-            let state = SeenUpdateState {
-                version: version.to_string(),
-                first_seen_at: now,
-            };
-            if let Ok(content) = serde_json::to_string_pretty(&state) {
-                if let Err(e) = fs::write(&state_path, content) {
-                    logging_service::warn(&format!("Failed to persist update first-seen state: {}", e));
-                }
+    for url in urls {
+        match client
+            .head(&url)
+            .header("User-Agent", "LOA Tracker")
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {}
+            Ok(response) => {
+                logging_service::warn(&format!(
+                    "Update asset is not reachable yet: {} returned {}",
+                    url,
+                    response.status()
+                ));
+                return false;
             }
-            state
+            Err(e) => {
+                logging_service::warn(&format!("Failed to verify update asset availability for {}: {}", url, e));
+                return false;
+            }
         }
-    };
-
-    let elapsed_seconds = (now - state.first_seen_at).max(0);
-    if elapsed_seconds < UPDATE_READY_GRACE_PERIOD_SECONDS {
-        Some(UPDATE_READY_GRACE_PERIOD_SECONDS - elapsed_seconds)
-    } else {
-        None
     }
+
+    true
 }
 
 #[tauri::command]
@@ -1052,9 +1063,7 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
                 let remaining_delay = match update_release_delay_status(&update.version).await {
                     UpdateReleaseDelay::Remaining(seconds) => Some(seconds),
                     UpdateReleaseDelay::Ready => None,
-                    UpdateReleaseDelay::Unknown => {
-                        update_first_seen_delay_remaining_seconds(&app, &update.version)
-                    }
+                    UpdateReleaseDelay::Unknown => None,
                 };
 
                 if let Some(remaining_seconds) = remaining_delay {

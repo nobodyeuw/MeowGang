@@ -83,6 +83,8 @@ pub fn run() {
                 .ensure_directories()
                 .expect("Could not ensure directories exist");
 
+            handlers::auth_handlers::migrate_legacy_roaming_files(app.handle());
+
             // Initialize database setup (synchronous, fast) - AFTER path update
             let db_path = init::ensure_database_setup(&app_context.app_data_dir)?;
             crate::log_info!("Database path established: {:?}", db_path);
@@ -137,12 +139,12 @@ pub fn run() {
                         crate::log_error!("Failed to refresh startup registration: {}", e);
                     }
 
-                    if is_startup_monitor && !s.system.start_with_windows {
+                    if s.system.hide_on_launch || (is_startup_monitor && !s.system.start_with_windows) {
                         if let Some(window) = app.get_webview_window("main") {
                             if let Err(e) = window.hide() {
-                                crate::log_error!("Failed to hide startup monitor window: {}", e);
+                                crate::log_error!("Failed to hide launch window: {}", e);
                             } else {
-                                crate::log_info!("LOA Tracker started as hidden startup monitor");
+                                crate::log_info!("LOA Tracker started hidden in tray");
                             }
                         }
                     }
@@ -416,6 +418,7 @@ pub fn run() {
             handlers::system_handlers::get_system_settings,
             handlers::system_handlers::set_show_setup_guide_button,
             handlers::system_handlers::set_show_auth_welcome,
+            handlers::system_handlers::set_hide_on_launch,
             handlers::system_handlers::clear_user_data,
             handlers::system_handlers::set_encounters_db_path,
             handlers::system_handlers::set_lost_ark_exe_path,

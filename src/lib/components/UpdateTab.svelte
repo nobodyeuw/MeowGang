@@ -20,6 +20,29 @@
   let showDetailsModal = false;
   let detailsTitle = '';
   let detailsContent = '';
+  $: knownIssueItems = knownBugs?.knownIssues || (knownBugs?.bugs || []).filter((item: any) => item.category !== 'coming_feature');
+  $: comingFeatureItems = knownBugs?.comingFeatures || (knownBugs?.bugs || []).filter((item: any) => item.category === 'coming_feature');
+
+  function normalizeLabel(value: string) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '-');
+  }
+
+  function formatIssueSeverity(value: string) {
+    const normalized = normalizeLabel(value);
+    if (normalized === 'low-priority') return 'Low';
+    if (normalized === 'no-priority') return 'Low';
+    return value;
+  }
+
+  function formatFeaturePriority(value: string) {
+    const normalized = normalizeLabel(value);
+    if (normalized === 'long-term') return 'Long Term';
+    if (normalized === 'no-priority') return 'No Prio';
+    if (normalized === 'low-priority') return 'Low Prio';
+    if (normalized === 'mid-priority' || normalized === 'medium-priority') return 'Mid Prio';
+    if (normalized === 'high-priority') return 'High Prio';
+    return value;
+  }
 
   onMount(async () => {
     await loadAppVersion();
@@ -175,6 +198,12 @@
     detailsContent = '';
   }
 
+  function openTrackerItemDetails(item: any, title: string) {
+    detailsTitle = title;
+    detailsContent = escapeHtml(item.details || item.description || 'No details available.');
+    showDetailsModal = true;
+  }
+
   async function openPreviousChangelogs() {
     try {
       await openUrl(RELEASES_URL);
@@ -216,7 +245,7 @@
   <div class="header-panel">
     <div>
       <h2>Updates & Changelog</h2>
-      <p>View the current app version, available updates, and known issues.</p>
+      <p>View the current app version, available updates, coming changes, and known issues.</p>
     </div>
     <button type="button" class="release-history-link" on:click={openPreviousChangelogs}>
       Read previous changelogs here
@@ -255,37 +284,88 @@
     <div class="alert error">{loadError}</div>
   {/if}
 
-  <div class="changelog-card">
-    <div class="section-header">
-      <h3>Changelog</h3>
-      <p>Latest releases and fixes from the tracker.</p>
+  <div class="updates-layout">
+    <div class="changelog-card">
+      <div class="section-header">
+        <h3>Changelog</h3>
+      </div>
+
+      {#if isChangelogLoading}
+        <div class="loading-state">Loading changelog...</div>
+      {:else if changelogs?.versions?.length}
+        <div class="changelog-list">
+          {#each changelogs.versions as version}
+            <div class="changelog-entry">
+              <div class="entry-header">
+                <span class="entry-version">v{version.version}</span>
+                <span class="entry-date">{version.date}</span>
+                <button class="change-details" on:click={() => openVersionDetails(version)}>Details</button>
+              </div>
+              <ul>
+                {#each version.changes as change}
+                  <li class="change-row">
+                    <span class={`bug-severity change-label type-${change.type.toLowerCase().replace(/\s+/g,'-')}`}>{change.type}</span>
+                    <span class="change-desc">{change.description}</span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-state">No changelog data available.</div>
+      {/if}
     </div>
 
-    {#if isChangelogLoading}
-      <div class="loading-state">Loading changelog...</div>
-    {:else if changelogs?.versions?.length}
-      <div class="changelog-list">
-        {#each changelogs.versions as version}
-          <div class="changelog-entry">
-            <div class="entry-header">
-              <span class="entry-version">v{version.version}</span>
-              <span class="entry-date">{version.date}</span>
-              <button class="change-details" on:click={() => openVersionDetails(version)}>Click here for details</button>
-            </div>
-            <ul>
-              {#each version.changes as change}
-                <li class="change-row">
-                  <span class={`bug-severity change-label type-${change.type.toLowerCase().replace(/\s+/g,'-')}`}>{change.type}</span>
-                  <span class="change-desc">{change.description}</span>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        {/each}
+    <div class="updates-side-column">
+      <div class="bugs-card">
+        <div class="section-header">
+          <h3>Known Issues</h3>
+        </div>
+
+        {#if isChangelogLoading}
+          <div class="loading-state">Loading known issues...</div>
+        {:else if knownIssueItems.length}
+          <ul class="bugs-list">
+            {#each knownIssueItems as bug}
+              <li>
+                <span class={`bug-severity issue-severity severity-${normalizeLabel(formatIssueSeverity(bug.severity))}`}>{formatIssueSeverity(bug.severity)}</span>
+                <span class="bug-description">{bug.description}</span>
+                {#if bug.details}
+                  <button class="change-details" on:click={() => openTrackerItemDetails(bug, 'Known Issue Details')}>Details</button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <div class="empty-state">No known issues recorded.</div>
+        {/if}
       </div>
-    {:else}
-      <div class="empty-state">No changelog data available.</div>
-    {/if}
+
+      <div class="bugs-card">
+        <div class="section-header">
+          <h3>Coming Features</h3>
+        </div>
+
+        {#if isChangelogLoading}
+          <div class="loading-state">Loading coming features...</div>
+        {:else if comingFeatureItems.length}
+          <ul class="bugs-list">
+            {#each comingFeatureItems as feature}
+              <li>
+                <span class={`bug-severity feature-priority priority-${normalizeLabel(formatFeaturePriority(feature.priority || feature.severity))}`}>{formatFeaturePriority(feature.priority || feature.severity)}</span>
+                <span class="bug-description">{feature.description}</span>
+                {#if feature.details}
+                  <button class="change-details" on:click={() => openTrackerItemDetails(feature, 'Coming Feature Details')}>Details</button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <div class="empty-state">No coming features recorded.</div>
+        {/if}
+      </div>
+    </div>
   </div>
 
   {#if showDetailsModal}
@@ -302,38 +382,18 @@
     </div>
   {/if}
 
-  <div class="bugs-card">
-    <div class="section-header">
-      <h3>Known Issues</h3>
-      <p>Open issues affecting the current tracker version.</p>
-    </div>
-
-    {#if isChangelogLoading}
-      <div class="loading-state">Loading known issues...</div>
-    {:else if knownBugs?.bugs?.length}
-      <ul class="bugs-list">
-        {#each knownBugs.bugs as bug}
-          <li>
-            <span class={`bug-severity severity-${bug.severity.toLowerCase().replace(/\s+/g, '-')}`}>{bug.severity}</span>
-            <span class="bug-description">{bug.description}</span>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <div class="empty-state">No known bugs recorded.</div>
-    {/if}
-  </div>
 </div>
 
 <style>
   .update-tab {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.65rem;
     max-width: 1280px;
     margin: 0 auto;
     width: 100%;
-    padding: 1rem;
+    padding: 0.75rem;
+    font-size: 0.9rem;
   }
 
   .header-panel {
@@ -341,44 +401,45 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.25rem;
+    padding: 0.75rem 0.85rem;
     background: var(--md-sys-color-surface-container-highest);
-    border-radius: 16px;
+    border-radius: 12px;
     border: 1px solid var(--md-sys-color-outline);
   }
 
   .header-panel h2 {
-    margin: 0 0 0.25rem;
-    font-size: 1.5rem;
+    margin: 0 0 0.15rem;
+    font-size: 1.12rem;
   }
 
   .header-panel p {
     margin: 0;
     color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.82rem;
   }
 
   .status-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 0.55rem;
   }
 
   .status-card {
-    padding: 1rem;
-    border-radius: 16px;
+    padding: 0.6rem 0.7rem;
+    border-radius: 12px;
     background: var(--md-sys-color-surface-container-highest);
     border: 1px solid var(--md-sys-color-outline);
   }
 
   .status-label {
     display: block;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
     color: var(--md-sys-color-on-surface-variant);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
   }
 
   .status-value {
-    font-size: 1.15rem;
+    font-size: 0.9rem;
     font-weight: 600;
   }
 
@@ -392,17 +453,18 @@
 
   .actions-row {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
   }
 
   .button {
-    padding: 0.9rem 1.25rem;
+    padding: 0.55rem 0.8rem;
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
     cursor: pointer;
     font-weight: 600;
-    min-width: 180px;
+    min-width: 132px;
+    font-size: 0.82rem;
   }
 
   .button.primary {
@@ -428,20 +490,33 @@
     padding: 0.9rem 1rem;
   }
 
+  .updates-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+  }
+
+  .updates-side-column {
+    display: grid;
+    gap: 0.65rem;
+  }
+
   .changelog-card,
   .bugs-card {
-    padding: 1rem;
-    border-radius: 16px;
+    padding: 0.65rem;
+    border-radius: 10px;
     background: var(--md-sys-color-surface-container-highest);
     border: 1px solid var(--md-sys-color-outline);
   }
 
   .section-header {
-    margin-bottom: 1rem;
+    margin-bottom: 0.45rem;
   }
 
   .section-header h3 {
-    margin: 0 0 0.25rem;
+    margin: 0;
+    font-size: 0.92rem;
   }
 
   .section-header p {
@@ -452,29 +527,29 @@
   .changelog-list,
   .bugs-list {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.42rem;
   }
 
   .changelog-entry {
-    padding: 0.9rem;
-    border-radius: 14px;
+    padding: 0.52rem;
+    border-radius: 8px;
     background: var(--md-sys-color-surface);
     border: 1px solid var(--md-sys-color-outline);
   }
 
   .change-row {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.45rem;
     align-items: center;
-    padding: 0.35rem 0;
+    padding: 0.18rem 0;
   }
 
   /* Base styles for the premium metallic/shiny look */
 .bug-severity.change-label {
   font-weight: 700;
-  padding: 0.35rem 0.75rem;
+  padding: 0.22rem 0.48rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.58rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   position: relative;
@@ -483,7 +558,7 @@
   align-items: center;
   justify-content: center;
   color: #fff;
-  min-width: 54px;
+  min-width: 42px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -531,11 +606,18 @@
     0 4px 14px rgba(29, 78, 216, 0.4);
 }
 .bug-severity.change-label.type-improved {
-  background: linear-gradient(135deg, #a78bfa 0%, #6d28d9 100%);
+  background: linear-gradient(135deg, #38bdf8 0%, #0f766e 100%);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 4px 14px rgba(109, 40, 217, 0.4);
+    0 4px 14px rgba(15, 118, 110, 0.3);
+}
+.bug-severity.change-label.type-changed {
+  background: linear-gradient(135deg, #94a3b8 0%, #475569 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(71, 85, 105, 0.28);
 }
 .bug-severity.change-label.type-security {
   background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%);
@@ -555,6 +637,8 @@
   .change-desc {
     color: var(--md-sys-color-on-surface-variant);
     flex: 1;
+    font-size: 0.82rem;
+    min-width: 0;
   }
 
   .change-details {
@@ -563,22 +647,27 @@
     color: var(--md-sys-color-primary);
     font-weight: 600;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.76rem;
   }
 
   .entry-header {
     display: flex;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+    margin-bottom: 0.32rem;
+    align-items: center;
+    flex-wrap: wrap;
   }
 
   .entry-version {
     font-weight: 700;
+    font-size: 0.88rem;
   }
 
   .entry-date {
     color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.76rem;
   }
 
   .bugs-list {
@@ -589,21 +678,21 @@
 
   .bugs-list li {
     display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    padding: 0.65rem 0.75rem;
-    border-radius: 14px;
+    gap: 0.45rem;
+    align-items: flex-start;
+    padding: 0.42rem 0.48rem;
+    border-radius: 8px;
     border: 1px solid var(--md-sys-color-outline);
     background: var(--md-sys-color-surface);
   }
 
   .bug-severity {
     font-weight: 700;
-    padding: 0.3rem 0.75rem;
+    padding: 0.2rem 0.45rem;
     border-radius: 999px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-size: 0.75rem;
+    font-size: 0.58rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -625,7 +714,7 @@
     transform: translateY(-10%) skewY(-3deg);
   }
 
-  .bug-severity.severity-critical {
+  .issue-severity.severity-critical {
     background: linear-gradient(135deg, #f87171 0%, #dc2626 45%, #b91c1c 100%);
     color: #fff;
     border: 1px solid rgba(255, 255, 255, 0.45);
@@ -634,58 +723,81 @@
       0 3px 12px rgba(220, 38, 38, 0.28);
   }
 
-  .bug-severity.severity-low-priority {
-    background: linear-gradient(135deg, #fde68a 0%, #f59e0b 45%, #d97706 100%);
-    color: #1f2937;
+  .issue-severity.severity-high {
+    background: linear-gradient(135deg, #fb923c 0%, #ea580c 48%, #c2410c 100%);
+    color: #fff;
     border: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 3px 12px rgba(245, 158, 11, 0.24);
+      0 3px 12px rgba(234, 88, 12, 0.24);
   }
 
-  .bug-severity.severity-no-priority {
-    background: linear-gradient(135deg, #4b5563 0%, #374151 50%, #1f2937 100%);
-    color: #d1d5db;
-    border: 1px solid rgba(156, 163, 175, 0.28);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      0 2px 8px rgba(17, 24, 39, 0.22);
-    opacity: 0.82;
-  }
-
-  .bug-severity.severity-moderate {
+  .issue-severity.severity-moderate {
     background: rgba(245, 158, 11, 0.16);
     color: #b45309;
     border-color: rgba(245, 158, 11, 0.28);
   }
 
-  .bug-severity.severity-minor {
+  .issue-severity.severity-minor {
     background: rgba(250, 204, 21, 0.16);
     color: #92400e;
     border-color: rgba(250, 204, 21, 0.28);
   }
 
-  .bug-severity.severity-low {
+  .issue-severity.severity-low {
     background: rgba(34, 197, 94, 0.16);
     color: #166534;
     border-color: rgba(34, 197, 94, 0.28);
   }
 
-  .bug-severity.severity-info {
+  .issue-severity.severity-info {
     background: rgba(59, 130, 246, 0.16);
     color: #1d4ed8;
     border-color: rgba(59, 130, 246, 0.28);
   }
 
+  .feature-priority.priority-high-prio {
+    background: rgba(239, 68, 68, 0.16);
+    color: #b91c1c;
+    border-color: rgba(239, 68, 68, 0.28);
+  }
+
+  .feature-priority.priority-mid-prio {
+    background: rgba(245, 158, 11, 0.16);
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.28);
+  }
+
+  .feature-priority.priority-low-prio {
+    background: rgba(59, 130, 246, 0.15);
+    color: #1d4ed8;
+    border-color: rgba(59, 130, 246, 0.26);
+  }
+
+  .feature-priority.priority-long-term {
+    background: rgba(20, 184, 166, 0.15);
+    color: #0f766e;
+    border-color: rgba(20, 184, 166, 0.28);
+  }
+
+  .feature-priority.priority-no-prio {
+    background: rgba(100, 116, 139, 0.16);
+    color: #64748b;
+    border-color: rgba(100, 116, 139, 0.26);
+  }
+
   .bug-description {
     color: var(--md-sys-color-on-surface-variant);
     flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
   }
 
   .empty-state,
   .loading-state {
-    padding: 1rem;
-    border-radius: 14px;
+    padding: 0.6rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
     background: var(--md-sys-color-surface);
     border: 1px dashed var(--md-sys-color-outline);
     color: var(--md-sys-color-on-surface-variant);
@@ -791,9 +903,9 @@
     color: var(--md-sys-color-primary);
     cursor: pointer;
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
     font-weight: 700;
-    padding: 0.5rem 0.8rem;
+    padding: 0.4rem 0.65rem;
     white-space: nowrap;
   }
 
@@ -801,7 +913,17 @@
     background: var(--md-sys-color-surface-variant);
   }
 
+  @media (max-width: 980px) {
+    .updates-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
   @media (max-width: 768px) {
+    .update-tab {
+      padding: 0.55rem;
+    }
+
     .header-panel {
       align-items: flex-start;
       flex-direction: column;

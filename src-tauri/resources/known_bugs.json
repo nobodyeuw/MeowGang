@@ -1,14 +1,61 @@
 {
-  "bugs": [
-
+  "knownIssues": [
     {
-      "severity": "No Priority",
-      "description": "Full window sized app or extremly small window may cause some UI elements to be misaligned or overlap. This is due to the responsive design of the app and may vary based on screen resolution and aspect ratio. This app UI is optimized for 1/4 to 1/2 screen window size."
+      "severity": "Low",
+      "description": "Extreme window sizes may affect layout.",
+      "details": "Full window sized app or extremely small window may cause some UI elements to be misaligned or overlap. This is due to the responsive design of the app and may vary based on screen resolution and aspect ratio. This app UI is optimized for 1/4 of 1440px and 1/2 of 1080px screen window size."
     },
-
     {
-      "severity": "Low Priority",
-      "description": "Some UI glitches when using the Set-up guide + when swapping from dashboard to ToDo tab by clicking on a character."
+      "severity": "Minor",
+      "description": "Minor Set-up guide and To Do navigation glitches.",
+      "details": "Some UI glitches can happen when using the Set-up guide and when swapping from Dashboard to To Do by clicking on a character."
+    }
+  ],
+  "comingFeatures": [
+    {
+      "priority": "No Prio",
+      "description": "Optional UI scale presets.",
+      "details": "Add accessibility-focused UI scale presets such as Small, Normal, and Large. This needs careful testing across dense tables, dashboard cards, raid grids, and MeowConnect rows."
+    },
+    {
+      "priority": "No Prio",
+      "description": "Custom app title bar.",
+      "details": "Explore a custom app frame/title bar that could hold global status, reset countdowns, and contextual sub-tabs while reducing the current header footprint."
+    },
+    {
+      "priority": "Low Prio",
+      "description": "Multi static groups.",
+      "details": "Create MeowConnect static groups, invite friends to those groups, and assign static-marked character raids to a specific group."
+    },
+    {
+      "priority": "Low Prio",
+      "description": "UI/UX polishing pass.",
+      "details": "Further polish individual tabs and workflows based on concrete user feedback and requested areas."
+    },
+    {
+      "priority": "Low Prio",
+      "description": "Expanded onboarding guidance.",
+      "details": "Improve setup and feature guidance for newer users without adding extra noise for existing users."
+    },
+    {
+      "priority": "Long Term",
+      "description": "Progression planner.",
+      "details": "Continue background development of the progression planner. This needs more time to fully develop and validate the math and logic behind each planning aspect."
+    },
+    {
+      "priority": "High Prio",
+      "description": "Stabilize database sync behavior.",
+      "details": "Finetune how the app sends, receives, retries, and validates database-backed data. This is mostly invisible to users but improves long-term technical reliability."
+    },
+    {
+      "priority": "High Prio",
+      "description": "Improve whitelist security flow.",
+      "details": "Improve protection against bypassing app access without being in the whitelist, and automate whitelist writing with human backup/review."
+    },
+    {
+      "priority": "High Prio",
+      "description": "MeowConnect data integrity checks.",
+      "details": "Add stronger validation around shared snapshots, encounter logs, static reservations, and friend availability so edge cases are easier to detect and recover from."
     }
   ]
 }

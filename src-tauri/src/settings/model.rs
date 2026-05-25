@@ -26,6 +26,7 @@ pub struct SystemSettings {
     pub start_with_windows: bool,
     pub start_with_lost_ark: bool,
     pub start_with_loa_logs: bool,
+    pub hide_on_launch: bool,
     pub show_setup_guide_button: bool,
     pub show_auth_welcome: bool,
     #[serde(flatten)]
@@ -47,6 +48,7 @@ impl Default for SystemSettings {
             start_with_windows: false,
             start_with_lost_ark: false,
             start_with_loa_logs: false,
+            hide_on_launch: false,
             show_setup_guide_button: true,
             show_auth_welcome: true,
             extra: Map::new(),

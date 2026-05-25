@@ -19,6 +19,9 @@ const DISCORD_AUTHORIZE_URL: &str = "https://discord.com/oauth2/authorize";
 const DISCORD_TOKEN_URL: &str = "https://discord.com/api/v10/oauth2/token";
 const DISCORD_USER_URL: &str = "https://discord.com/api/v10/users/@me";
 const DEFAULT_DISCORD_CLIENT_ID: &str = "1506247060142166076";
+const AUTH_FILE_NAME: &str = "meowgang_auth.txt";
+const LEGACY_UPDATE_FIRST_SEEN_FILE_NAME: &str = "update_first_seen.json";
+const LEGACY_PARTY_PLANS_FILE_NAME: &str = "party_plans.json";
 
 #[derive(Debug, Serialize)]
 pub struct DiscordAuthResult {
@@ -616,12 +619,65 @@ fn collect_users_from_array(entries: &[Value], users: &mut HashMap<String, Optio
     }
 }
 
+pub fn migrate_legacy_roaming_files(app: &tauri::AppHandle) {
+    if let Err(e) = migrate_legacy_auth_file(app) {
+        crate::log_warn!("Failed to migrate legacy Discord auth file: {}", e);
+    }
+
+    if let Some(path) = legacy_roaming_file_path(app, LEGACY_UPDATE_FIRST_SEEN_FILE_NAME) {
+        if path.exists() {
+            match fs::remove_file(&path) {
+                Ok(_) => crate::log_info!("Removed legacy update delay state from {:?}", path),
+                Err(e) => crate::log_warn!("Failed to remove legacy update delay state {:?}: {}", path, e),
+            }
+        }
+    }
+
+    if let Some(path) = legacy_roaming_file_path(app, LEGACY_PARTY_PLANS_FILE_NAME) {
+        if path.exists() {
+            match fs::remove_file(&path) {
+                Ok(_) => crate::log_info!("Removed legacy party plans cache from {:?}", path),
+                Err(e) => crate::log_warn!("Failed to remove legacy party plans cache {:?}: {}", path, e),
+            }
+        }
+    }
+}
+
 fn auth_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
+    migrate_legacy_auth_file(app)?;
+    Ok(crate::app::data_dir(app).join(AUTH_FILE_NAME))
+}
+
+fn legacy_roaming_file_path(app: &tauri::AppHandle, file_name: &str) -> Option<PathBuf> {
+    app
         .path()
         .app_data_dir()
-        .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
-    Ok(app_data_dir.join("meowgang_auth.txt"))
+        .ok()
+        .map(|path| path.join(file_name))
+}
+
+fn migrate_legacy_auth_file(app: &tauri::AppHandle) -> Result<(), String> {
+    let local_path = crate::app::data_dir(app).join(AUTH_FILE_NAME);
+    let Some(legacy_path) = legacy_roaming_file_path(app, AUTH_FILE_NAME) else {
+        return Ok(());
+    };
+
+    if legacy_path == local_path || !legacy_path.exists() {
+        return Ok(());
+    }
+
+    if !local_path.exists() {
+        if let Some(parent) = local_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create auth directory {:?}: {}", parent, e))?;
+        }
+        fs::copy(&legacy_path, &local_path)
+            .map_err(|e| format!("Failed to copy legacy Discord auth from {:?} to {:?}: {}", legacy_path, local_path, e))?;
+        crate::log_info!("Migrated Discord auth file from {:?} to {:?}", legacy_path, local_path);
+    }
+
+    fs::remove_file(&legacy_path)
+        .map_err(|e| format!("Failed to remove legacy Discord auth file {:?}: {}", legacy_path, e))?;
+    Ok(())
 }
 
 fn read_stored_discord_id(app: &tauri::AppHandle) -> Result<Option<String>, String> {
@@ -652,6 +708,9 @@ fn write_stored_discord_id(app: &tauri::AppHandle, discord_id: &str) -> Result<(
 
 fn remove_stored_discord_id(app: &tauri::AppHandle) {
     if let Ok(path) = auth_file_path(app) {
+        let _ = fs::remove_file(path);
+    }
+    if let Some(path) = legacy_roaming_file_path(app, AUTH_FILE_NAME) {
         let _ = fs::remove_file(path);
     }
 }

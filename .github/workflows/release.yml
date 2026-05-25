@@ -51,12 +51,33 @@ jobs:
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "Release version: $VERSION"
 
-      - name: Read release notes from latest.json
+      - name: Read release notes from changelogs.json
         id: release-notes
         shell: pwsh
         run: |
-          $LATEST_JSON = Get-Content -Raw -Path "latest.json" | ConvertFrom-Json
-          $RELEASE_NOTES = $LATEST_JSON.notes -replace '\\n', "`n"
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $CHANGELOGS = Get-Content -Raw -Path "src-tauri/resources/changelogs.json" | ConvertFrom-Json
+          $ENTRY = $CHANGELOGS.versions | Where-Object { $_.version -eq $VERSION } | Select-Object -First 1
+
+          if (-not $ENTRY) {
+            throw "No changelog entry found for version $VERSION in src-tauri/resources/changelogs.json"
+          }
+
+          $TYPE_ORDER = @("Fixed", "Improved", "Added", "Changed", "Removed")
+          $TYPES = @($ENTRY.changes | ForEach-Object { $_.type } | Select-Object -Unique)
+          $ORDERED_TYPES = @($TYPE_ORDER | Where-Object { $TYPES -contains $_ }) + @($TYPES | Where-Object { $TYPE_ORDER -notcontains $_ } | Sort-Object)
+
+          $LINES = @("### v$VERSION", "")
+          foreach ($TYPE in $ORDERED_TYPES) {
+            $LINES += "#### $TYPE"
+            foreach ($CHANGE in ($ENTRY.changes | Where-Object { $_.type -eq $TYPE })) {
+              $DESCRIPTION = [string]$CHANGE.description -replace '[\.\s]+$', ''
+              $LINES += "- $DESCRIPTION. $($CHANGE.details)"
+            }
+            $LINES += ""
+          }
+
+          $RELEASE_NOTES = ($LINES -join "`n").Trim()
           echo "release_notes<<EOF" >> $env:GITHUB_OUTPUT
           echo $RELEASE_NOTES >> $env:GITHUB_OUTPUT
           echo "EOF" >> $env:GITHUB_OUTPUT

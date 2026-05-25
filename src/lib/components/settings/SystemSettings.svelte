@@ -25,6 +25,7 @@
   let startWithWindows = false;
   let startWithLostArk = false;
   let startWithLoaLogs = false;
+  let hideOnLaunch = false;
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
   let showHeaderCountdown = true;
@@ -78,6 +79,7 @@
       startWithWindows = settings.startWithWindows || settings.start_with_windows || false;
       startWithLostArk = settings.startWithLostArk || settings.start_with_lost_ark || false;
       startWithLoaLogs = settings.startWithLoaLogs || settings.start_with_loa_logs || false;
+      hideOnLaunch = settings.hideOnLaunch || settings.hide_on_launch || false;
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
       showHeaderCountdown = localStorage.getItem('showHeaderCountdown') !== '0';
@@ -243,6 +245,17 @@
       showSuccess(`Welcome screen ${newValue ? 'enabled' : 'disabled'}!`);
     } catch (err) {
       showError(`Failed to update welcome screen: ${err}`);
+    }
+  }
+
+  async function toggleHideOnLaunch() {
+    try {
+      const newValue = !hideOnLaunch;
+      await invoke('set_hide_on_launch', { enabled: newValue });
+      hideOnLaunch = newValue;
+      showSuccess(`Hide on launch ${newValue ? 'enabled' : 'disabled'}!`);
+    } catch (err) {
+      showError(`Failed to update hide on launch: ${err}`);
     }
   }
 
@@ -878,6 +891,30 @@
             </div>
           </div>
 
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 18L18 6"/>
+                  <path d="M8 6h10v10"/>
+                  <path d="M6 8v10h10"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Hide on Launch</h4>
+                <p>Start LOA Tracker hidden in the tray area</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={hideOnLaunch}
+                  on:change={toggleHideOnLaunch}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
           <!-- Start with Lost Ark -->
           <div class="setting-card toggle-card">
             <div class="setting-header">
@@ -915,7 +952,7 @@
               </div>
               <div class="toggle-content">
                 <h4>Monitor LOA Logs Startup</h4>
-                <p>Temporarily only reminds you to start LOA Logs manually and reveals LOA Tracker when it starts</p>
+                <p>Watch for LOA Logs while LOA Tracker is running and show reminders without registering Windows autostart</p>
                 <div class="lost-ark-status">
                   <span class="status-dot" class:running={isLoaLogsRunning}></span>
                   <span class="status-text">{isLoaLogsRunning ? 'LOA Logs is running' : 'LOA Logs is not running'}</span>
@@ -1117,29 +1154,29 @@
 <style>
   .system-settings {
     background: var(--md-sys-color-surface);
-    border-radius: 16px;
-    padding: 24px;
+    border-radius: 12px;
+    padding: 18px;
     color: var(--md-sys-color-on-surface);
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
   }
 
   /* Header Styles */
   .settings-header {
-    margin-bottom: 32px;
+    margin-bottom: 18px;
   }
 
   .header-content {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
   }
 
   .header-icon {
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
     background: var(--md-sys-color-primary-container);
-    border-radius: 12px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1148,7 +1185,7 @@
 
   .header-content h2 {
     margin: 0 0 4px 0;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
   }
@@ -1217,7 +1254,7 @@
   .settings-content {
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 18px;
   }
 
   .loa-logs-reminder {
@@ -1246,23 +1283,23 @@
   /* Section Styles */
   .settings-section {
     background: var(--md-sys-color-surface-container);
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: 10px;
+    padding: 14px;
     border: 1px solid var(--md-sys-color-outline-variant);
   }
 
   .section-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 10px;
+    margin-bottom: 12px;
   }
 
   .section-icon {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     background: var(--md-sys-color-secondary-container);
-    border-radius: 10px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1271,7 +1308,7 @@
 
   .section-header h3 {
     margin: 0 0 2px 0;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
   }
@@ -1292,16 +1329,16 @@
   /* Settings Grid */
   .settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 10px;
   }
 
   /* Setting Cards */
   .setting-card {
     background: var(--md-sys-color-surface);
     border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 8px;
+    padding: 12px;
     transition: all 0.2s ease;
   }
 
@@ -1313,14 +1350,14 @@
   .setting-header {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 10px;
+    margin-bottom: 8px;
   }
 
   .setting-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1357,8 +1394,8 @@
   }
 
   .setting-icon.meowconnect-icon img {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
     display: block;
   }
@@ -1388,7 +1425,7 @@
   .setting-segmented button {
     border: 0;
     border-radius: 6px;
-    padding: 7px 11px;
+    padding: 6px 10px;
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
@@ -1405,7 +1442,7 @@
 
   .danger-button {
     flex-shrink: 0;
-    padding: 8px 14px;
+    padding: 7px 12px;
     background: var(--md-sys-color-error);
     color: var(--md-sys-color-on-error);
     border: 1px solid var(--md-sys-color-error);
@@ -1428,7 +1465,7 @@
 
   .setting-header h4 {
     margin: 0 0 2px 0;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
   }
@@ -1444,9 +1481,9 @@
   .path-input-group {
     display: flex;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     align-items: stretch;
-    min-height: 44px; /* Ensure consistent height */
+    min-height: 38px; /* Ensure consistent height */
   }
 
   .path-display {
@@ -1454,7 +1491,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid var(--md-sys-color-outline);
     border-radius: 8px;
     background: var(--md-sys-color-surface-variant);
@@ -1488,7 +1525,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
+    padding: 8px 12px;
     background: var(--md-sys-color-primary);
     color: var(--md-sys-color-on-primary);
     border: none;
@@ -1512,11 +1549,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 5px 10px;
     font-size: 12px;
     font-weight: 500;
     border-radius: 6px;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   .status-indicator.success svg {
@@ -1555,7 +1592,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   .lost-ark-status .status-dot {
@@ -1577,8 +1614,9 @@
   /* Toggle Switch */
   .toggle-switch {
     position: relative;
-    width: 48px;
-    height: 24px;
+    width: 42px;
+    height: 22px;
+    flex: 0 0 42px;
   }
 
   .toggle-switch input {
@@ -1603,8 +1641,8 @@
   .toggle-slider:before {
     position: absolute;
     content: "";
-    height: 18px;
-    width: 18px;
+    height: 16px;
+    width: 16px;
     left: 3px;
     bottom: 2px;
     background: var(--md-sys-color-on-surface-variant);
@@ -1618,7 +1656,7 @@
   }
 
   input:checked + .toggle-slider:before {
-    transform: translateX(24px);
+    transform: translateX(20px);
     background: var(--md-sys-color-on-primary);
   }
 
@@ -1712,8 +1750,8 @@
 
   .logging-actions {
     display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 8px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
   }
 
@@ -1758,7 +1796,7 @@
   }
 
   .logging-info {
-    padding: 12px 16px;
+    padding: 10px 12px;
     background: var(--md-sys-color-surface-variant);
     border-radius: 8px;
     border: 1px solid var(--md-sys-color-outline-variant);
