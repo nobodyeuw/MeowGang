@@ -1,5 +1,5 @@
 use rusqlite::params;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,6 +51,16 @@ pub struct MeowConnectLocalSnapshot {
     pub characters: Vec<MeowConnectCharacterSnapshot>,
     pub completion_snapshots: Vec<MeowConnectCompletionSnapshot>,
     pub raid_reservations: Vec<MeowConnectRaidReservationSnapshot>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeowConnectGroupRaidTagInput {
+    pub char_id: i64,
+    pub content_id: String,
+    pub group_id: String,
+    pub group_tag: String,
+    pub group_name: String,
 }
 
 #[tauri::command]
@@ -200,6 +210,47 @@ pub async fn get_meow_connect_local_snapshot(
         completion_snapshots,
         raid_reservations,
     })
+}
+
+#[tauri::command]
+pub async fn replace_meow_connect_group_raid_tags(
+    assignments: Vec<MeowConnectGroupRaidTagInput>,
+    db_manager: State<'_, crate::database::DatabaseManager>,
+) -> Result<(), String> {
+    let mut conn = db_manager
+        .pool
+        .get()
+        .map_err(|e| format!("Database connection failed: {}", e))?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().timestamp_millis();
+
+    tx.execute("DELETE FROM meow_group_raid_tags", [])
+        .map_err(|e| e.to_string())?;
+
+    for assignment in assignments {
+        let group_tag = assignment.group_tag.trim().to_uppercase();
+        if group_tag.is_empty() {
+            continue;
+        }
+
+        tx.execute(
+            "INSERT OR REPLACE INTO meow_group_raid_tags
+                (char_id, content_id, group_id, group_tag, group_name, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                assignment.char_id,
+                assignment.content_id,
+                assignment.group_id,
+                group_tag,
+                assignment.group_name.trim(),
+                now
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn infer_gate_from_session(content_id: &str, session_id: Option<&str>) -> Option<String> {

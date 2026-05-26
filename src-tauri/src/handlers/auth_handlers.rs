@@ -19,7 +19,7 @@ const DISCORD_AUTHORIZE_URL: &str = "https://discord.com/oauth2/authorize";
 const DISCORD_TOKEN_URL: &str = "https://discord.com/api/v10/oauth2/token";
 const DISCORD_USER_URL: &str = "https://discord.com/api/v10/users/@me";
 const DEFAULT_DISCORD_CLIENT_ID: &str = "1506247060142166076";
-const AUTH_FILE_NAME: &str = "meowgang_auth.txt";
+const LEGACY_AUTH_FILE_NAME: &str = "meowgang_auth.txt";
 const LEGACY_UPDATE_FIRST_SEEN_FILE_NAME: &str = "update_first_seen.json";
 const LEGACY_PARTY_PLANS_FILE_NAME: &str = "party_plans.json";
 
@@ -115,7 +115,7 @@ pub async fn authenticate_supabase_discord(authUrl: String) -> Result<SupabaseOA
 
 #[tauri::command]
 pub async fn verify_discord_profile_auth(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     discordId: String,
     username: Option<String>,
 ) -> Result<DiscordAuthResult, String> {
@@ -137,8 +137,6 @@ pub async fn verify_discord_profile_auth(
             .clone()
             .or(username)
             .unwrap_or_else(|| "MeowGang member".to_string());
-        write_stored_discord_id(&app, discord_id)?;
-
         Ok(DiscordAuthResult {
             approved: true,
             user_id: Some(discord_id.to_string()),
@@ -146,7 +144,6 @@ pub async fn verify_discord_profile_auth(
             message: format!("Welcome, {}", display_name),
         })
     } else {
-        remove_stored_discord_id(&app);
         Ok(DiscordAuthResult {
             approved: false,
             user_id: Some(discord_id.to_string()),
@@ -158,17 +155,13 @@ pub async fn verify_discord_profile_auth(
 
 #[tauri::command]
 pub async fn verify_stored_discord_auth(app: tauri::AppHandle) -> Result<DiscordAuthResult, String> {
-    let whitelist_url = discord_whitelist_url()?;
-    let Some(discord_id) = read_stored_discord_id(&app)? else {
-        return Ok(DiscordAuthResult {
-            approved: false,
-            user_id: None,
-            username: None,
-            message: "Sign in with Discord to access LOA Tracker.".to_string(),
-        });
-    };
-
-    verify_discord_id_against_whitelist(&app, &discord_id, &whitelist_url).await
+    remove_stored_discord_id(&app);
+    Ok(DiscordAuthResult {
+        approved: false,
+        user_id: None,
+        username: None,
+        message: "Sign in with Discord to access LOA Tracker.".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -188,7 +181,7 @@ pub async fn get_discord_whitelist_members() -> Result<Vec<WhitelistMember>, Str
 }
 
 async fn verify_token_against_whitelist(
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
     access_token: &str,
     whitelist_url: &str,
 ) -> Result<DiscordAuthResult, String> {
@@ -213,7 +206,6 @@ async fn verify_token_against_whitelist(
     let display_name = user.global_name.clone().unwrap_or_else(|| user.username.clone());
 
     if let Some(whitelist_name) = whitelist.get(&user.id) {
-        write_stored_discord_id(app, &user.id)?;
         Ok(DiscordAuthResult {
             approved: true,
             user_id: Some(user.id),
@@ -224,39 +216,10 @@ async fn verify_token_against_whitelist(
             ),
         })
     } else {
-        remove_stored_discord_id(app);
         Ok(DiscordAuthResult {
             approved: false,
             user_id: Some(user.id),
             username: Some(display_name),
-            message: "Not approved by our Meowtator".to_string(),
-        })
-    }
-}
-
-async fn verify_discord_id_against_whitelist(
-    app: &tauri::AppHandle,
-    discord_id: &str,
-    whitelist_url: &str,
-) -> Result<DiscordAuthResult, String> {
-    let whitelist = fetch_whitelist(whitelist_url).await?;
-
-    if let Some(whitelist_name) = whitelist.get(discord_id) {
-        Ok(DiscordAuthResult {
-            approved: true,
-            user_id: Some(discord_id.to_string()),
-            username: whitelist_name.clone(),
-            message: format!(
-                "Welcome, {}",
-                whitelist_name.clone().unwrap_or_else(|| "MeowGang member".to_string())
-            ),
-        })
-    } else {
-        remove_stored_discord_id(app);
-        Ok(DiscordAuthResult {
-            approved: false,
-            user_id: Some(discord_id.to_string()),
-            username: None,
             message: "Not approved by our Meowtator".to_string(),
         })
     }
@@ -620,8 +583,8 @@ fn collect_users_from_array(entries: &[Value], users: &mut HashMap<String, Optio
 }
 
 pub fn migrate_legacy_roaming_files(app: &tauri::AppHandle) {
-    if let Err(e) = migrate_legacy_auth_file(app) {
-        crate::log_warn!("Failed to migrate legacy Discord auth file: {}", e);
+    if let Err(e) = remove_legacy_auth_files(app) {
+        crate::log_warn!("Failed to remove legacy Discord auth file: {}", e);
     }
 
     if let Some(path) = legacy_roaming_file_path(app, LEGACY_UPDATE_FIRST_SEEN_FILE_NAME) {
@@ -643,11 +606,6 @@ pub fn migrate_legacy_roaming_files(app: &tauri::AppHandle) {
     }
 }
 
-fn auth_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    migrate_legacy_auth_file(app)?;
-    Ok(crate::app::data_dir(app).join(AUTH_FILE_NAME))
-}
-
 fn legacy_roaming_file_path(app: &tauri::AppHandle, file_name: &str) -> Option<PathBuf> {
     app
         .path()
@@ -656,61 +614,31 @@ fn legacy_roaming_file_path(app: &tauri::AppHandle, file_name: &str) -> Option<P
         .map(|path| path.join(file_name))
 }
 
-fn migrate_legacy_auth_file(app: &tauri::AppHandle) -> Result<(), String> {
-    let local_path = crate::app::data_dir(app).join(AUTH_FILE_NAME);
-    let Some(legacy_path) = legacy_roaming_file_path(app, AUTH_FILE_NAME) else {
-        return Ok(());
-    };
-
-    if legacy_path == local_path || !legacy_path.exists() {
-        return Ok(());
+fn remove_legacy_auth_files(app: &tauri::AppHandle) -> Result<(), String> {
+    let local_path = crate::app::data_dir(app).join(LEGACY_AUTH_FILE_NAME);
+    if local_path.exists() {
+        fs::remove_file(&local_path)
+            .map_err(|e| format!("Failed to remove legacy Discord auth file {:?}: {}", local_path, e))?;
+        crate::log_info!("Removed legacy Discord auth file from {:?}", local_path);
     }
 
-    if !local_path.exists() {
-        if let Some(parent) = local_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create auth directory {:?}: {}", parent, e))?;
+    if let Some(legacy_path) = legacy_roaming_file_path(app, LEGACY_AUTH_FILE_NAME) {
+        if legacy_path.exists() {
+            fs::remove_file(&legacy_path)
+                .map_err(|e| format!("Failed to remove legacy Discord auth file {:?}: {}", legacy_path, e))?;
+            crate::log_info!("Removed legacy Discord auth file from {:?}", legacy_path);
         }
-        fs::copy(&legacy_path, &local_path)
-            .map_err(|e| format!("Failed to copy legacy Discord auth from {:?} to {:?}: {}", legacy_path, local_path, e))?;
-        crate::log_info!("Migrated Discord auth file from {:?} to {:?}", legacy_path, local_path);
     }
 
-    fs::remove_file(&legacy_path)
-        .map_err(|e| format!("Failed to remove legacy Discord auth file {:?}: {}", legacy_path, e))?;
     Ok(())
 }
 
-fn read_stored_discord_id(app: &tauri::AppHandle) -> Result<Option<String>, String> {
-    let path = auth_file_path(app)?;
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let discord_id = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read stored Discord auth from {:?}: {}", path, e))?
-        .trim()
-        .to_string();
-
-    if discord_id.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(discord_id))
-    }
-}
-
-fn write_stored_discord_id(app: &tauri::AppHandle, discord_id: &str) -> Result<(), String> {
-    let path = auth_file_path(app)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create auth directory {:?}: {}", parent, e))?;
-    }
-    fs::write(&path, discord_id).map_err(|e| format!("Failed to write Discord auth file {:?}: {}", path, e))
-}
-
 fn remove_stored_discord_id(app: &tauri::AppHandle) {
-    if let Ok(path) = auth_file_path(app) {
+    let path = crate::app::data_dir(app).join(LEGACY_AUTH_FILE_NAME);
+    if path.exists() {
         let _ = fs::remove_file(path);
     }
-    if let Some(path) = legacy_roaming_file_path(app, AUTH_FILE_NAME) {
+    if let Some(path) = legacy_roaming_file_path(app, LEGACY_AUTH_FILE_NAME) {
         let _ = fs::remove_file(path);
     }
 }

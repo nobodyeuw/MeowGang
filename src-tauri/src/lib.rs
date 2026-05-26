@@ -237,7 +237,7 @@ pub fn run() {
             // Initialize schema version check and migration
             let current_version =
                 database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-            const TARGET_VERSION: i32 = 15;
+            const TARGET_VERSION: i32 = 16;
             crate::log_info!(
                 "Current schema version: {}, target version: {}",
                 current_version,
@@ -500,6 +500,7 @@ pub fn run() {
             handlers::encounter_sync_handlers::test_boss_mapping,
             // MeowConnect handlers
             handlers::meow_connect_handlers::get_meow_connect_local_snapshot,
+            handlers::meow_connect_handlers::replace_meow_connect_group_raid_tags,
             // Entity sync handlers
             handlers::entity_sync_handlers::sync_entity_data,
             handlers::entity_sync_handlers::sync_all_recent_entities,

@@ -108,6 +108,11 @@ export interface MeowConnectGroupRaidAssignment {
   updatedAt?: string;
 }
 
+export interface MeowConnectPendingRequests {
+  friendRequests: MeowConnectFriendConnection[];
+  groupInvites: MeowConnectGroup[];
+}
+
 export interface MeowConnectAvailabilityRow {
   ownerId: string;
   ownerUserId?: string;
@@ -267,7 +272,6 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
   await throwIfSupabaseError(supabase.from('meow_completion_snapshots').delete().eq('user_id', profile.userId));
   await throwIfSupabaseError(supabase.from('meow_encounter_snapshots').delete().eq('user_id', profile.userId));
   await throwIfSupabaseError(supabase.from('meow_raid_reservations').delete().eq('user_id', profile.userId));
-  await throwIfSupabaseError(supabase.from('meow_characters').delete().eq('user_id', profile.userId));
 
   if (syncedSnapshot.characters.length > 0) {
     const reservedCharacterIds = new Set(
@@ -295,6 +299,17 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
         }))
       )
     );
+
+    const syncedCharacterIds = syncedSnapshot.characters.map((character) => character.charId);
+    await throwIfSupabaseError(
+      supabase
+        .from('meow_characters')
+        .delete()
+        .eq('user_id', profile.userId)
+        .not('char_id', 'in', `(${syncedCharacterIds.join(',')})`)
+    );
+  } else {
+    await throwIfSupabaseError(supabase.from('meow_characters').delete().eq('user_id', profile.userId));
   }
 
   if (syncedSnapshot.completionSnapshots.length > 0) {
@@ -633,6 +648,101 @@ export async function loadMeowConnectFriends(): Promise<MeowConnectFriendConnect
   );
 }
 
+export async function loadMeowConnectPendingRequests(): Promise<MeowConnectPendingRequests> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+  const [{ data: friendRows }, { data: inviteRows }] = await Promise.all([
+    throwIfSupabaseError(
+      supabase
+        .from('meow_friend_connections')
+        .select('*')
+        .eq('friend_user_id', profile.userId)
+        .eq('status', 'pending')
+        .order('updated_at', { ascending: false })
+    ),
+    throwIfSupabaseError(
+      supabase
+        .from('meow_group_members')
+        .select('*')
+        .eq('user_id', profile.userId)
+        .eq('status', 'invited')
+        .order('updated_at', { ascending: false })
+    )
+  ]);
+
+  const incomingFriendRows = (friendRows || []) as MeowFriendConnectionRow[];
+  const pendingInviteRows = (inviteRows || []) as MeowGroupMemberRow[];
+  const friendProfileIds = Array.from(new Set(incomingFriendRows.map((connection) => connection.user_id).filter(Boolean)));
+  const invitedGroupIds = Array.from(new Set(pendingInviteRows.map((member) => member.group_id).filter(Boolean)));
+  const [{ data: friendProfiles }, { data: invitedGroups }] = await Promise.all([
+    friendProfileIds.length > 0
+      ? throwIfSupabaseError(
+          supabase.from('meow_profiles').select('user_id, discord_id, display_name, avatar_url').in('user_id', friendProfileIds)
+        )
+      : Promise.resolve({ data: [] as MeowProfileRow[] }),
+    invitedGroupIds.length > 0
+      ? throwIfSupabaseError(
+          supabase.from('meow_groups').select('*').in('group_id', invitedGroupIds)
+        )
+      : Promise.resolve({ data: [] as MeowGroupRow[] })
+  ]);
+
+  const profilesById = new Map(
+    ((friendProfiles || []) as MeowProfileRow[]).map((entry) => [
+      entry.user_id,
+      {
+        userId: entry.user_id,
+        discordId: entry.discord_id,
+        displayName: entry.display_name,
+        avatarUrl: entry.avatar_url || undefined
+      }
+    ])
+  );
+  const groupsById = new Map(((invitedGroups || []) as MeowGroupRow[]).map((group) => [group.group_id, group]));
+  const friendRequests = incomingFriendRows
+    .map((connection): MeowConnectFriendConnection | null => {
+      const otherProfile = profilesById.get(connection.user_id);
+      if (!otherProfile) return null;
+      return {
+        userId: connection.user_id,
+        friendUserId: connection.friend_user_id,
+        status: connection.status,
+        direction: 'incoming',
+        sharesStatic: Boolean(connection.shares_static),
+        profile: otherProfile,
+        updatedAt: connection.updated_at || connection.created_at || ''
+      };
+    })
+    .filter((connection): connection is MeowConnectFriendConnection => Boolean(connection));
+  const groupInvites = pendingInviteRows
+    .map((member): MeowConnectGroup | null => {
+      const group = groupsById.get(member.group_id);
+      if (!group) return null;
+      return {
+        groupId: group.group_id,
+        ownerUserId: group.owner_user_id,
+        groupName: group.group_name,
+        groupTag: group.group_tag || '',
+        role: 'invited',
+        members: [{
+          groupId: member.group_id,
+          userId: member.user_id,
+          status: member.status,
+          invitedByUserId: member.invited_by_user_id || undefined,
+          updatedAt: member.updated_at || member.created_at || ''
+        }],
+        assignments: [],
+        createdAt: group.created_at || '',
+        updatedAt: group.updated_at || group.created_at || ''
+      };
+    })
+    .filter((group): group is MeowConnectGroup => Boolean(group));
+
+  return {
+    friendRequests: await applyWhitelistDisplayNamesToFriends(friendRequests),
+    groupInvites
+  };
+}
+
 export async function setMeowConnectStaticFriend(connection: MeowConnectFriendConnection, enabled: boolean): Promise<void> {
   await throwIfSupabaseError(
     supabase.rpc('meow_set_static_friend', {
@@ -761,6 +871,26 @@ export async function loadMeowConnectGroups(): Promise<MeowConnectGroup[]> {
   }
 }
 
+export async function syncMeowConnectGroupTagsToLocal(groups: MeowConnectGroup[]): Promise<void> {
+  const profile = await getCurrentSupabaseDiscordProfile();
+  const assignments = groups.flatMap((group) =>
+    group.assignments
+      .filter((assignment) =>
+        assignment.userId === profile.userId &&
+        Boolean(group.groupTag.trim())
+      )
+      .map((assignment) => ({
+        charId: assignment.charId,
+        contentId: assignment.contentId,
+        groupId: group.groupId,
+        groupTag: group.groupTag.trim().toUpperCase(),
+        groupName: group.groupName
+      }))
+  );
+
+  await invoke('replace_meow_connect_group_raid_tags', { assignments });
+}
+
 export async function createMeowConnectGroup(groupName: string, groupTag = ''): Promise<void> {
   const cleanName = groupName.trim();
   const cleanTag = groupTag.trim().toUpperCase();
@@ -870,7 +1000,7 @@ export async function assignMeowConnectRaidToGroup(assignment: Omit<MeowConnectG
         roster_id: assignment.rosterId,
         char_id: assignment.charId,
         content_id: assignment.contentId,
-        difficulty: assignment.difficulty || '',
+        difficulty: '',
         reserved_for_static: assignment.reservedForStatic
       },
       { onConflict: 'group_id,user_id,char_id,content_id,difficulty' }
@@ -878,7 +1008,7 @@ export async function assignMeowConnectRaidToGroup(assignment: Omit<MeowConnectG
   );
 }
 
-export async function removeMeowConnectRaidGroupAssignment(assignment: Pick<MeowConnectGroupRaidAssignment, 'groupId' | 'charId' | 'contentId' | 'difficulty'>): Promise<void> {
+export async function removeMeowConnectRaidGroupAssignment(assignment: Pick<MeowConnectGroupRaidAssignment, 'groupId' | 'charId' | 'contentId'>): Promise<void> {
   const profile = await getCurrentSupabaseDiscordProfile();
 
   await throwIfSupabaseError(
@@ -889,7 +1019,6 @@ export async function removeMeowConnectRaidGroupAssignment(assignment: Pick<Meow
       .eq('user_id', profile.userId)
       .eq('char_id', assignment.charId)
       .eq('content_id', assignment.contentId)
-      .eq('difficulty', assignment.difficulty || '')
   );
 }
 
@@ -995,6 +1124,9 @@ export function subscribeMeowConnectChanges(onChange: () => void): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_completion_snapshots' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_encounter_snapshots' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_raid_reservations' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_groups' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_group_members' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_group_raid_assignments' }, onChange)
     .subscribe((status, error) => {
       if (!hasMeowConnectConsent()) return;
       if (status === 'SUBSCRIBED') {
@@ -1136,6 +1268,10 @@ function writeMeowConnectLog(level: 'info' | 'warn' | 'error' | 'debug', message
   }).catch((error) => {
     console.warn('Failed to write frontend log:', error);
   });
+}
+
+export function logMeowConnectRequest(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'debug') {
+  writeMeowConnectLog(level, message);
 }
 
 export function markMeowConnectConnecting(message = 'Checking MeowConnect connection.') {
@@ -2018,8 +2154,15 @@ function statusRank(status: MeowConnectAvailabilityRow['status']): number {
 async function throwIfSupabaseError<T>(request: PromiseLike<{ data: T; error: unknown }>): Promise<{ data: T }> {
   const result = await request;
   if (result.error) {
-    const error = result.error as { message?: string };
-    throw new Error(error.message || 'Supabase request failed');
+    const error = result.error as { message?: string; code?: string };
+    const message = error.message || 'Supabase request failed';
+    if (
+      error.code === '23505' &&
+      (message.includes('idx_meow_groups_unique_tag') || message.toLowerCase().includes('group_tag'))
+    ) {
+      throw new Error('Group tag is already taken.');
+    }
+    throw new Error(message);
   }
   return { data: result.data };
 }

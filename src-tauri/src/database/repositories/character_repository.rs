@@ -32,6 +32,7 @@ pub struct CharacterRaidConfig {
     pub difficulty: String,
     pub buy_box: i64,
     pub reserved_for_static: i64,
+    pub static_group_tag: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -328,9 +329,21 @@ impl CharacterRepository {
         let mut conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
-            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box, reserved_for_static
-             FROM conf_raid 
-             WHERE char_id = ?1",
+            "SELECT r.char_id,
+                    r.content_id,
+                    r.gate,
+                    r.take_gold,
+                    r.difficulty,
+                    r.buy_box,
+                    r.reserved_for_static,
+                    COALESCE((
+                        SELECT group_concat(DISTINCT NULLIF(t.group_tag, ''))
+                        FROM meow_group_raid_tags t
+                        WHERE t.char_id = r.char_id
+                          AND t.content_id = r.content_id
+                    ), '')
+             FROM conf_raid r
+             WHERE r.char_id = ?1",
         )?;
 
         let raid_iter = stmt.query_map([character_id], |row| {
@@ -342,6 +355,7 @@ impl CharacterRepository {
                 difficulty: row.get(4)?,
                 buy_box: row.get(5)?,
                 reserved_for_static: row.get(6)?,
+                static_group_tag: row.get(7)?,
             })
         })?;
 
@@ -492,7 +506,21 @@ impl CharacterRepository {
         let conn = self.pool.get()?;
         let placeholders: String = char_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT char_id, content_id, gate, take_gold, difficulty, buy_box, reserved_for_static FROM conf_raid WHERE char_id IN ({})",
+            "SELECT r.char_id,
+                    r.content_id,
+                    r.gate,
+                    r.take_gold,
+                    r.difficulty,
+                    r.buy_box,
+                    r.reserved_for_static,
+                    COALESCE((
+                        SELECT group_concat(DISTINCT NULLIF(t.group_tag, ''))
+                        FROM meow_group_raid_tags t
+                        WHERE t.char_id = r.char_id
+                          AND t.content_id = r.content_id
+                    ), '')
+             FROM conf_raid r
+             WHERE r.char_id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -505,6 +533,7 @@ impl CharacterRepository {
                 difficulty: row.get(4)?,
                 buy_box: row.get(5)?,
                 reserved_for_static: row.get(6)?,
+                static_group_tag: row.get(7)?,
             })
         })?;
         let mut map: HashMap<i64, Vec<CharacterRaidConfig>> = HashMap::new();

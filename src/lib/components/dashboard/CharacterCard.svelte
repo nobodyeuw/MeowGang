@@ -13,7 +13,7 @@
   export let viewMode: 'cards' | 'compact' = 'cards';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
   export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
-  export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; buy_box?: number; reserved_for_static?: number; is_tracked?: number }> = [];
+  export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; buy_box?: number; reserved_for_static?: number; static_group_tag?: string; is_tracked?: number }> = [];
   export let trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }> = [];
 
   // Reactive values
@@ -115,6 +115,7 @@
         difficulty: raid.difficulty,
         take_gold: Number(raid.take_gold) === 1 ? 1 : 0,
         reserved_for_static: Number(raid.reserved_for_static) === 1 ? 1 : 0,
+        static_group_tag: String(raid.static_group_tag || '').trim(),
         is_tracked: trackedRaidIds.has(raid.content_id) ? 1 : 0
       };
     } else if (Number(raid.take_gold) === 1) {
@@ -122,6 +123,9 @@
     }
     if (Number(raid.reserved_for_static) === 1) {
       groups[key].reserved_for_static = 1;
+    }
+    if (String(raid.static_group_tag || '').trim()) {
+      groups[key].static_group_tag = String(raid.static_group_tag).trim();
     }
 
     return groups;
@@ -148,6 +152,7 @@
         ...r,
         isGoldRaid: Number(r.take_gold) === 1 && character.earns_gold,
         isStaticReserved: Number(r.reserved_for_static) === 1,
+        staticBadgeText: String(r.static_group_tag || '').trim() || 'Static',
         isTrackedRaid: Number(r.is_tracked) === 1 && !character.earns_gold,
         completed: fullyCompleted,   // only true when ALL gates done
         gateProgress,
@@ -475,7 +480,7 @@
               class:tracked-raid={raid.isTrackedRaid}
               class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
-              title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
+              title={raid.completionTooltip ?? (raid.isStaticReserved ? `Reserved for ${raid.staticBadgeText}` : '')}
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardRaidGate(raid, event)}
@@ -501,7 +506,7 @@
                   <img src="/images/gold.png" alt="Gold" class="gold-icon">
                 {/if}
                 {#if raid.isStaticReserved}
-                  <span class="static-badge">Static</span>
+                  <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
               </div>
             </div>
@@ -634,7 +639,7 @@
               class:tracked-raid={raid.isTrackedRaid}
               class:static-reserved={raid.isStaticReserved}
               class:mismatch={raid.completionMismatch}
-              title={raid.completionTooltip ?? (raid.isStaticReserved ? 'Reserved for static/friends' : '')}
+              title={raid.completionTooltip ?? (raid.isStaticReserved ? `Reserved for ${raid.staticBadgeText}` : '')}
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardRaidGate(raid, event)}
@@ -657,7 +662,7 @@
                   <img src="/images/gold.png" alt="Gold" class="gold-icon">
                 {/if}
                 {#if raid.isStaticReserved}
-                  <span class="static-badge">Static</span>
+                  <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
               </div>
             </div>

@@ -141,6 +141,18 @@ impl DatabaseManager {
                 )",
             ),
             (
+                "meow_group_raid_tags",
+                "CREATE TABLE IF NOT EXISTS meow_group_raid_tags (
+                    char_id INTEGER NOT NULL,
+                    content_id TEXT NOT NULL,
+                    group_id TEXT NOT NULL,
+                    group_tag TEXT NOT NULL DEFAULT '',
+                    group_name TEXT NOT NULL DEFAULT '',
+                    updated_at INTEGER NOT NULL,
+                    PRIMARY KEY(char_id, content_id, group_id)
+                )",
+            ),
+            (
                 "rested_values",
                 "CREATE TABLE IF NOT EXISTS rested_values (
                     roster_id TEXT,
@@ -257,6 +269,7 @@ impl DatabaseManager {
             "CREATE INDEX IF NOT EXISTS idx_conf_tracking_roster_char_content ON conf_tracking(roster_id, char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_rested_values_char_content ON rested_values(char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_conf_raid_char_content_gate_diff ON conf_raid(char_id, content_id, gate, difficulty)",
+            "CREATE INDEX IF NOT EXISTS idx_meow_group_raid_tags_char_content ON meow_group_raid_tags(char_id, content_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_engravings_char ON character_engravings(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_equipment_char ON character_equipment(character_id)",
             "CREATE INDEX IF NOT EXISTS idx_character_gems_char ON character_gems(character_id)",

@@ -418,6 +418,24 @@ impl DataManager {
             )?;
         }
 
+        if current_version < 16 {
+            tx.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS meow_group_raid_tags (
+                    char_id INTEGER NOT NULL,
+                    content_id TEXT NOT NULL,
+                    group_id TEXT NOT NULL,
+                    group_tag TEXT NOT NULL DEFAULT '',
+                    group_name TEXT NOT NULL DEFAULT '',
+                    updated_at INTEGER NOT NULL,
+                    PRIMARY KEY(char_id, content_id, group_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_meow_group_raid_tags_char_content
+                  ON meow_group_raid_tags(char_id, content_id);
+                "#,
+            )?;
+        }
+
         tx.commit()?;
         Self::set_schema_version(pool, target_version)?;
         println!(

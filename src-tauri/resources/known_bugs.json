@@ -29,11 +29,6 @@
     },
     {
       "priority": "Low Prio",
-      "description": "Multi static groups.",
-      "details": "Create MeowConnect static groups, invite friends to those groups, and assign static-marked character raids to a specific group."
-    },
-    {
-      "priority": "Low Prio",
       "description": "UI/UX polishing pass.",
       "details": "Further polish individual tabs and workflows based on concrete user feedback and requested areas."
     },
@@ -51,16 +46,6 @@
       "priority": "High Prio",
       "description": "Stabilize database sync behavior.",
       "details": "Finetune how the app sends, receives, retries, and validates database-backed data. This is mostly invisible to users but improves long-term technical reliability."
-    },
-    {
-      "priority": "High Prio",
-      "description": "Improve whitelist security flow.",
-      "details": "Improve protection against bypassing app access without being in the whitelist, and automate whitelist writing with human backup/review."
-    },
-    {
-      "priority": "High Prio",
-      "description": "MeowConnect data integrity checks.",
-      "details": "Add stronger validation around shared snapshots, encounter logs, static reservations, and friend availability so edge cases are easier to detect and recover from."
     }
   ]
 }

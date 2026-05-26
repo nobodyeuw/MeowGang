@@ -61,6 +61,8 @@
     difficulty: string;
     take_gold: number;
     buy_box: number;
+    reserved_for_static?: number;
+    static_group_tag?: string;
   }
 
   interface DashboardSnapshot {

@@ -22,6 +22,7 @@
     loadMeowConnectFriends,
     loadMeowConnectGroups,
     loadMeowConnectLocalSnapshot,
+    logMeowConnectRequest,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
@@ -32,6 +33,7 @@
     searchMeowConnectProfiles,
     sendMeowConnectFriendRequest,
     setMeowConnectConsent,
+    syncMeowConnectGroupTagsToLocal,
     subscribeMeowConnectChanges,
     uploadMeowConnectSnapshotIfNeeded,
     type MeowConnectAvailabilityRow,
@@ -135,9 +137,11 @@
   let toastKind: 'success' | 'error' | 'info' = 'info';
   let unsubscribeRealtime: (() => void) | null = null;
   let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let realtimeChangeBurstCount = 0;
   let groupInviteSearchTimer: ReturnType<typeof setTimeout> | null = null;
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastDispatchedPendingRequestCount = -1;
 
   $: manualSyncRemainingMs = Math.max(0, getStoredTimestamp(LAST_MANUAL_SYNC_STORAGE_KEY) + MANUAL_SYNC_COOLDOWN_MS - currentTime);
   $: manualSyncBlocked = manualSyncRemainingMs > 0;
@@ -197,7 +201,11 @@
   $: pendingIncoming = friendConnections.filter(
     (connection) => connection.status === 'pending' && connection.direction === 'incoming'
   );
-  $: dispatch('pendingRequestsChanged', pendingIncoming.length + pendingGroupInvites.length);
+  $: pendingRequestCount = pendingIncoming.length + pendingGroupInvites.length;
+  $: if (pendingRequestCount !== lastDispatchedPendingRequestCount) {
+    lastDispatchedPendingRequestCount = pendingRequestCount;
+    dispatch('pendingRequestsChanged', pendingRequestCount);
+  }
   $: filteredFriendOptions = friendOptions
     .filter((friend) => {
       const query = friendSearch.trim().toLowerCase();
@@ -240,11 +248,15 @@
 
   async function refreshMeowConnect(options: { allowUpload?: boolean; manual?: boolean } = {}) {
     const manual = Boolean(options.manual);
+    const refreshReason = manual ? 'manual-sync' : options.allowUpload ? 'upload-refresh' : 'initial-load';
     if (manual && manualSyncBlocked) {
       showToast(`Manual sync was recent. Try again in ${formatDuration(manualSyncRemainingMs)}.`, 'info');
+      logMeowConnectRequest(`Skipped ${refreshReason}; manual sync cooldown ${formatDuration(manualSyncRemainingMs)} remaining.`, 'info');
       return;
     }
 
+    const startedAt = performance.now();
+    logMeowConnectRequest(`Refresh started (${refreshReason}).`);
     isLoading = true;
     markMeowConnectConnecting(manual ? 'Syncing MeowConnect.' : 'Loading MeowConnect data.');
 
@@ -257,8 +269,12 @@
         : { snapshot, uploaded: false };
       localSnapshot = uploadResult.snapshot;
       friendConnections = await loadMeowConnectFriends();
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(uploadResult.snapshot.weeklyResetMs || 0));
+      logMeowConnectRequest(
+        `Refresh finished (${refreshReason}) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}, uploaded=${uploadResult.uploaded ? 'yes' : 'no'}.`,
+        'info'
+      );
       if (manual) {
         setStoredTimestamp(LAST_MANUAL_SYNC_STORAGE_KEY, Date.now());
         currentTime = Date.now();
@@ -281,6 +297,7 @@
       }
       markMeowConnectActive(uploadResult.uploaded ? 'MeowConnect sync succeeded.' : 'MeowConnect is connected.');
     } catch (err) {
+      logMeowConnectRequest(`Refresh failed (${refreshReason}): ${err}`, 'warn');
       markMeowConnectFailure(err);
       showToast(`Failed to load MeowConnect data: ${err}`, 'error');
     } finally {
@@ -295,6 +312,18 @@
 
   function setStoredTimestamp(key: string, value: number) {
     localStorage.setItem(key, String(value));
+  }
+
+  async function loadAndMirrorMeowGroups(): Promise<MeowConnectGroup[]> {
+    const startedAt = performance.now();
+    const groups = await loadMeowConnectGroups();
+    await syncMeowConnectGroupTagsToLocal(groups);
+    const assignmentCount = groups.reduce((count, group) => count + group.assignments.length, 0);
+    logMeowConnectRequest(
+      `Groups mirrored locally in ${Math.round(performance.now() - startedAt)}ms: groups=${groups.length}, assignments=${assignmentCount}.`
+    );
+    window.dispatchEvent(new CustomEvent('raid-settings-updated'));
+    return groups;
   }
 
   function formatDuration(ms: number): string {
@@ -341,7 +370,7 @@
       group.rows.push(row);
       if (isAvailableRow(row)) group.openCount += 1;
       if (row.status === 'cleared') group.clearedCount += 1;
-      if (row.status === 'open' && row.reservedForStatic && !row.staticReservationDetailsVisible) group.reservedCount += 1;
+      if (row.status === 'open' && row.reservedForStatic && row.ownerId !== 'local' && !hasSharedGroupAssignment(row)) group.reservedCount += 1;
       if (row.favorite) group.favoriteCount += 1;
       groups.set(key, group);
     }
@@ -404,7 +433,7 @@
   }
 
   function isAvailableRow(row: MeowConnectAvailabilityRow): boolean {
-    return row.status === 'open' && (!row.reservedForStatic || row.staticReservationDetailsVisible);
+    return row.status === 'open' && (!row.reservedForStatic || row.ownerId === 'local' || hasSharedGroupAssignment(row));
   }
 
   function getAvailabilityDifficultyLabel(row: MeowConnectAvailabilityRow): string {
@@ -467,10 +496,6 @@
 
   function normalizeName(value?: string | null): string {
     return String(value || '').trim().toLowerCase();
-  }
-
-  function sameText(a: string, b: string): boolean {
-    return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
   }
 
   function toggleRaidVisibility(raidId: string) {
@@ -628,7 +653,7 @@
       await createMeowConnectGroup(groupName, groupTag);
       groupName = '';
       groupTag = '';
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast('Group created.', 'success');
     } catch (err) {
@@ -646,7 +671,7 @@
     try {
       await inviteMeowConnectGroupMember(group.groupId, discordId);
       groupInviteInputs = { ...groupInviteInputs, [group.groupId]: '' };
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast(`Invite sent for ${group.groupName}.`, 'success');
     } catch (err) {
@@ -666,7 +691,7 @@
       await renameMeowConnectGroup(group.groupId, nextName);
       groupRenameInputs = { ...groupRenameInputs, [group.groupId]: '' };
       activeGroupRenameId = '';
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast(`Renamed group to ${nextName}.`, 'success');
     } catch (err) {
@@ -692,7 +717,7 @@
 
     try {
       await deleteMeowConnectGroup(group.groupId);
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast(`${group.groupName} deleted.`, 'success');
     } catch (err) {
@@ -708,7 +733,7 @@
 
     try {
       await leaveMeowConnectGroup(group.groupId);
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast(`Left ${group.groupName}.`, 'success');
     } catch (err) {
@@ -753,8 +778,12 @@
     return row.reservedForStatic || getAssignedGroupNames(row).length > 0;
   }
 
+  function hasSharedGroupAssignment(row: MeowConnectAvailabilityRow): boolean {
+    return getAssignedGroupNames(row).length > 0;
+  }
+
   function getGroupAssignmentKey(row: MeowConnectAvailabilityRow): string {
-    return `${row.character.charId}:${row.raid.id}:${row.raid.difficulty || ''}`;
+    return `${row.character.charId}:${row.raid.id}`;
   }
 
   function getRowGroupAssignments(row: MeowConnectAvailabilityRow) {
@@ -764,8 +793,7 @@
         .filter((assignment) =>
           (!ownerUserId || assignment.userId === ownerUserId) &&
           assignment.charId === row.character.charId &&
-          assignment.contentId === row.raid.id &&
-          sameText(assignment.difficulty, row.raid.difficulty || '')
+          assignment.contentId === row.raid.id
         )
         .map((assignment) => ({ group, assignment }))
     );
@@ -809,8 +837,7 @@
         removeMeowConnectRaidGroupAssignment({
           groupId: assignment.groupId,
           charId: row.character.charId,
-          contentId: row.raid.id,
-          difficulty: row.raid.difficulty || ''
+          contentId: row.raid.id
         })
       ));
 
@@ -820,12 +847,12 @@
           rosterId: row.character.rosterId,
           charId: row.character.charId,
           contentId: row.raid.id,
-          difficulty: row.raid.difficulty || '',
+          difficulty: '',
           reservedForStatic: true
         });
       }
 
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       showToast(groupId ? `Assigned ${row.character.charName} to group.` : `Removed group assignment for ${row.character.charName}.`, 'success');
       markMeowConnectActive('MeowConnect is connected.');
     } catch (err) {
@@ -841,7 +868,7 @@
 
     try {
       await acceptMeowConnectGroupInvite(group.groupId);
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       markMeowConnectActive('MeowConnect is connected.');
       showToast(`Joined ${group.groupName}.`, 'success');
     } catch (err) {
@@ -908,9 +935,11 @@
     if (unsubscribeRealtime) return;
     if (!isMeowConnectRealtimeEnabled()) return;
 
+    logMeowConnectRequest('Realtime subscription starting.');
     unsubscribeRealtime = subscribeMeowConnectChanges(() => {
       if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
 
+      realtimeChangeBurstCount += 1;
       realtimeRefreshTimer = setTimeout(() => {
         void refreshRemoteMeowConnectData();
       }, 1500);
@@ -919,13 +948,22 @@
 
   async function refreshRemoteMeowConnectData() {
     if (!localSnapshot) return;
+    const startedAt = performance.now();
+    const changeCount = realtimeChangeBurstCount;
+    realtimeChangeBurstCount = 0;
+    logMeowConnectRequest(`Remote refresh started (realtime, ${changeCount} change${changeCount === 1 ? '' : 's'}).`);
 
     try {
       friendConnections = await loadMeowConnectFriends();
-      meowGroups = await loadMeowConnectGroups();
+      meowGroups = await loadAndMirrorMeowGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(localSnapshot.weeklyResetMs || 0));
+      logMeowConnectRequest(
+        `Remote refresh finished (realtime) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}.`,
+        'info'
+      );
       markMeowConnectActive('MeowConnect realtime refresh succeeded.');
     } catch (err) {
+      logMeowConnectRequest(`Remote refresh failed (realtime): ${err}`, 'warn');
       markMeowConnectFailure(err);
       console.warn('Failed to refresh MeowConnect realtime data:', err);
     }
@@ -1449,7 +1487,7 @@
 
             <div class="availability-stack">
               {#each activeProfileGroup.rows.filter(isAvailableRow) as row}
-                <article class:shared-static={row.staticReservationDetailsVisible} class="availability-card">
+                <article class:shared-static={hasSharedGroupAssignment(row)} class="availability-card">
                   <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
 
                   <div class="character-copy">
@@ -1498,8 +1536,8 @@
                 </article>
               {/each}
 
-              {#each activeProfileGroup.rows.filter((row) => row.status === 'open' && row.reservedForStatic && !row.staticReservationDetailsVisible) as row}
-                <article class:shared-static={row.staticReservationDetailsVisible} class="availability-card reserved">
+              {#each activeProfileGroup.rows.filter((row) => row.status === 'open' && row.reservedForStatic && row.ownerId !== 'local' && !hasSharedGroupAssignment(row)) as row}
+                <article class="availability-card reserved">
                   <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
 
                   <div class="character-copy">

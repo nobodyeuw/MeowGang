@@ -20,8 +20,8 @@
     hasMeowConnectConsent,
     isMeowConnectFeatureEnabled,
     isMeowConnectRealtimeEnabled,
-    loadMeowConnectFriends,
-    loadMeowConnectGroups,
+    loadMeowConnectPendingRequests,
+    logMeowConnectRequest,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
@@ -74,6 +74,17 @@
   let meowConnectFeatureEnabled = true;
   let meowConnectRealtimeEnabled = true;
   let meowConnectCompletionUploadTimer: ReturnType<typeof setTimeout> | null = null;
+  const MEOWCONNECT_PENDING_IDLE_REFRESH_MS = 3 * 60 * 1000;
+  const LEGACY_BROWSER_STORAGE_PATTERNS = [
+    'party_plans',
+    'partyplanner',
+    'party-planner',
+    'google_script',
+    'google-script',
+    'apps_script',
+    'apps-script',
+    'script.google.com'
+  ];
 
   // Handle URL parameters
   $: urlParams = new URLSearchParams($page.url.search);
@@ -128,6 +139,7 @@
     };
     const handleMeowConnectCompletionChanged = () => {
       scheduleMeowConnectCompletionUpload();
+      scheduleMeowConnectFriendRequestRefresh();
     };
     const unsubscribeMeowConnectStatus = meowConnectStatus.subscribe((status) => {
       meowConnectHeaderState = status.state;
@@ -142,6 +154,7 @@
     window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
     window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
     window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
+    cleanupLegacyBrowserStorage();
     refreshHeaderCountdownPreference();
     refreshMeowConnectFeatureSettings();
     refreshMeowConnectHeaderStatus();
@@ -163,7 +176,7 @@
     // Refresh backend reset timestamp only once per minute.
     const resetRefreshInterval = setInterval(refreshNextResetTimeFromBackend, 60000);
     const loaLogsStatusInterval = setInterval(clearLoaLogsReminderWhenRunning, 5000);
-    const meowConnectFriendRequestInterval = setInterval(refreshMeowConnectFriendRequests, 60000);
+    const meowConnectFriendRequestInterval = setInterval(refreshMeowConnectFriendRequests, MEOWCONNECT_PENDING_IDLE_REFRESH_MS);
 
     // Cleanup on unmount
     return () => {
@@ -186,6 +199,28 @@
 
   function refreshHeaderCountdownPreference() {
     showHeaderCountdown = localStorage.getItem('showHeaderCountdown') !== '0';
+  }
+
+  function cleanupLegacyBrowserStorage() {
+    cleanupLegacyStorageArea(localStorage);
+    cleanupLegacyStorageArea(sessionStorage);
+  }
+
+  function cleanupLegacyStorageArea(storage: Storage) {
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key) continue;
+      const value = storage.getItem(key) || '';
+      const combined = `${key}\n${value}`.toLowerCase();
+      if (LEGACY_BROWSER_STORAGE_PATTERNS.some((pattern) => combined.includes(pattern))) {
+        keysToRemove.push(key);
+      }
+    }
+
+    for (const key of keysToRemove) {
+      storage.removeItem(key);
+    }
   }
 
   async function checkStoredDiscordAuth() {
@@ -442,17 +477,19 @@
       return;
     }
 
+    const startedAt = performance.now();
+    logMeowConnectRequest('Header pending request refresh started.');
     try {
-      const [connections, groups] = await Promise.all([
-        loadMeowConnectFriends(),
-        loadMeowConnectGroups()
-      ]);
-      pendingMeowConnectFriendRequests = connections.filter(
-        (connection) => connection.status === 'pending' && connection.direction === 'incoming'
-      );
-      pendingMeowConnectGroupInvites = groups.filter((group) => group.role === 'invited');
+      const { friendRequests, groupInvites } = await loadMeowConnectPendingRequests();
+      pendingMeowConnectFriendRequests = friendRequests;
+      pendingMeowConnectGroupInvites = groupInvites;
       pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length + pendingMeowConnectGroupInvites.length;
+      logMeowConnectRequest(
+        `Header pending request refresh finished in ${Math.round(performance.now() - startedAt)}ms: friendRequests=${friendRequests.length}, groupInvites=${groupInvites.length}, pending=${pendingMeowConnectRequests}.`,
+        'info'
+      );
     } catch (error) {
+      logMeowConnectRequest(`Header pending request refresh failed: ${error}`, 'warn');
       console.warn('Failed to refresh MeowConnect friend request notifications:', error);
     }
   }

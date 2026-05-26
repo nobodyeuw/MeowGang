@@ -1,78 +1,68 @@
 {
   "versions": [
     {
-      "version": "1.2.7",
-      "date": "2026-05-25",
+      "version": "1.2.8",
+      "date": "2026-05-26",
       "changes": [
         {
+          "type": "Added",
+          "description": "Group tags appear on dashboard raid badges.",
+          "details": "MeowConnect group assignments are mirrored into the local userlogs database so dashboard raid badges can show the assigned group tag, such as WIPE or SWINE, instead of the default Static label."
+        },
+        {
+          "type": "Improved",
+          "description": "Group assignments now apply raid-wide.",
+          "details": "Assigning a static-marked character to a MeowConnect group now applies to the full raid instead of one specific difficulty filter, so the group marker remains visible across Normal, Hard, Nightmare, and unfiltered views."
+        },
+        {
+          "type": "Improved",
+          "description": "Group realtime changes refresh MeowConnect.",
+          "details": "The MeowConnect realtime listener now also watches group, group member, and group raid assignment tables so group changes can refresh while the app is open."
+        },
+        {
+          "type": "Improved",
+          "description": "Group tags are globally unique.",
+          "details": "MeowConnect group tags are now reserved globally across groups so short dashboard badges stay unambiguous for every user."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect refresh logging is clearer.",
+          "details": "MeowConnect now writes focused debug logs for initial loads, manual syncs, debounced realtime refreshes, local group tag mirroring, and header pending-request checks so Supabase request spikes are easier to trace without flooding the log for every realtime row event."
+        },
+        {
+          "type": "Improved",
+          "description": "Pending request refreshes are less chatty.",
+          "details": "The app header now only receives a MeowConnect pending-request update when the pending count actually changes, and the regular header poll uses a pending-only lookup instead of loading full friends, groups, members, and assignments."
+        },
+        {
           "type": "Fixed",
-          "description": "Raid bulk toggles keep individual difficulties.",
-          "details": "Bulk Take Gold and Static/Friends changes now preserve each character and gate difficulty instead of temporarily forcing rows into the same difficulty state. The settings view updates immediately without requiring a tab swap or reload."
+          "description": "MeowConnect sync preserves group assignments.",
+          "details": "Roster uploads now upsert current MeowConnect characters before deleting only stale character IDs, preventing Supabase cascade deletes from wiping group raid assignments for characters that still exist."
         },
         {
           "type": "Fixed",
-          "description": "Static bulk toggles update existing rows correctly.",
-          "details": "Set Static and Clear Static now re-read the latest raid row state while processing characters, so partially marked rows update correctly and no longer report zero changed characters from stale state."
+          "description": "Static reservations stay visible after legacy cleanup.",
+          "details": "The Supabase reservation read policy now follows accepted friend and shared group visibility instead of the removed legacy static-friend marker, so expanded MeowConnect profiles can still show Reserved or group labels for static-marked raids."
         },
         {
-          "type": "Added",
-          "description": "MeowConnect groups are available.",
-          "details": "MeowConnect now supports creating groups through Supabase-backed group tables, member invites, compact group management, and group-aware raid assignment data for shared static or friend runs."
+          "type": "Fixed",
+          "description": "Reserved characters no longer look group-assigned.",
+          "details": "MeowConnect now uses the green shared-static character frame only when a reserved character is actually assigned to a shared group. Plain static reservations remain visible as Reserved without being counted or styled as available group characters."
         },
         {
-          "type": "Added",
-          "description": "Group invites connect to notifications.",
-          "details": "Group invite requests are included in the global MeowConnect request notification, so pending group activity can be noticed from outside the MeowConnect settings view."
+          "type": "Fixed",
+          "description": "Discord remember-me no longer trusts a raw ID file.",
+          "details": "App access now relies on the persisted Supabase Discord OAuth session instead of the legacy editable meowgang_auth.txt Discord ID cache. Old auth text files are removed on launch, and whitelist display-name checks no longer write local auth state."
         },
         {
-          "type": "Added",
-          "description": "Group invites suggest existing profiles.",
-          "details": "The group invite field now previews matching MeowConnect profiles while typing without exposing Discord IDs in the visible suggestion list."
-        },
-        {
-          "type": "Added",
-          "description": "Static characters can be assigned to groups.",
-          "details": "Expanded Raid Together character rows now show a compact group selector for your own static-marked characters, allowing a static raid reservation to be linked to one of your MeowConnect groups."
-        },
-        {
-          "type": "Added",
-          "description": "Groups support fixed short tags.",
-          "details": "Groups can store an optional uppercase tag of up to five characters. The tag is kept stable for future local dashboard group badges while the current dashboard Static badge remains unchanged."
-        },
-        {
-          "type": "Added",
-          "description": "Group owners can rename or delete groups.",
-          "details": "Owned MeowConnect groups now include compact rename and delete actions. Group names are capped to keep assignment UI clean, while tags stay fixed after creation."
-        },
-        {
-          "type": "Added",
-          "description": "Group members can leave groups.",
-          "details": "Non-owner group members can leave groups from the same management panel, and group deletion cleans up related members and assignments through Supabase cascade rules."
-        },
-        {
-          "type": "Added",
-          "description": "Raid settings can bulk toggle gold and static.",
-          "details": "Raid Settings rows now include compact bulk toggles under each raid name for Take Gold and Static/Friends across eligible characters. Buy Box remains individually controlled."
+          "type": "Fixed",
+          "description": "Legacy Party Planner browser storage is cleaned up.",
+          "details": "Startup now removes stale WebView localStorage and sessionStorage entries related to the old Google Apps Script Party Planner flow so obsolete script URLs no longer remain visible in DevTools."
         },
         {
           "type": "Improved",
-          "description": "Group management is more compact.",
-          "details": "Friends and Groups now sit side by side, group rows use tighter spacing, members are shown as stacked round avatars, rename opens only on demand, and delete uses an icon-only action so multiple groups fit cleanly."
-        },
-        {
-          "type": "Improved",
-          "description": "MeowConnect static display uses group context.",
-          "details": "Expanded MeowConnect profile rows keep the familiar Static badge while adding group assignment controls for your own static-marked characters and group context for shared reservations."
-        },
-        {
-          "type": "Improved",
-          "description": "Duplicate character protection is stricter.",
-          "details": "Before uploading shared roster data, MeowConnect checks whether a character ID already belongs to another Discord profile. Duplicates are skipped, shown in a toast, logged with the blocked character ID, remembered for 24 hours, and rechecked after the cooldown."
-        },
-        {
-          "type": "Improved",
-          "description": "Group data security uses focused RPC checks.",
-          "details": "Supabase group and duplicate-character checks now use focused RPC helpers so the client can validate ownership conflicts without exposing broader profile identifiers in the UI."
+          "description": "Idle MeowConnect header polling is slower.",
+          "details": "The app header now checks pending MeowConnect requests every three minutes while idle instead of every minute, while local raid completion and MeowConnect setting changes still trigger an immediate lightweight refresh."
         }
       ]
     }
