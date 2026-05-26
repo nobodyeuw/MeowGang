@@ -35,6 +35,7 @@
   let estimatedGoldDisplay = 0;
   let remainingGoldDisplay = 0;
   let dashboardView: 'cards' | 'compact' = 'compact';
+  let showDashboardStaticBadges = true;
   let mismatchGoldLost = 0;
 
   interface CompletionStatusEntry {
@@ -294,6 +295,7 @@
   onMount(() => {
     const savedDashboardView = localStorage.getItem('dashboardView');
     dashboardView = savedDashboardView === 'cards' ? 'cards' : 'compact';
+    showDashboardStaticBadges = localStorage.getItem('showDashboardStaticBadges') !== '0';
 
     (async () => {
       await loadAllCharacters();
@@ -329,11 +331,16 @@
       dashboardView = nextView === 'cards' ? 'cards' : 'compact';
     };
 
+    const handleStaticBadgesChanged = (event: Event) => {
+      showDashboardStaticBadges = (event as CustomEvent<boolean>).detail;
+    };
+
     window.addEventListener('raid-settings-updated', handleRaidSettingsUpdate);
     window.addEventListener('raid-completed', handleRaidCompleted);
     window.addEventListener('character-data-complete', handleCharacterDataComplete);
     window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
     window.addEventListener('dashboard-view:changed', handleDashboardViewChanged);
+    window.addEventListener('dashboard-static-badges:changed', handleStaticBadgesChanged);
     
     // Cleanup on unmount
     return () => {
@@ -342,6 +349,7 @@
       window.removeEventListener('character-data-complete', handleCharacterDataComplete);
       window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
       window.removeEventListener('dashboard-view:changed', handleDashboardViewChanged);
+      window.removeEventListener('dashboard-static-badges:changed', handleStaticBadgesChanged);
     };
   });
 
@@ -809,6 +817,7 @@
                 completionStatus={characterDataMap[String(character.char_id)]?.completionStatus || []}
                 raidConfigs={characterDataMap[String(character.char_id)]?.raidConfigs || []}
                 trackingStatus={characterDataMap[String(character.char_id)]?.trackingStatus || []}
+                showStaticBadges={showDashboardStaticBadges}
               />
             {/each}
           </div>

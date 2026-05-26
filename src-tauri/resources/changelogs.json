@@ -63,6 +63,11 @@
           "type": "Improved",
           "description": "Idle MeowConnect header polling is slower.",
           "details": "The app header now checks pending MeowConnect requests every three minutes while idle instead of every minute, while local raid completion and MeowConnect setting changes still trigger an immediate lightweight refresh."
+        },
+        {
+          "type": "Added",
+          "description": "Dashboard static badges can be hidden.",
+          "details": "General settings now include a Dashboard Static Badges toggle so users can hide Static and group tag badges from dashboard raid labels without changing their raid reservation data."
         }
       ]
     }

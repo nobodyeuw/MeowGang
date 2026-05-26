@@ -15,6 +15,7 @@
   export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
   export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; buy_box?: number; reserved_for_static?: number; static_group_tag?: string; is_tracked?: number }> = [];
   export let trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }> = [];
+  export let showStaticBadges = true;
 
   // Reactive values
   $: classInfo = GAME_CLASSES[character.class_id];
@@ -151,7 +152,7 @@
       return {
         ...r,
         isGoldRaid: Number(r.take_gold) === 1 && character.earns_gold,
-        isStaticReserved: Number(r.reserved_for_static) === 1,
+        isStaticReserved: showStaticBadges && Number(r.reserved_for_static) === 1,
         staticBadgeText: String(r.static_group_tag || '').trim() || 'Static',
         isTrackedRaid: Number(r.is_tracked) === 1 && !character.earns_gold,
         completed: fullyCompleted,   // only true when ALL gates done

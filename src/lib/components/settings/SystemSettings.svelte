@@ -29,6 +29,7 @@
   let showSetupGuideButton = true;
   let showAuthWelcome = true;
   let showHeaderCountdown = true;
+  let showDashboardStaticBadges = true;
   let meowConnectEnabled = true;
   let meowConnectRealtimeEnabled = true;
   let dashboardView: 'cards' | 'compact' = 'compact';
@@ -83,6 +84,7 @@
       showSetupGuideButton = settings.showSetupGuideButton ?? settings.show_setup_guide_button ?? true;
       showAuthWelcome = settings.showAuthWelcome ?? settings.show_auth_welcome ?? true;
       showHeaderCountdown = localStorage.getItem('showHeaderCountdown') !== '0';
+      showDashboardStaticBadges = localStorage.getItem('showDashboardStaticBadges') !== '0';
       meowConnectEnabled = isMeowConnectFeatureEnabled();
       meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
       dashboardView = localStorage.getItem('dashboardView') === 'cards' ? 'cards' : 'compact';
@@ -265,6 +267,14 @@
     localStorage.setItem('showHeaderCountdown', newValue ? '1' : '0');
     window.dispatchEvent(new CustomEvent('header-countdown:changed', { detail: newValue }));
     showSuccess(`Header countdown ${newValue ? 'shown' : 'hidden'}!`);
+  }
+
+  function toggleDashboardStaticBadges() {
+    const newValue = !showDashboardStaticBadges;
+    showDashboardStaticBadges = newValue;
+    localStorage.setItem('showDashboardStaticBadges', newValue ? '1' : '0');
+    window.dispatchEvent(new CustomEvent('dashboard-static-badges:changed', { detail: newValue }));
+    showSuccess(`Dashboard static badges ${newValue ? 'shown' : 'hidden'}!`);
   }
 
   function toggleMeowConnectEnabled() {
@@ -490,6 +500,31 @@
                   type="checkbox"
                   checked={showSetupGuideButton}
                   on:change={toggleSetupGuideButton}
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card toggle-card">
+            <div class="setting-header">
+              <div class="setting-icon windows">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 7h-9"/>
+                  <path d="M14 17H5"/>
+                  <circle cx="17" cy="17" r="3"/>
+                  <circle cx="7" cy="7" r="3"/>
+                </svg>
+              </div>
+              <div class="toggle-content">
+                <h4>Dashboard Static Badges</h4>
+                <p>Show Static and group tag badges on dashboard raid labels</p>
+              </div>
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={showDashboardStaticBadges}
+                  on:change={toggleDashboardStaticBadges}
                 />
                 <span class="toggle-slider"></span>
               </label>
