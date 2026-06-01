@@ -22,6 +22,7 @@ pub struct CharacterTaskState {
 }
 
 #[tauri::command]
+/// Loads backend-owned state for Settings > Tracking.
 pub async fn get_tracking_config_matrix(
     roster_id: &str,
     tasks: Vec<serde_json::Value>,
@@ -29,13 +30,14 @@ pub async fn get_tracking_config_matrix(
     task_repo: State<'_, TrackingRepository>,
     character_repo: State<'_, CharacterRepository>,
 ) -> Result<crate::models::TodoConfigMatrix, String> {
-    // Get characters for this roster
+    let _ = (&tasks, &raids, &character_repo);
     task_repo
         .get_tracking_config_matrix(roster_id)
         .map_err(|e| format!("Failed to get tracking config matrix: {}", e))
 }
 
 #[tauri::command]
+/// Updates one tracking visibility toggle in `conf_tracking`.
 pub async fn update_tracking_config(
     character_id: i64,
     task_id: String,
@@ -49,6 +51,7 @@ pub async fn update_tracking_config(
 }
 
 #[tauri::command]
+/// Updates the lazy-daily preference for a tracked character task.
 pub async fn update_lazy_daily_config(
     character_id: i64,
     task_id: String,
@@ -61,6 +64,7 @@ pub async fn update_lazy_daily_config(
 }
 
 #[tauri::command]
+/// Legacy bulk tracking save command retained for older UI paths.
 pub async fn save_tracking_config(
     character_id: i64,
     task_updates: Vec<TaskStatus>,
@@ -72,6 +76,7 @@ pub async fn save_tracking_config(
 }
 
 #[tauri::command]
+/// Saves a manually edited rested value.
 pub async fn save_rested_value(
     character_id: i64,
     task_id: String,
@@ -84,6 +89,7 @@ pub async fn save_rested_value(
 }
 
 #[tauri::command]
+/// Legacy To Do tracking toggle command retained for compatibility.
 pub async fn set_todo_tracked(
     character_id: i64,
     task_id: String,

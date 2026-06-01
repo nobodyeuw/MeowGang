@@ -13,6 +13,10 @@ impl RosterRepository {
         Self { pool }
     }
 
+    /// Builds the roster list from active characters.
+    ///
+    /// Rosters are stored as grouped `conf_character` rows, so a roster exists
+    /// as long as it has at least one non-removed character.
     pub fn get_all_rosters(&self) -> Result<Vec<crate::models::Roster>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -42,6 +46,7 @@ impl RosterRepository {
         Ok(rosters)
     }
 
+    /// Loads active characters for one roster in display order.
     pub fn get_characters_by_roster(&self, roster_id: &str) -> Result<Vec<Character>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -77,11 +82,14 @@ impl RosterRepository {
         Ok(characters)
     }
 
+    /// Upserts a freshly scraped roster into `conf_character`.
+    ///
+    /// Scraper stats are refreshed, while user-owned settings such as hidden
+    /// state and gold-earner state are preserved on existing characters.
     pub fn save_roster_from_scraper(&self, scraper_data: &ScraperData) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
 
-        // Insert characters from scraper data
         for character in &scraper_data.characters {
             tx.execute(
                 "INSERT INTO conf_character 
@@ -117,6 +125,7 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Checks whether a roster scrape is older than the 24-hour refresh window.
     pub fn should_update_roster(&self, roster_name: &str) -> Result<bool> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare("SELECT MAX(created_timestamp) FROM conf_character WHERE roster_id = ?1")?;
@@ -133,10 +142,11 @@ impl RosterRepository {
                     Ok(true)
                 }
             }
-            None => Ok(true), // No roster exists, should create
+            None => Ok(true),
         }
     }
 
+    /// Persists drag-and-drop character order inside a roster.
     pub fn update_character_order(&self, character_id: i64, new_order: &str) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -146,6 +156,7 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Renames the roster display name for one character row.
     pub fn update_character_roster_name(&self, character_id: i64, new_roster_name: &str) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -155,6 +166,7 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Renames the roster display name for every character in the roster.
     pub fn update_roster_name(&self, roster_id: &str, new_roster_name: &str) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -164,6 +176,7 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Persists drag-and-drop roster order for all characters in the roster.
     pub fn update_roster_order(&self, roster_id: &str, display_order: i64) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -173,11 +186,13 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Permanently deletes a local roster and all dependent character state.
     pub fn delete_roster(&self, roster_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
 
-        // Delete from related tables first
+        // Delete dependent rows first so local state cannot reference removed
+        // characters after the roster is gone.
         tx.execute(
             "DELETE FROM conf_tracking WHERE char_id IN (SELECT char_id FROM conf_character WHERE roster_id = ?1)",
             params![roster_id],
@@ -195,13 +210,13 @@ impl RosterRepository {
             params![roster_id],
         )?;
 
-        // Delete characters
         tx.execute("DELETE FROM conf_character WHERE roster_id = ?1", params![roster_id])?;
 
         tx.commit()?;
         Ok(())
     }
 
+    /// Loads the latest tracked roster gold/resource snapshot.
     pub fn get_roster_resources(&self, roster_id: &str) -> Result<Option<crate::models::RosterResources>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -227,6 +242,7 @@ impl RosterRepository {
         Ok(None)
     }
 
+    /// Stores the latest roster gold/resource snapshot.
     pub fn update_roster_resources(&self, roster_id: &str, resources: &crate::models::RosterResources) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(

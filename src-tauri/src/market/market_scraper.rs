@@ -9,7 +9,10 @@ const API_URL: &str = "https://marketdata-api.yrzhao1068589.workers.dev/v1/price
 const HISTORICAL_API_URL: &str = "https://marketdata-api.yrzhao1068589.workers.dev/v1/prices/historical";
 const REGION_SLUG: &str = "euc";
 
-/// Item slugs for engraving recipes.
+/// Marketplace API allowlist for engraving recipes.
+///
+/// These are external API item slugs, not local game-data source-of-truth
+/// records like raids/tasks/classes.
 const ENGRAVING_SLUGS: &[&str] = &[
     "adrenaline",
     "all-out-attack",
@@ -56,7 +59,7 @@ const ENGRAVING_SLUGS: &[&str] = &[
     "vital-point-hit",
 ];
 
-/// Item slugs for honing materials.
+/// Marketplace API allowlist for honing materials.
 const HONING_SLUGS: &[&str] = &[
     "guardian-stone-fragment",
     "destruction-stone-fragment",
@@ -96,7 +99,7 @@ const HONING_SLUGS: &[&str] = &[
     "superior-abidos-fusion-material",
 ];
 
-/// Item slugs for additional honing materials.
+/// Marketplace API allowlist for additional honing materials.
 const ADDITIONAL_HONING_SLUGS: &[&str] = &[
     "solar-grace",
     "solar-blessing",
@@ -273,6 +276,9 @@ impl MarketScraper {
     }
 
     /// Fetch only engraving prices.
+    ///
+    /// Not currently exposed as a command; kept as a focused refresh helper if
+    /// the marketplace later adds per-category refresh actions.
     pub async fn refresh_engravings(&self, db: &MarketDatabase) -> Result<usize> {
         let now = chrono::Utc::now().timestamp();
         let entries = self.fetch_prices(ENGRAVING_SLUGS).await?;
@@ -318,6 +324,9 @@ impl MarketScraper {
     }
 
     /// Fetch only honing material prices.
+    ///
+    /// Not currently exposed as a command; kept as a focused refresh helper if
+    /// the marketplace later adds per-category refresh actions.
     pub async fn refresh_honing(&self, db: &MarketDatabase) -> Result<usize> {
         let now = chrono::Utc::now().timestamp();
         let entries = self.fetch_prices(HONING_SLUGS).await?;

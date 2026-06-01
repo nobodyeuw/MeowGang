@@ -1,15 +1,10 @@
+#![allow(non_snake_case)]
+
 use crate::database::repositories::RosterRepository;
 use crate::roster::{scraper::Character as RosterCharacter, HumanizedScraper};
-use serde::{Deserialize, Serialize};
 use tauri::State;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Roster {
-    pub id: String,
-    pub name: String,
-    pub last_updated: Option<String>,
-}
-
+/// Returns all locally known rosters.
 #[tauri::command]
 pub async fn get_rosters(roster_repo: State<'_, RosterRepository>) -> Result<Vec<crate::models::Roster>, String> {
     roster_repo
@@ -17,6 +12,7 @@ pub async fn get_rosters(roster_repo: State<'_, RosterRepository>) -> Result<Vec
         .map_err(|e| format!("Failed to get rosters: {}", e))
 }
 
+/// Returns active characters for one roster, or all active characters when no roster is selected.
 #[tauri::command]
 pub async fn get_characters(
     rosterId: Option<String>,
@@ -46,11 +42,14 @@ pub async fn get_characters(
     Ok(characters)
 }
 
+/// Scrapes a roster from LostArk Bible and stores the resulting characters locally.
+///
+/// New characters are added to `conf_character`; existing character stats are refreshed while
+/// local user settings remain preserved by the repository upsert.
 #[tauri::command]
 pub async fn scrape_roster(
     rosterName: String,
     roster_repo: State<'_, RosterRepository>,
-    scraper: State<'_, HumanizedScraper>,
 ) -> Result<Vec<crate::roster::Character>, String> {
     crate::validation::validate_roster_name(&rosterName)?;
 
@@ -91,42 +90,7 @@ pub async fn scrape_roster(
     Ok(characters)
 }
 
-#[tauri::command]
-pub async fn check_and_sync_roster_if_needed(
-    rosterName: String,
-    roster_repo: State<'_, RosterRepository>,
-    scraper: State<'_, HumanizedScraper>,
-) -> Result<bool, String> {
-    crate::log_debug!("check_and_sync_roster_if_needed called for: {}", rosterName);
-
-    // Check if update is needed
-    let scraper_ref = scraper.inner();
-    if !scraper_ref.can_make_request() {
-        return Ok(false); // No update needed
-    }
-
-    // Check if roster exists and needs update
-    let should_update = roster_repo
-        .should_update_roster(&rosterName)
-        .map_err(|e| format!("Failed to check roster update status: {}", e))?;
-
-    if !should_update {
-        return Ok(false);
-    }
-
-    // Perform sync
-    let mut scraper_instance = HumanizedScraper::new(rosterName.clone(), rosterName.clone());
-    match scraper_instance.scrape_roster().await {
-        Ok(scraper_data) => {
-            roster_repo
-                .save_roster_from_scraper(&scraper_data.scraper_data)
-                .map_err(|e| format!("Failed to save roster: {}", e))?;
-            Ok(true)
-        }
-        Err(e) => Err(format!("Failed to sync roster: {}", e)),
-    }
-}
-
+/// Persists drag-and-drop character order from Settings > Roster.
 #[tauri::command]
 pub async fn update_character_order(
     characters: Vec<serde_json::Value>,
@@ -145,6 +109,7 @@ pub async fn update_character_order(
     Ok(())
 }
 
+/// Persists drag-and-drop roster order from Settings > Roster.
 #[tauri::command]
 pub async fn update_roster_order(
     rosters: Vec<serde_json::Value>,
@@ -163,17 +128,22 @@ pub async fn update_roster_order(
     Ok(())
 }
 
+/// Renames the roster display name on one character row.
 #[tauri::command]
 pub async fn update_character_roster_name(
     character_id: i64,
     new_roster_name: String,
     roster_repo: State<'_, RosterRepository>,
 ) -> Result<(), String> {
+    crate::validation::validate_character_id(character_id)?;
+    crate::validation::validate_roster_name(&new_roster_name)?;
+
     roster_repo
         .update_character_roster_name(character_id, &new_roster_name)
         .map_err(|e| format!("Failed to update character roster name: {}", e))
 }
 
+/// Renames the roster display name on every character in the roster.
 #[tauri::command]
 pub async fn update_roster_name(
     roster_id: String,
@@ -188,6 +158,7 @@ pub async fn update_roster_name(
         .map_err(|e| format!("Failed to update roster name: {}", e))
 }
 
+/// Backfills local task/raid rows for all characters using frontend game-data payloads.
 #[tauri::command]
 pub async fn sync_roster_data(
     rosterId: String,
@@ -195,13 +166,18 @@ pub async fn sync_roster_data(
     raids: Vec<crate::database::data_manager::Raid>,
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
 ) -> Result<String, String> {
-    // Use ensure_character_data_complete to initialize ALL characters in the roster
+    crate::validation::validate_non_empty(&rosterId, "roster_id")?;
+
+    // `ensure_character_data_complete` currently scans all local characters so
+    // static game-data additions are applied across every roster, not only the
+    // roster that triggered the sync.
     crate::database::data_manager::DataManager::ensure_character_data_complete(&db_manager.pool, tasks, raids)
         .map_err(|e| format!("Failed to sync roster data: {}", e))?;
 
     Ok("Roster data synced successfully".to_string())
 }
 
+/// Backfills task/raid rows only when the requested roster exists locally.
 #[tauri::command]
 pub async fn sync_roster_if_needed(
     rosterId: String,
@@ -210,30 +186,37 @@ pub async fn sync_roster_if_needed(
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
 ) -> Result<bool, String> {
     crate::log_debug!("sync_roster_if_needed called for roster: {}", rosterId);
+    crate::validation::validate_non_empty(&rosterId, "roster_id")?;
 
-    // Check if roster exists and needs update
-    let rosters = db_manager
+    let conn = db_manager
         .pool
         .get()
-        .unwrap()
-        .prepare("SELECT id FROM conf_character WHERE roster_id = ?1 LIMIT 1")
-        .unwrap()
-        .query_map([&rosterId], |row| Ok(row.get::<_, String>(0)?))
-        .map_err(|e| format!("Failed to check roster: {}", e))?
-        .collect::<Result<Vec<String>, _>>()
-        .map_err(|e| format!("Failed to collect roster check: {}", e))?;
+        .map_err(|e| format!("Database connection failed: {}", e))?;
 
-    if rosters.is_empty() {
+    let roster_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM conf_character
+                WHERE roster_id = ?1
+                  AND COALESCE(removed_from_roster, 0) = 0
+            )",
+            [&rosterId],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to check roster: {}", e))?;
+
+    if !roster_exists {
         return Ok(false);
     }
 
-    // Actually sync the data
     crate::database::data_manager::DataManager::ensure_character_data_complete(&db_manager.pool, tasks, raids)
         .map_err(|e| format!("Failed to sync roster data: {}", e))?;
 
     Ok(true)
 }
 
+/// Permanently deletes one local roster and its dependent local state.
 #[tauri::command]
 pub async fn delete_roster(rosterId: String, roster_repo: State<'_, RosterRepository>) -> Result<(), String> {
     crate::validation::validate_non_empty(&rosterId, "roster_id")?;

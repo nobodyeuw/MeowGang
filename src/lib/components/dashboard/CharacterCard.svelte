@@ -1,197 +1,54 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import type { Character } from '$lib/store';
-  import { GAME_CLASSES } from '$lib/data/classes';
-  import { GAME_TASKS } from '$lib/data/tasks';
-  import { RAIDS } from '$lib/data/raids';
+  import { getGameClassInfo } from '$lib/data';
   import { activeFilterCharId, activeRosterId } from '$lib/store';
-  import { invoke } from '@tauri-apps/api/core';
+  import { updateTodoRaidGateStatus, updateTodoTaskStatus } from '$lib/services/todo';
+  import {
+    buildDisplayRaids,
+    buildGroupedRaids,
+    buildTrackedRaidIds,
+    buildTrackedWeeklyTasks,
+    formatCombatPower,
+    formatItemLevel,
+    getClassIconUrl,
+    getDailyIconTitle,
+    getLastCompletedGate,
+    getNextOpenGate,
+    getRaidDisplayName,
+    getRaidName,
+    getTaskIcon,
+    normalizeDifficulty,
+    type CharacterCardCompletionEntry,
+    type CharacterCardRaidConfig,
+    type CharacterCardTrackingEntry
+  } from '$lib/components/dashboard/character-card-helpers';
   
   export let character: Character;
   export let classIcon: string = '';
   export let className: string = '';
   export let viewMode: 'cards' | 'compact' = 'cards';
   export let restedValues: Array<{ content_id: string; current_value: number }> = [];
-  export let completionStatus: Array<{ content_id: string; is_completed: number; details?: string | null; session_id?: string | null; }> = [];
-  export let raidConfigs: Array<{ content_id: string; gate?: string; difficulty: string; take_gold: number; buy_box?: number; reserved_for_static?: number; static_group_tag?: string; is_tracked?: number }> = [];
-  export let trackingStatus: Array<{ content_id: string; is_tracked: number; lazy_daily?: number }> = [];
+  export let completionStatus: CharacterCardCompletionEntry[] = [];
+  export let raidConfigs: CharacterCardRaidConfig[] = [];
+  export let trackingStatus: CharacterCardTrackingEntry[] = [];
   export let showStaticBadges = true;
 
   // Reactive values
-  $: classInfo = GAME_CLASSES[character.class_id];
+  $: classInfo = getGameClassInfo(character.class_id);
   $: displayName = className || (classInfo ? classInfo.displayName : "Unknown Class");
   $: iconId = classIcon || (classInfo ? classInfo.iconId : "0");
 
-  function getCompletionStatus(contentId: string): boolean {
-    const completion = completionStatus.find(c => c.content_id === contentId);
-    return completion?.is_completed === 1;
-  }
-
-  function getDailyIconTitle(contentId: string, completed: boolean, lazyWaiting: boolean): string {
-    const label = contentId === 'chaos' ? 'Chaos Dungeon' : 'Guardian Raid';
-    if (completed) return `${label}: done`;
-    if (lazyWaiting) return `${label}: resting until 20+ rested`;
-    return `${label}: available`;
-  }
-
-  function getRaidGateProgress(raidId: string, difficulty: string): { completed: number; total: number } {
-    const raidDef = RAIDS.find(r => r.id === raidId && r.difficulty === difficulty)
-      ?? RAIDS.find(r => r.id === raidId);
-    const total = raidDef?.gates.length ?? 0;
-
-    // session_id format: "<raidId>_Gate <N>" (both encounter-sync and manual toggle)
-    const completed = completionStatus.filter(c =>
-      c.content_id === raidId &&
-      c.is_completed === 1 &&
-      (c.session_id ?? '').startsWith(raidId + '_') &&
-      (c.session_id ?? '').includes('_Gate ')
-    ).length;
-
-    return { completed, total };
-  }
-
-  function getRaidDefinition(raidId: string, difficulty: string) {
-    return RAIDS.find(r => r.id === raidId && r.difficulty === difficulty)
-      ?? RAIDS.find(r => r.id === raidId);
-  }
-
-  function isRaidGateCompleted(raidId: string, gate: string): boolean {
-    return completionStatus.some(c =>
-      c.content_id === raidId &&
-      Number(c.is_completed) === 1 &&
-      (c.session_id ?? '') === `${raidId}_${gate}`
-    );
-  }
-
-  function getNextOpenGate(raidId: string, difficulty: string): string | null {
-    const raid = getRaidDefinition(raidId, difficulty);
-    return raid?.gates.find(gate => !isRaidGateCompleted(raidId, gate.gate))?.gate ?? null;
-  }
-
-  function getLastCompletedGate(raidId: string, difficulty: string): string | null {
-    const raid = getRaidDefinition(raidId, difficulty);
-    const completedGates = [...(raid?.gates ?? [])].reverse();
-    return completedGates.find(gate => isRaidGateCompleted(raidId, gate.gate))?.gate ?? null;
-  }
-
-  function getCompletedRaidDetails(contentId: string): string | undefined {
-    const entry = [...completionStatus].reverse().find(c =>
-      c.content_id === contentId && c.is_completed === 1 && c.details
-    );
-    return entry?.details ? normalizeDifficulty(entry.details) : undefined;
-  }
-
-  function normalizeDifficulty(difficulty: string): string {
-    const normalized = difficulty.trim().toLowerCase();
-    if (normalized.includes('hard')) return 'Hard';
-    if (normalized.includes('nightmare')) return 'Nightmare';
-    if (normalized.includes('solo')) return 'Solo';
-    if (normalized.includes('normal')) return 'Normal';
-    return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
-  }
-
-  function getRaidMaxIlvl(contentId: string, difficulty: string): number {
-    const raid = RAIDS.find(r => r.id === contentId && r.difficulty === difficulty)
-      ?? RAIDS.find(r => r.id === contentId);
-    return Math.max(...(raid?.gates.map(g => g.minIlvl) || [0]));
-  }
-
-  function getConfiguredRaidOrder(contentId: string): number {
-    const index = raidConfigs.findIndex(config => config.content_id === contentId);
-    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
-  }
-
-  $: trackedRaidIds = new Set(
-    trackingStatus
-      .filter(t => Number(t.is_tracked) === 1 && RAIDS.some(raid => raid.id === t.content_id))
-      .map(t => t.content_id)
-  );
-
-  // Group raids by content_id with difficulty and aggregate gate tracking state.
-  $: groupedRaids = raidConfigs.reduce((groups: Record<string, any>, raid: any) => {
-    const key = raid.content_id;
-    if (!groups[key]) {
-      groups[key] = {
-        content_id: raid.content_id,
-        difficulty: raid.difficulty,
-        take_gold: Number(raid.take_gold) === 1 ? 1 : 0,
-        reserved_for_static: Number(raid.reserved_for_static) === 1 ? 1 : 0,
-        static_group_tag: String(raid.static_group_tag || '').trim(),
-        is_tracked: trackedRaidIds.has(raid.content_id) ? 1 : 0
-      };
-    } else if (Number(raid.take_gold) === 1) {
-      groups[key].take_gold = 1;
-    }
-    if (Number(raid.reserved_for_static) === 1) {
-      groups[key].reserved_for_static = 1;
-    }
-    if (String(raid.static_group_tag || '').trim()) {
-      groups[key].static_group_tag = String(raid.static_group_tag).trim();
-    }
-
-    return groups;
-  }, {});
-
-  function getRaidDisplayName(contentId: string, difficulty: string): string {
-    const raid = RAIDS.find(r => r.id === contentId && r.difficulty === difficulty);
-    const raidName = raid ? raid.name : contentId;
-    const formattedDifficulty = normalizeDifficulty(difficulty);
-    return `${raidName} ${formattedDifficulty}`;
-  }
-
-  // Get raids to display
-  $: displayRaids = (() => {
-    const raids = Object.values(groupedRaids).map((r: any) => {
-      const actualDifficulty = getCompletedRaidDetails(r.content_id);
-      const plannedDifficulty = normalizeDifficulty(r.difficulty);
-      const mismatch = actualDifficulty != null && actualDifficulty !== plannedDifficulty;
-
-      const gateProgress = getRaidGateProgress(r.content_id, r.difficulty);
-      const fullyCompleted = gateProgress.total > 0 && gateProgress.completed >= gateProgress.total;
-
-      return {
-        ...r,
-        isGoldRaid: Number(r.take_gold) === 1 && character.earns_gold,
-        isStaticReserved: showStaticBadges && Number(r.reserved_for_static) === 1,
-        staticBadgeText: String(r.static_group_tag || '').trim() || 'Static',
-        isTrackedRaid: Number(r.is_tracked) === 1 && !character.earns_gold,
-        completed: fullyCompleted,   // only true when ALL gates done
-        gateProgress,
-        completionMismatch: mismatch,
-        completionTooltip: mismatch
-          ? `Planned to run ${plannedDifficulty} mode but finished in ${actualDifficulty} mode`
-          : undefined
-      };
-    });
-
-    if (character.earns_gold) {
-      // Gold earners: show gold raids with gold styling
-      return raids
-        .filter((r: any) => Number(r.take_gold) === 1)
-        .slice(0, 3);
-    }
-
-    // Non-gold earners: show max 3 tracked raids using the same configured raid order as gold earners.
-    return raids
-      .filter((r: any) => Number(r.is_tracked) === 1)
-      .sort((a: any, b: any) => {
-        const orderDiff = getConfiguredRaidOrder(a.content_id) - getConfiguredRaidOrder(b.content_id);
-        if (orderDiff !== 0) return orderDiff;
-        return getRaidMaxIlvl(b.content_id, b.difficulty) - getRaidMaxIlvl(a.content_id, a.difficulty);
-      })
-      .slice(0, 3);
-  })();
-
-  $: trackedWeeklyTasks = (() => {
-    return ['cube', 'paradise', 'shop', 'guild']
-      .filter(contentId => trackingStatus.some(t => t.content_id === contentId && Number(t.is_tracked) === 1))
-      .map(contentId => ({
-        content_id: contentId,
-        name: GAME_TASKS[contentId]?.name ?? contentId,
-        completed: completionStatus.some(c => c.content_id === contentId && Number(c.is_completed) === 1)
-      }))
-      .slice(0, 4);
-  })();
+  $: trackedRaidIds = buildTrackedRaidIds(trackingStatus);
+  $: groupedRaids = buildGroupedRaids(raidConfigs, trackedRaidIds);
+  $: displayRaids = buildDisplayRaids({
+    groupedRaids,
+    completionStatus,
+    characterEarnsGold: character.earns_gold,
+    showStaticBadges,
+    raidConfigs
+  });
+  $: trackedWeeklyTasks = buildTrackedWeeklyTasks(trackingStatus, completionStatus);
   $: displayWeeklyTasks = character.earns_gold || displayRaids.length > 0
     ? []
     : trackedWeeklyTasks.slice(0, 4);
@@ -243,52 +100,32 @@
     event?.preventDefault();
     if (completed) return;
 
-    await invoke('update_task_status', {
-      characterId: character.char_id,
-      taskId: contentId,
-      completed: true
-    });
+    await updateTodoTaskStatus(character.char_id, contentId, true);
     dispatchDashboardCompletionUpdate();
   }
 
   async function undoDashboardTask(contentId: string, event: MouseEvent) {
     event.preventDefault();
-    await invoke('update_task_status', {
-      characterId: character.char_id,
-      taskId: contentId,
-      completed: false
-    });
+    await updateTodoTaskStatus(character.char_id, contentId, false);
     dispatchDashboardCompletionUpdate();
   }
 
   async function completeDashboardRaidGate(raid: any, event?: MouseEvent) {
     event?.preventDefault();
-    const nextGate = getNextOpenGate(raid.content_id, raid.difficulty);
+    const nextGate = getNextOpenGate(completionStatus, raid.content_id, raid.difficulty);
     if (!nextGate) return;
 
-    await invoke('update_raid_gate_status', {
-      characterId: character.char_id,
-      raidId: raid.content_id,
-      gateId: nextGate,
-      contentId: raid.content_id,
-      completed: true
-    });
+    await updateTodoRaidGateStatus(character.char_id, raid.content_id, nextGate, raid.content_id, true);
     window.dispatchEvent(new CustomEvent('raid-completed'));
     dispatchDashboardCompletionUpdate();
   }
 
   async function undoDashboardRaidGate(raid: any, event: MouseEvent) {
     event.preventDefault();
-    const gateToUndo = getLastCompletedGate(raid.content_id, raid.difficulty);
+    const gateToUndo = getLastCompletedGate(completionStatus, raid.content_id, raid.difficulty);
     if (!gateToUndo) return;
 
-    await invoke('update_raid_gate_status', {
-      characterId: character.char_id,
-      raidId: raid.content_id,
-      gateId: gateToUndo,
-      contentId: raid.content_id,
-      completed: false
-    });
+    await updateTodoRaidGateStatus(character.char_id, raid.content_id, gateToUndo, raid.content_id, false);
     window.dispatchEvent(new CustomEvent('raid-completed'));
     dispatchDashboardCompletionUpdate();
   }
@@ -298,51 +135,6 @@
   }
 
   
-  function formatItemLevel(itemLevel: number): string {
-    return itemLevel.toLocaleString('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-      useGrouping: false
-    });
-  }
-
-  function formatCombatPower(combatPower: number): string {
-    return combatPower.toLocaleString('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-      useGrouping: false
-    });
-  }
-
-  function getClassIconUrl(iconId: string): string {
-    return `/images/classes/${iconId}.png`;
-  }
-
-  function getTaskIcon(taskId: string): string {
-    if (taskId.startsWith('event_')) {
-      return '/images/event_quest.webp';
-    }
-
-    const iconMap: Record<string, string> = {
-      'chaos': '/images/chaos-dungeon.webp',
-      'guardian': '/images/guardian.png',
-      'cube': '/images/ebony1720.png',
-      'paradise': '/images/paradise.webp',
-      'shop': '/images/daily.webp',
-      'guild': '/images/guild.webp',
-    };
-    
-    return iconMap[taskId] || '/images/daily.webp';
-  }
-
-  function getRaidName(contentId: string, difficulty: string): string {
-    const raid = RAIDS.find(r => r.id === contentId && r.difficulty === difficulty);
-    return raid ? raid.name : contentId;
-  }
-
-  function isRaidCompleted(contentId: string): boolean {
-    return getCompletionStatus(contentId);
-  }
 </script>
 
 <div class="character-card"
@@ -699,7 +491,7 @@
     background: var(--surface-variant);
     border-radius: 12px;
     padding: 0.8rem;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--app-shadow-sm);
     position: relative;
     overflow: hidden;
     border: 2px solid transparent;
@@ -709,13 +501,13 @@
   }
 
   .character-card.gold-earner {
-    border-color: #ffd700;
-    box-shadow: 0 4px 20px rgba(255, 215, 0, 0.2);
+    border-color: var(--app-color-gold);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--app-color-gold) 20%, transparent);
   }
 
   .character-card.non-gold-earner {
-    border-color: rgba(56, 189, 248, 0.45);
-    box-shadow: 0 4px 18px rgba(56, 189, 248, 0.12);
+    border-color: color-mix(in srgb, var(--app-color-tracked) 45%, transparent);
+    box-shadow: 0 4px 18px color-mix(in srgb, var(--app-color-tracked) 12%, transparent);
   }
 
   .character-card.compact {
@@ -910,7 +702,7 @@
   }
 
   .compact-daily-state.weekly .compact-daily-icon {
-    border-color: rgba(148, 163, 184, 0.28);
+    border-color: color-mix(in srgb, var(--app-color-muted-state) 28%, transparent);
   }
 
   .compact-daily-state.placeholder {
@@ -931,8 +723,8 @@
     border-radius: 5px;
     display: grid;
     place-items: center;
-    background: color-mix(in srgb, var(--surface) 86%, #000000);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--surface) 86%, black);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
     overflow: hidden;
   }
 
@@ -949,14 +741,14 @@
     height: 4px;
     overflow: hidden;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent);
   }
 
   .compact-daily-progress span {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #38bdf8, #2dd4bf);
+    background: linear-gradient(90deg, var(--app-color-tracked), var(--app-color-tracked-alt));
   }
 
   .character-card.compact.daily-only-minimal .compact-daily-progress {
@@ -986,8 +778,8 @@
     border-radius: 5px;
     display: grid;
     place-items: center;
-    background: color-mix(in srgb, var(--surface) 86%, #000000);
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: color-mix(in srgb, var(--surface) 86%, black);
+    border: 1px solid color-mix(in srgb, var(--app-color-muted-state) 22%, transparent);
     overflow: hidden;
   }
 
@@ -1062,7 +854,7 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--app-shadow-sm);
   }
 
   .character-card.minimal-card:not(.compact) .class-icon {
@@ -1097,13 +889,13 @@
 
   .item-level {
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent);
     font-size: 0.75rem;
   }
 
   .combat-power {
     font-weight: 500;
-    color: rgba(255, 107, 53, 0.7);
+    color: var(--app-color-accent-muted);
     font-size: 0.75rem;
   }
 
@@ -1177,7 +969,7 @@
   }
 
   .activity-item.weekly-inline .activity-icon {
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    border: 1px solid color-mix(in srgb, var(--app-color-muted-state) 28%, transparent);
   }
 
   .activity-item.inactive {
@@ -1216,14 +1008,14 @@
   .rested-bar {
     flex: 1;
     height: 4px;
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent);
     border-radius: 2px;
     overflow: hidden;
   }
 
   .rested-fill {
     height: 100%;
-    background: linear-gradient(90deg, #10b981, #34d399);
+    background: var(--app-color-success-gradient);
     border-radius: 2px;
     transition: width 0.3s ease;
   }
@@ -1270,26 +1062,26 @@
   }
 
   .raid-item.gold-raid {
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.2));
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    color: #ffd700;
+    background: var(--app-color-raid-gold-surface);
+    border: 1px solid color-mix(in srgb, var(--app-color-gold) 30%, transparent);
+    color: var(--app-color-gold);
   }
 
   .raid-item.tracked-raid {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(45, 212, 191, 0.15));
-    border: 1px solid rgba(56, 189, 248, 0.28);
-    color: #7dd3fc;
+    background: var(--app-color-raid-tracked-surface);
+    border: 1px solid color-mix(in srgb, var(--app-color-tracked) 28%, transparent);
+    color: var(--app-color-on-tracked);
   }
 
   .raid-item.static-reserved {
-    border-color: rgba(251, 146, 60, 0.45);
-    box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.16);
+    border-color: color-mix(in srgb, var(--app-color-static) 45%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-color-static) 16%, transparent);
   }
 
   .raid-item.weekly-task {
-    background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), rgba(100, 116, 139, 0.16));
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    color: #cbd5e1;
+    background: var(--app-color-raid-weekly-surface);
+    border: 1px solid color-mix(in srgb, var(--app-color-muted-state) 24%, transparent);
+    color: color-mix(in srgb, var(--app-color-muted-state) 64%, var(--md-sys-color-on-surface));
   }
 
   .raid-item.completed {
@@ -1301,28 +1093,28 @@
   .raid-item.gold-raid.completed {
     opacity: 0.4;
     text-decoration: line-through;
-    color: rgba(255, 215, 0, 0.6);
+    color: color-mix(in srgb, var(--app-color-gold) 60%, transparent);
   }
 
   .raid-item.tracked-raid.completed {
     opacity: 0.42;
     text-decoration: line-through;
-    color: rgba(125, 211, 252, 0.6);
+    color: color-mix(in srgb, var(--app-color-on-tracked) 60%, transparent);
   }
 
   .raid-item.weekly-task.completed {
     opacity: 0.42;
     text-decoration: line-through;
-    color: rgba(203, 213, 225, 0.62);
+    color: color-mix(in srgb, var(--app-color-muted-state) 62%, var(--md-sys-color-on-surface));
   }
 
   .raid-item.mismatch {
     opacity: 0.9;
-    background: rgba(239, 68, 68, 0.12);
-    color: #b91c1c;
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
+    color: var(--md-sys-color-error);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 35%, transparent);
     text-decoration: line-through;
-    text-decoration-color: #dc2626;
+    text-decoration-color: var(--md-sys-color-error);
   }
 
   .raid-item.mismatch .raid-name {
@@ -1342,13 +1134,13 @@
     font-weight: 700;
     padding: 0 0.25rem;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.55);
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent);
     white-space: nowrap;
     flex-shrink: 0;
   }
-  .gate-progress-partial { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.55); }
-  .gate-progress-done    { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.55); }
+  .gate-progress-partial { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent); }
+  .gate-progress-done    { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent); }
 
   .raid-icon {
     width: 14px;
@@ -1376,8 +1168,8 @@
     flex-shrink: 0;
     border-radius: 3px;
     padding: 0.05rem 0.25rem;
-    background: rgba(251, 146, 60, 0.18);
-    color: #fdba74;
+    background: color-mix(in srgb, var(--app-color-static) 18%, transparent);
+    color: var(--app-color-on-static);
     font-size: 0.58rem;
     font-weight: 800;
     text-transform: uppercase;

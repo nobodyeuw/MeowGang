@@ -1,0 +1,118 @@
+/*
+  Plague Alchemist: modern minimalist lab style. Heavy neutral dark slates
+  paired with one clean mint highlight, with muted sage for support states.
+*/
+:root[data-theme='plague-alchemist'] {
+  color-scheme: dark;
+
+  /* One champion accent */
+  --md-sys-color-primary: #35f58f;
+  --md-sys-color-on-primary: #00381e;
+  --md-sys-color-primary-container: rgba(53, 245, 143, 0.08);
+  --md-sys-color-on-primary-container: #c2ffd9;
+
+  /* Muted neutral support accents */
+  --md-sys-color-secondary: #708076;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #28332d;
+  --md-sys-color-on-secondary-container: #d7e3db;
+
+  --md-sys-color-tertiary: #526357;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #26322c;
+  --md-sys-color-on-tertiary-container: #d4dfd8;
+
+  /* Clean monolithic dark surfaces */
+  --md-sys-color-background: #0b0d0c;
+  --md-sys-color-on-background: #e2e8e4;
+  --md-sys-color-surface: #121614;
+  --md-sys-color-on-surface: #e2e8e4;
+  --md-sys-color-surface-variant: #191f1c;
+  --md-sys-color-on-surface-variant: #9aa59e;
+  --md-sys-color-surface-container-low: #141a17;
+  --md-sys-color-surface-container: #1b231f;
+  --md-sys-color-on-surface-container: #e2e8e4;
+  --md-sys-color-surface-container-high: #242f2a;
+  --md-sys-color-surface-container-highest: #2d3b34;
+
+  --md-sys-color-outline: #2d3631;
+  --md-sys-color-outline-variant: #3d4a42;
+
+  /* Semantic flags */
+  --md-sys-color-error: #ff4d4d;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #680003;
+  --md-sys-color-on-error-container: #ffdad9;
+  --md-sys-color-warning: #ffd166;
+  --md-sys-color-success: #35f58f;
+
+  /* Layout utilities and effects */
+  --app-color-overlay: rgba(9, 11, 10, 0.75);
+  --app-color-focus-ring: #35f58f;
+  --app-color-hover-surface: rgba(53, 245, 143, 0.06);
+  --app-color-selected-surface: rgba(53, 245, 143, 0.12);
+  --app-color-accent-row: rgba(53, 245, 143, 0.035);
+  --app-color-accent-divider: rgba(53, 245, 143, 0.11);
+  --app-color-accent-muted: rgba(53, 245, 143, 0.58);
+  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-variant));
+  --app-color-accent-glow-sm: 0 0 8px rgba(53, 245, 143, 0.34);
+  --app-color-accent-glow-md: 0 0 12px rgba(53, 245, 143, 0.32), 0 0 20px rgba(53, 245, 143, 0.14);
+  --app-color-highlight-surface: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, var(--md-sys-color-primary)),
+    var(--md-sys-color-surface-container)
+  );
+  --app-color-highlight-text: #c2ffd9;
+  --app-shadow-highlight: inset 0 1px 0 0 rgba(53, 245, 143, 0.28),
+    0 12px 32px -4px rgba(0, 0, 0, 0.65);
+  --app-shadow-highlight-text: 0 0 8px rgba(53, 245, 143, 0.36);
+  --app-color-modal-backdrop: rgba(6, 8, 7, 0.84);
+  --app-color-subtle-scrim: rgba(255, 255, 255, 0.03);
+
+  /* App badge and tracking states */
+  --app-color-gold: #ffd166;
+  --app-color-on-gold: #1d1200;
+  --app-color-hidden: #ff4d4d;
+  --app-color-on-hidden: #ffffff;
+  --app-color-tracked: #35f58f;
+  --app-color-tracked-alt: #708076;
+  --app-color-on-tracked: #dfffe9;
+  --app-color-muted-state: #556159;
+  --app-color-static: #526357;
+  --app-color-on-static: #ffffff;
+
+  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.07), rgba(255, 209, 102, 0.02));
+  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(53, 245, 143, 0.1), rgba(112, 128, 118, 0.03));
+  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(85, 97, 89, 0.08), rgba(82, 99, 87, 0.02));
+  --app-color-success-gradient: linear-gradient(135deg, #35f58f 0%, #082916 100%);
+  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #3d2900 100%);
+  --app-color-error-gradient: linear-gradient(135deg, #ff4d4d 0%, #330002 100%);
+
+  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --app-shadow-md: 0 12px 36px rgba(0, 0, 0, 0.65);
+}
+
+:root[data-theme='plague-alchemist'] .ui-segmented-button.active {
+  box-shadow: var(--app-color-accent-glow-sm);
+}
+
+:root[data-theme='plague-alchemist'] .matrix-character-ilvl {
+  color: var(--md-sys-color-primary);
+}
+
+:root[data-theme='plague-alchemist'] .ui-inline-checkbox.accent-warning {
+  color: var(--md-sys-color-secondary);
+}
+
+:root[data-theme='plague-alchemist'] .ui-inline-checkbox.accent-warning input {
+  accent-color: var(--md-sys-color-secondary);
+}
+
+:root[data-theme='plague-alchemist'] .setting-icon.windows,
+:root[data-theme='plague-alchemist'] .setting-icon.game,
+:root[data-theme='plague-alchemist'] .setting-icon.database,
+:root[data-theme='plague-alchemist'] .setting-icon.executable,
+:root[data-theme='plague-alchemist'] .setting-icon.meowconnect-icon {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+  color: var(--md-sys-color-primary);
+}

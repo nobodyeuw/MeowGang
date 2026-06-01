@@ -1,3 +1,5 @@
+// Source of truth for tracked raid definitions, gate rewards, difficulty names, and min ilvl rules.
+// Encounter-log name aliases belong in encounters.ts so parser mappings do not leak into raid config.
 export interface RaidGate {
   gate: string;
   minIlvl: number;

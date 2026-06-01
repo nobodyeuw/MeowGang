@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
@@ -61,6 +63,7 @@ struct DiscordUser {
 }
 
 #[tauri::command]
+/// Runs the standalone Discord OAuth flow and checks the returned user against the whitelist.
 pub async fn authenticate_discord(app: tauri::AppHandle) -> Result<DiscordAuthResult, String> {
     let client_id = discord_client_id()?;
     let whitelist_url = discord_whitelist_url()?;
@@ -95,6 +98,7 @@ pub async fn authenticate_discord(app: tauri::AppHandle) -> Result<DiscordAuthRe
 }
 
 #[tauri::command]
+/// Opens Supabase's Discord OAuth URL and returns the callback auth code to the frontend.
 pub async fn authenticate_supabase_discord(authUrl: String) -> Result<SupabaseOAuthCodeResult, String> {
     if !authUrl.starts_with("https://") {
         return Err("Supabase auth URL must use HTTPS.".to_string());
@@ -114,6 +118,7 @@ pub async fn authenticate_supabase_discord(authUrl: String) -> Result<SupabaseOA
 }
 
 #[tauri::command]
+/// Verifies a Supabase-authenticated Discord profile against the app whitelist.
 pub async fn verify_discord_profile_auth(
     _app: tauri::AppHandle,
     discordId: String,
@@ -154,6 +159,7 @@ pub async fn verify_discord_profile_auth(
 }
 
 #[tauri::command]
+/// Legacy auth check kept for older frontends; local Discord-id files are no longer trusted.
 pub async fn verify_stored_discord_auth(app: tauri::AppHandle) -> Result<DiscordAuthResult, String> {
     remove_stored_discord_id(&app);
     Ok(DiscordAuthResult {
@@ -165,6 +171,7 @@ pub async fn verify_stored_discord_auth(app: tauri::AppHandle) -> Result<Discord
 }
 
 #[tauri::command]
+/// Returns whitelisted members for friend/group search previews.
 pub async fn get_discord_whitelist_members() -> Result<Vec<WhitelistMember>, String> {
     let whitelist_url = discord_whitelist_url()?;
     let whitelist = fetch_whitelist(&whitelist_url).await?;
@@ -180,6 +187,7 @@ pub async fn get_discord_whitelist_members() -> Result<Vec<WhitelistMember>, Str
     Ok(members)
 }
 
+/// Fetches the Discord user behind an OAuth token and validates whitelist membership.
 async fn verify_token_against_whitelist(
     _app: &tauri::AppHandle,
     access_token: &str,
@@ -225,6 +233,7 @@ async fn verify_token_against_whitelist(
     }
 }
 
+/// Fetches the JSON whitelist and normalizes supported whitelist shapes.
 async fn fetch_whitelist(whitelist_url: &str) -> Result<HashMap<String, Option<String>>, String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
@@ -246,6 +255,7 @@ async fn fetch_whitelist(whitelist_url: &str) -> Result<HashMap<String, Option<S
     Ok(extract_whitelisted_users(&whitelist))
 }
 
+/// Exchanges a Discord authorization code using PKCE.
 async fn exchange_discord_code_for_token(
     client_id: &str,
     redirect_uri: &str,
@@ -281,6 +291,7 @@ async fn exchange_discord_code_for_token(
     Ok(response.access_token)
 }
 
+/// Waits for the Discord OAuth redirect on the local callback listener.
 fn wait_for_discord_code(listener: TcpListener, expected_state: &str) -> Result<DiscordCodePayload, String> {
     listener
         .set_nonblocking(true)
@@ -308,6 +319,7 @@ fn wait_for_discord_code(listener: TcpListener, expected_state: &str) -> Result<
     Err("Discord login timed out. Please try again.".to_string())
 }
 
+/// Waits for Supabase OAuth to redirect an auth code to the local callback listener.
 fn wait_for_supabase_code(listener: TcpListener) -> Result<String, String> {
     listener
         .set_nonblocking(true)
@@ -332,6 +344,7 @@ fn wait_for_supabase_code(listener: TcpListener) -> Result<String, String> {
     Err("Supabase login timed out. Please try again.".to_string())
 }
 
+/// Handles the standalone Discord OAuth callback HTTP request.
 fn handle_auth_callback_request(stream: &mut TcpStream) -> Result<Option<DiscordCodePayload>, String> {
     let request = read_http_request(stream)?;
 
@@ -345,6 +358,7 @@ fn handle_auth_callback_request(stream: &mut TcpStream) -> Result<Option<Discord
     Ok(None)
 }
 
+/// Handles the Supabase OAuth callback HTTP request.
 fn handle_supabase_callback_request(stream: &mut TcpStream) -> Result<Option<String>, String> {
     let request = read_http_request(stream)?;
 
@@ -358,6 +372,7 @@ fn handle_supabase_callback_request(stream: &mut TcpStream) -> Result<Option<Str
     Ok(None)
 }
 
+/// Parses Discord code/state from the callback request target.
 fn parse_discord_code_payload(request: &str) -> Result<DiscordCodePayload, String> {
     let request_target = request
         .lines()
@@ -393,6 +408,7 @@ fn parse_discord_code_payload(request: &str) -> Result<DiscordCodePayload, Strin
     })
 }
 
+/// Parses the Supabase authorization code from the callback request target.
 fn parse_supabase_code_payload(request: &str) -> Result<String, String> {
     let request_target = request
         .lines()
@@ -422,6 +438,7 @@ fn parse_supabase_code_payload(request: &str) -> Result<String, String> {
     Err("Supabase did not return an auth code.".to_string())
 }
 
+/// Reads a single local callback HTTP request from the browser.
 fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
@@ -460,10 +477,12 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
     String::from_utf8(buffer).map_err(|e| format!("Auth callback request was not valid UTF-8: {}", e))
 }
 
+/// Finds the end of an HTTP header block.
 fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|window| window == b"\r\n\r\n")
 }
 
+/// Parses Content-Length from a raw HTTP header.
 fn parse_content_length(header: &str) -> Option<usize> {
     header.lines().find_map(|line| {
         let (name, value) = line.split_once(':')?;
@@ -475,6 +494,7 @@ fn parse_content_length(header: &str) -> Option<usize> {
     })
 }
 
+/// Writes a minimal local callback HTTP response.
 fn write_http_response(stream: &mut TcpStream, status: &str, content_type: &str, body: &str) -> Result<(), String> {
     let response = format!(
         "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -488,6 +508,7 @@ fn write_http_response(stream: &mut TcpStream, status: &str, content_type: &str,
         .map_err(|e| format!("Failed to write auth callback response: {}", e))
 }
 
+/// Browser page shown after standalone Discord login completes.
 fn discord_callback_html() -> &'static str {
     r#"<!doctype html>
 <html>
@@ -510,6 +531,7 @@ fn discord_callback_html() -> &'static str {
 </html>"#
 }
 
+/// Browser page shown after Supabase Discord login completes.
 fn supabase_callback_html() -> &'static str {
     r#"<!doctype html>
 <html>
@@ -532,6 +554,7 @@ fn supabase_callback_html() -> &'static str {
 </html>"#
 }
 
+/// Normalizes supported whitelist JSON formats into Discord id -> optional name.
 fn extract_whitelisted_users(value: &Value) -> HashMap<String, Option<String>> {
     let mut users = HashMap::new();
 
@@ -550,6 +573,7 @@ fn extract_whitelisted_users(value: &Value) -> HashMap<String, Option<String>> {
     users
 }
 
+/// Adds users from a supported JSON value shape.
 fn collect_users(value: &Value, users: &mut HashMap<String, Option<String>>) {
     match value {
         Value::String(id) => {
@@ -576,12 +600,14 @@ fn collect_users(value: &Value, users: &mut HashMap<String, Option<String>>) {
     }
 }
 
+/// Adds users from a whitelist array.
 fn collect_users_from_array(entries: &[Value], users: &mut HashMap<String, Option<String>>) {
     for entry in entries {
         collect_users(entry, users);
     }
 }
 
+/// Removes pre-Supabase local auth/cache files from older app versions.
 pub fn migrate_legacy_roaming_files(app: &tauri::AppHandle) {
     if let Err(e) = remove_legacy_auth_files(app) {
         crate::log_warn!("Failed to remove legacy Discord auth file: {}", e);
@@ -606,14 +632,12 @@ pub fn migrate_legacy_roaming_files(app: &tauri::AppHandle) {
     }
 }
 
+/// Returns the old roaming app-data path used by previous builds.
 fn legacy_roaming_file_path(app: &tauri::AppHandle, file_name: &str) -> Option<PathBuf> {
-    app
-        .path()
-        .app_data_dir()
-        .ok()
-        .map(|path| path.join(file_name))
+    app.path().app_data_dir().ok().map(|path| path.join(file_name))
 }
 
+/// Removes legacy Discord-id files so local text files cannot bypass auth.
 fn remove_legacy_auth_files(app: &tauri::AppHandle) -> Result<(), String> {
     let local_path = crate::app::data_dir(app).join(LEGACY_AUTH_FILE_NAME);
     if local_path.exists() {
@@ -633,6 +657,7 @@ fn remove_legacy_auth_files(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Best-effort cleanup for stale local Discord-id auth files.
 fn remove_stored_discord_id(app: &tauri::AppHandle) {
     let path = crate::app::data_dir(app).join(LEGACY_AUTH_FILE_NAME);
     if path.exists() {
@@ -643,23 +668,27 @@ fn remove_stored_discord_id(app: &tauri::AppHandle) {
     }
 }
 
+/// Resolves the Discord client id from runtime/build-time configuration.
 fn discord_client_id() -> Result<String, String> {
     Ok(configured_value("DISCORD_CLIENT_ID", option_env!("DISCORD_CLIENT_ID"))
         .unwrap_or_else(|| DEFAULT_DISCORD_CLIENT_ID.to_string()))
 }
 
+/// Resolves and normalizes the whitelist URL.
 fn discord_whitelist_url() -> Result<String, String> {
     configured_value("DISCORD_WHITELIST_URL", option_env!("DISCORD_WHITELIST_URL"))
         .map(|url| normalize_gist_url(&url))
         .ok_or_else(|| "Discord auth is not configured: DISCORD_WHITELIST_URL is missing.".to_string())
 }
 
+/// Resolves the local OAuth callback port.
 fn discord_redirect_port() -> u16 {
     configured_value("DISCORD_REDIRECT_PORT", option_env!("DISCORD_REDIRECT_PORT"))
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(DEFAULT_AUTH_PORT)
 }
 
+/// Reads a config value from runtime env first, then compile-time env.
 fn configured_value(key: &str, build_value: Option<&'static str>) -> Option<String> {
     std::env::var(key)
         .ok()
@@ -667,6 +696,7 @@ fn configured_value(key: &str, build_value: Option<&'static str>) -> Option<Stri
         .or_else(|| build_value.map(str::to_string).filter(|value| !value.trim().is_empty()))
 }
 
+/// Converts common gist page URLs to raw JSON URLs when possible.
 fn normalize_gist_url(url: &str) -> String {
     let trimmed_url = url.trim();
 
@@ -693,6 +723,7 @@ fn normalize_gist_url(url: &str) -> String {
     }
 }
 
+/// Generates OAuth state to protect callback integrity.
 fn random_state() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -701,6 +732,7 @@ fn random_state() -> String {
         .collect()
 }
 
+/// Generates the PKCE verifier used for Discord OAuth.
 fn pkce_code_verifier() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -709,11 +741,13 @@ fn pkce_code_verifier() -> String {
         .collect()
 }
 
+/// Builds the PKCE challenge sent to Discord.
 fn pkce_code_challenge(code_verifier: &str) -> String {
     let digest = Sha256::digest(code_verifier.as_bytes());
     URL_SAFE_NO_PAD.encode(digest)
 }
 
+/// Opens a URL in the system browser.
 fn open_external_url(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {

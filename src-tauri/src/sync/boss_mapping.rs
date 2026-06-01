@@ -12,6 +12,7 @@ pub struct BossMapper {
 }
 
 impl BossMapper {
+    /// Builds the LOA Logs boss-name translation table used by encounter sync.
     pub fn new() -> Self {
         let mut mapper = Self {
             mappings: HashMap::new(),
@@ -20,6 +21,10 @@ impl BossMapper {
         mapper
     }
 
+    /// Registers known boss aliases from encounters.db.
+    ///
+    /// Keep this aligned with `src/lib/data/encounters.ts`; reward, ilvl, and
+    /// difficulty source-of-truth data still belongs in `src/lib/data/raids.ts`.
     fn initialize_mappings(&mut self) {
         // overture_echidna
         self.add_mapping(
@@ -40,7 +45,17 @@ impl BossMapper {
         );
 
         // behemoth
-        self.add_mapping("behemoth", 1, vec!["Behemoth, the Storm Commander".to_string()]);
+        self.add_mapping(
+            "behemoth",
+            1,
+            vec![
+                "Behemoth, the Storm Commander".to_string(),
+                "Despicable Skolakia".to_string(),
+                "Untrue Crimson Yoho".to_string(),
+                "Ruthless Lakadroff".to_string(),
+                "Vicious Argeos".to_string(),
+            ],
+        );
         self.add_mapping("behemoth", 2, vec!["Behemoth, Cruel Storm Slayer".to_string()]);
 
         // act_1_aegir
@@ -114,6 +129,7 @@ impl BossMapper {
         self.add_mapping("shadow_serca", 2, vec!["Corvus Tul Rak".to_string()]);
     }
 
+    /// Adds every alias for a gate as a direct lookup key.
     fn add_mapping(&mut self, content_id: &str, gate: u8, boss_names: Vec<String>) {
         let mapping = EncounterMapping {
             content_id: content_id.to_string(),
@@ -129,6 +145,7 @@ impl BossMapper {
         }
     }
 
+    /// Resolves a raw encounters.db boss name to the internal raid content/gate.
     pub fn map_boss_to_encounter(&self, boss_name: &str) -> Option<&EncounterMapping> {
         // Direct match first
         if let Some(mappings) = self.mappings.get(boss_name) {
@@ -145,6 +162,7 @@ impl BossMapper {
         None
     }
 
+    /// Normalizes external encounter difficulty text to the app's lowercase keys.
     pub fn normalize_difficulty(&self, difficulty: &str) -> String {
         match difficulty.to_lowercase().trim() {
             "" => "normal".to_string(),
@@ -175,6 +193,11 @@ mod tests {
         assert!(thaemine.is_some());
         assert_eq!(thaemine.unwrap().content_id, "act_3_mordum");
         assert_eq!(thaemine.unwrap().gate, 1);
+
+        let behemoth_add = mapper.map_boss_to_encounter("Vicious Argeos");
+        assert!(behemoth_add.is_some());
+        assert_eq!(behemoth_add.unwrap().content_id, "behemoth");
+        assert_eq!(behemoth_add.unwrap().gate, 1);
     }
 
     #[test]

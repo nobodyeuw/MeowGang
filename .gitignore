@@ -40,3 +40,4 @@ src-tauri/gen/
 /docs
 /.github
 /supabase
+CLEANUP_PLAN.md

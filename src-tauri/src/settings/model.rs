@@ -29,6 +29,7 @@ pub struct SystemSettings {
     pub hide_on_launch: bool,
     pub show_setup_guide_button: bool,
     pub show_auth_welcome: bool,
+    pub show_haals_hourglass_reminder: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -51,6 +52,7 @@ impl Default for SystemSettings {
             hide_on_launch: false,
             show_setup_guide_button: true,
             show_auth_welcome: true,
+            show_haals_hourglass_reminder: true,
             extra: Map::new(),
         }
     }

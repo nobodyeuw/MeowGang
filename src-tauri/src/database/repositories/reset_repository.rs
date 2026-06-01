@@ -65,18 +65,20 @@ impl ResetRepository {
         };
 
         // Update rested values for chaos and guardian (runs daily regardless of reset condition)
-        println!(
+        crate::log_debug!(
             "Updating rested values - last: {}, current: {}",
-            last_daily, daily_reset_time
+            last_daily,
+            daily_reset_time
         );
         self.update_rested_values(&tx, "chaos")?;
         self.update_rested_values(&tx, "guardian")?;
 
         // Check if daily reset is needed
         if last_daily < daily_reset_time {
-            println!(
+            crate::log_info!(
                 "Daily reset needed - last: {}, current: {}",
-                last_daily, daily_reset_time
+                last_daily,
+                daily_reset_time
             );
 
             // Reset all daily tasks to false
@@ -85,17 +87,19 @@ impl ResetRepository {
             // Update app_state
             tx.execute("UPDATE app_state SET last_daily_reset = ?1", params![daily_reset_time])?;
         } else {
-            println!(
+            crate::log_debug!(
                 "No daily reset needed - last: {}, current: {}",
-                last_daily, daily_reset_time
+                last_daily,
+                daily_reset_time
             );
         }
 
         // Check if weekly reset is needed
         if last_weekly < weekly_reset_time {
-            println!(
+            crate::log_info!(
                 "Performing weekly reset - last: {}, new: {}",
-                last_weekly, weekly_reset_time
+                last_weekly,
+                weekly_reset_time
             );
 
             // Reset all weekly tasks to false
@@ -110,11 +114,12 @@ impl ResetRepository {
                 params![weekly_reset_time],
             )?;
 
-            println!("Weekly reset completed successfully");
+            crate::log_info!("Weekly reset completed successfully");
         } else {
-            println!(
+            crate::log_debug!(
                 "No weekly reset needed - last: {}, threshold: {}",
-                last_weekly, weekly_reset_time
+                last_weekly,
+                weekly_reset_time
             );
         }
 
@@ -209,7 +214,7 @@ impl ResetRepository {
                 )
                 .unwrap_or((0, 0));
 
-            // Already updated during this reset cycle — skip
+            // Already updated during this reset cycle; skip.
             if last_updated >= current_reset_ms {
                 continue;
             }

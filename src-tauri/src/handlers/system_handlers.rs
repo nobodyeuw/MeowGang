@@ -2,9 +2,17 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use sysinfo::System;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
+
+pub(crate) mod logs;
+pub(crate) mod resources;
+pub(crate) mod updates;
+
+pub use logs::{clear_log, get_log_content, send_log_report, write_frontend_log};
+pub use resources::{get_changelogs, get_known_bugs};
+pub use updates::{check_for_updates, install_update, UpdateInfo};
 
 const STARTUP_TASK_NAME: &str = "LOA_Tracker_Auto_Start";
 const STARTUP_REGISTRY_VALUE_NAME: &str = "LOA Tracker";
@@ -22,11 +30,13 @@ pub struct SystemSettings {
 }
 
 #[tauri::command]
+/// Returns the build/package version shown in the UI.
 pub async fn get_app_version() -> Result<String, String> {
     Ok(crate::version::APP_VERSION.to_string())
 }
 
 #[tauri::command]
+/// Loads system settings and lazily auto-detects missing external paths.
 pub async fn get_system_settings(
     settings_manager: State<'_, crate::settings::SettingsManager>,
 ) -> Result<crate::settings::SystemSettings, String> {
@@ -76,10 +86,6 @@ pub async fn get_system_settings(
 
     let start_with_loa_logs = settings.system.start_with_loa_logs;
 
-    if let Err(e) = refresh_startup_registration(&settings) {
-        crate::log_error!("Failed to refresh startup registration while loading settings: {}", e);
-    }
-
     Ok(crate::settings::SystemSettings {
         encounters_db_path,
         lost_ark_exe_path,
@@ -90,68 +96,82 @@ pub async fn get_system_settings(
         hide_on_launch: settings.system.hide_on_launch,
         show_setup_guide_button: settings.system.show_setup_guide_button,
         show_auth_welcome: settings.system.show_auth_welcome,
+        show_haals_hourglass_reminder: settings.system.show_haals_hourglass_reminder,
         extra: settings.system.extra,
     })
 }
 
-#[tauri::command]
-pub async fn set_show_setup_guide_button(
-    enabled: bool,
-    settings_manager: State<'_, crate::settings::SettingsManager>,
+/// Loads settings, applies one mutation, and saves the result.
+fn update_system_settings(
+    settings_manager: &crate::settings::SettingsManager,
+    update: impl FnOnce(&mut crate::settings::Settings),
 ) -> Result<(), String> {
     let mut settings = settings_manager
         .read()
         .map_err(|e| format!("Failed to read settings: {}", e))?
         .unwrap_or_else(|| settings_manager.get_default());
 
-    settings.system.show_setup_guide_button = enabled;
+    update(&mut settings);
+
     settings_manager
         .save(&settings)
-        .map_err(|e| format!("Failed to save settings: {}", e))?;
+        .map_err(|e| format!("Failed to save settings: {}", e))
+}
 
+#[tauri::command]
+/// Toggles the setup guide shortcut in the app header.
+pub async fn set_show_setup_guide_button(
+    enabled: bool,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<(), String> {
+    update_system_settings(&settings_manager, |settings| {
+        settings.system.show_setup_guide_button = enabled;
+    })?;
     crate::log_info!("Set setup guide header button visibility to: {}", enabled);
     Ok(())
 }
 
 #[tauri::command]
+/// Toggles whether the auth welcome screen is shown on startup.
 pub async fn set_show_auth_welcome(
     enabled: bool,
     settings_manager: State<'_, crate::settings::SettingsManager>,
 ) -> Result<(), String> {
-    let mut settings = settings_manager
-        .read()
-        .map_err(|e| format!("Failed to read settings: {}", e))?
-        .unwrap_or_else(|| settings_manager.get_default());
-
-    settings.system.show_auth_welcome = enabled;
-    settings_manager
-        .save(&settings)
-        .map_err(|e| format!("Failed to save settings: {}", e))?;
-
+    update_system_settings(&settings_manager, |settings| {
+        settings.system.show_auth_welcome = enabled;
+    })?;
     crate::log_info!("Set Discord welcome screen visibility to: {}", enabled);
     Ok(())
 }
 
 #[tauri::command]
+/// Toggles the Tuesday reminder for 1730+ Cube characters before weekly reset.
+pub async fn set_show_haals_hourglass_reminder(
+    enabled: bool,
+    settings_manager: State<'_, crate::settings::SettingsManager>,
+) -> Result<(), String> {
+    update_system_settings(&settings_manager, |settings| {
+        settings.system.show_haals_hourglass_reminder = enabled;
+    })?;
+    crate::log_info!("Set Haal's Hourglass reminder visibility to: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+/// Toggles whether the main window hides to tray on launch.
 pub async fn set_hide_on_launch(
     enabled: bool,
     settings_manager: State<'_, crate::settings::SettingsManager>,
 ) -> Result<(), String> {
-    let mut settings = settings_manager
-        .read()
-        .map_err(|e| format!("Failed to read settings: {}", e))?
-        .unwrap_or_else(|| settings_manager.get_default());
-
-    settings.system.hide_on_launch = enabled;
-    settings_manager
-        .save(&settings)
-        .map_err(|e| format!("Failed to save settings: {}", e))?;
-
+    update_system_settings(&settings_manager, |settings| {
+        settings.system.hide_on_launch = enabled;
+    })?;
     crate::log_info!("Set hide on launch to: {}", enabled);
     Ok(())
 }
 
 #[tauri::command]
+/// Clears local roster/character/task data while keeping app settings.
 pub async fn clear_user_data(pool: State<'_, Pool<SqliteConnectionManager>>) -> Result<String, String> {
     let mut conn = pool.get().map_err(|e| format!("Failed to open user database: {}", e))?;
     let tx = conn
@@ -167,6 +187,7 @@ pub async fn clear_user_data(pool: State<'_, Pool<SqliteConnectionManager>>) -> 
     Ok(format!("Cleared {} characters and related data", deleted_characters))
 }
 
+/// Deletes character-owned rows in one transaction for the clear-data command.
 fn clear_character_data(tx: &Transaction<'_>) -> rusqlite::Result<usize> {
     let deleted_characters: usize = tx.query_row("SELECT COUNT(*) FROM conf_character", [], |row| row.get(0))?;
 
@@ -189,6 +210,7 @@ fn clear_character_data(tx: &Transaction<'_>) -> rusqlite::Result<usize> {
     Ok(deleted_characters)
 }
 
+/// Attempts to locate LOA Logs' encounters.db from common install/runtime paths.
 pub fn detect_encounters_db_path() -> Option<String> {
     // Check LOA Logs directory first (used by LOA Logs app)
     if let Some(local_data_dir) = dirs::data_local_dir() {
@@ -334,20 +356,30 @@ pub(crate) fn detect_loa_logs_exe_path() -> Option<String> {
     None
 }
 
+/// Validates a user-selected file path before saving it into settings.
+fn validate_existing_file_extension(path: &str, expected_extension: &str) -> Result<(), String> {
+    let path_obj = std::path::Path::new(path);
+    if !path_obj.exists() {
+        return Err("File not found".to_string());
+    }
+
+    if !path_obj
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected_extension))
+    {
+        return Err(format!("Invalid file extension. Expected .{} file", expected_extension));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn set_encounters_db_path(
     settings_manager: State<'_, crate::settings::SettingsManager>,
     path: String,
 ) -> Result<(), String> {
-    // Validate path exists and is a .db file
-    let path_obj = std::path::Path::new(&path);
-    if !path_obj.exists() {
-        return Err("File not found".to_string());
-    }
-
-    if !path_obj.extension().map_or(false, |ext| ext == "db") {
-        return Err("Invalid file extension. Expected .db file".to_string());
-    }
+    validate_existing_file_extension(&path, "db")?;
 
     let mut settings = settings_manager
         .read()
@@ -365,15 +397,7 @@ pub async fn set_lost_ark_exe_path(
     settings_manager: State<'_, crate::settings::SettingsManager>,
     path: String,
 ) -> Result<(), String> {
-    // Validate path exists and is an .exe file
-    let path_obj = std::path::Path::new(&path);
-    if !path_obj.exists() {
-        return Err("File not found".to_string());
-    }
-
-    if !path_obj.extension().map_or(false, |ext| ext == "exe") {
-        return Err("Invalid file extension. Expected .exe file".to_string());
-    }
+    validate_existing_file_extension(&path, "exe")?;
 
     let mut settings = settings_manager
         .read()
@@ -391,15 +415,7 @@ pub async fn set_loa_logs_exe_path(
     settings_manager: State<'_, crate::settings::SettingsManager>,
     path: String,
 ) -> Result<(), String> {
-    // Validate path exists and is an .exe file
-    let path_obj = std::path::Path::new(&path);
-    if !path_obj.exists() {
-        return Err("File not found".to_string());
-    }
-
-    if !path_obj.extension().map_or(false, |ext| ext == "exe") {
-        return Err("Invalid file extension. Expected .exe file".to_string());
-    }
+    validate_existing_file_extension(&path, "exe")?;
 
     let mut settings = settings_manager
         .read()
@@ -487,16 +503,10 @@ pub async fn set_start_with_windows(
 pub(crate) fn refresh_startup_registration(
     settings: &crate::settings::Settings,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let enabled = settings.system.start_with_windows
-        || settings.system.start_with_lost_ark;
-    let background_monitor = !settings.system.start_with_windows
-        && settings.system.start_with_lost_ark;
+    let enabled = settings.system.start_with_windows || settings.system.start_with_lost_ark;
+    let background_monitor = !settings.system.start_with_windows && settings.system.start_with_lost_ark;
 
     refresh_startup_registration_impl(enabled, background_monitor)
-}
-
-pub(crate) fn should_keep_background_monitor(settings: &crate::settings::Settings) -> bool {
-    settings.system.start_with_lost_ark
 }
 
 #[cfg(target_os = "windows")]
@@ -706,7 +716,9 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool, app: AppHandle) -> Result<(
     if enabled {
         // Start monitoring thread if not already running
         {
-            let mut is_monitoring = state.lock().unwrap();
+            let mut is_monitoring = state
+                .lock()
+                .map_err(|_| "Lost Ark monitor state lock was poisoned".to_string())?;
             if *is_monitoring {
                 crate::log_debug!("Lost Ark monitoring is already running");
                 return Ok(());
@@ -725,7 +737,10 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool, app: AppHandle) -> Result<(
             loop {
                 // Check if monitoring should stop
                 {
-                    let is_monitoring = state_clone.lock().unwrap();
+                    let Ok(is_monitoring) = state_clone.lock() else {
+                        crate::log_error!("Lost Ark monitor state lock was poisoned; stopping monitor thread");
+                        break;
+                    };
                     if !*is_monitoring {
                         crate::log_debug!("Lost Ark monitoring thread stopping");
                         break;
@@ -756,7 +771,9 @@ pub(crate) fn set_lost_ark_monitoring(enabled: bool, app: AppHandle) -> Result<(
     } else {
         // Stop monitoring
         {
-            let mut is_monitoring = state.lock().unwrap();
+            let mut is_monitoring = state
+                .lock()
+                .map_err(|_| "Lost Ark monitor state lock was poisoned".to_string())?;
             *is_monitoring = false;
         }
         crate::log_info!("Lost Ark process monitoring disabled");
@@ -776,7 +793,9 @@ pub(crate) fn set_loa_logs_monitoring(enabled: bool, app: AppHandle) -> Result<(
 
     if enabled {
         {
-            let mut is_monitoring = state.lock().unwrap();
+            let mut is_monitoring = state
+                .lock()
+                .map_err(|_| "LOA Logs monitor state lock was poisoned".to_string())?;
             if *is_monitoring {
                 crate::log_debug!("LOA Logs companion monitoring is already running");
                 return Ok(());
@@ -794,7 +813,10 @@ pub(crate) fn set_loa_logs_monitoring(enabled: bool, app: AppHandle) -> Result<(
 
             loop {
                 {
-                    let is_monitoring = state_clone.lock().unwrap();
+                    let Ok(is_monitoring) = state_clone.lock() else {
+                        crate::log_error!("LOA Logs monitor state lock was poisoned; stopping monitor thread");
+                        break;
+                    };
                     if !*is_monitoring {
                         crate::log_debug!("LOA Logs companion monitoring thread stopping");
                         break;
@@ -821,93 +843,15 @@ pub(crate) fn set_loa_logs_monitoring(enabled: bool, app: AppHandle) -> Result<(
         crate::log_info!("LOA Logs companion monitoring enabled");
     } else {
         {
-            let mut is_monitoring = state.lock().unwrap();
+            let mut is_monitoring = state
+                .lock()
+                .map_err(|_| "LOA Logs monitor state lock was poisoned".to_string())?;
             *is_monitoring = false;
         }
         crate::log_info!("LOA Logs companion monitoring disabled");
     }
 
     Ok(())
-}
-
-pub(crate) fn ensure_loa_logs_running(path: Option<&str>) -> Result<(), String> {
-    let mut system = System::new_all();
-    system.refresh_processes();
-
-    if system
-        .processes()
-        .values()
-        .any(|process| is_loa_logs_process_name(&process.name().to_lowercase()))
-    {
-        return Ok(());
-    }
-
-    let path_str = match path {
-        Some(path) if !path.trim().is_empty() => path.to_string(),
-        _ => detect_loa_logs_exe_path().ok_or_else(|| "No LOA Logs executable path configured".to_string())?,
-    };
-
-    let exe_path = std::path::Path::new(&path_str);
-    if !exe_path.exists() {
-        return Err(format!("Configured LOA Logs path does not exist: {}", path_str));
-    }
-
-    let mut command = std::process::Command::new(exe_path);
-    if let Some(parent) = exe_path.parent() {
-        command.current_dir(parent);
-    }
-
-    match command.spawn() {
-        Ok(_) => {
-            crate::log_info!("Launched LOA Logs from settings: {}", path_str);
-            Ok(())
-        }
-        Err(e) if e.raw_os_error() == Some(740) => launch_loa_logs_elevated(exe_path),
-        Err(e) => Err(format!("Failed to launch LOA Logs: {}", e)),
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn launch_loa_logs_elevated(exe_path: &std::path::Path) -> Result<(), String> {
-    let working_directory = exe_path
-        .parent()
-        .map(|path| path.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let exe_path_arg = escape_powershell_single_quoted_string(&exe_path.to_string_lossy());
-    let working_directory_arg = escape_powershell_single_quoted_string(&working_directory);
-    let command = format!(
-        "Start-Process -FilePath '{}' -WorkingDirectory '{}' -Verb RunAs",
-        exe_path_arg, working_directory_arg
-    );
-
-    std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-WindowStyle",
-            "Hidden",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &command,
-        ])
-        .spawn()
-        .map(|_| {
-            crate::log_info!("Requested elevated LOA Logs launch through UAC: {}", exe_path.display());
-        })
-        .map_err(|e| format!("Failed to request elevated LOA Logs launch: {}", e))
-}
-
-#[cfg(target_os = "windows")]
-fn escape_powershell_single_quoted_string(value: &str) -> String {
-    value.replace('\'', "''")
-}
-
-#[cfg(not(target_os = "windows"))]
-fn launch_loa_logs_elevated(exe_path: &std::path::Path) -> Result<(), String> {
-    Err(format!(
-        "LOA Logs requires elevated launch, which is only supported on Windows: {}",
-        exe_path.display()
-    ))
 }
 
 pub(crate) fn reveal_main_window(app: &AppHandle) {
@@ -932,438 +876,4 @@ fn is_lost_ark_process_name(name: &str) -> bool {
 
 fn is_loa_logs_process_name(name: &str) -> bool {
     name == "loa logs.exe" || name == "loa_logs.exe" || (name.contains("loa") && name.contains("logs"))
-}
-
-use crate::services::logging_service;
-use tauri::{AppHandle, Manager};
-use tauri_plugin_updater::UpdaterExt;
-
-const UPDATE_METADATA_URL: &str = "https://raw.githubusercontent.com/nobodyeuw/MeowGang/main/latest.json";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateInfo {
-    pub current_version: String,
-    pub latest_version: Option<String>,
-    pub update_available: bool,
-    pub body: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpdateMetadata {
-    version: String,
-    platforms: Option<HashMap<String, UpdatePlatformMetadata>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpdatePlatformMetadata {
-    url: Option<String>,
-}
-
-enum UpdateReleaseDelay {
-    Remaining(i64),
-    Ready,
-    Unknown,
-}
-
-async fn update_release_delay_status(version: &str) -> UpdateReleaseDelay {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(8))
-        .build()
-    {
-        Ok(client) => client,
-        Err(e) => {
-            logging_service::warn(&format!("Failed to build update metadata client: {}", e));
-            return UpdateReleaseDelay::Unknown;
-        }
-    };
-    let metadata = match client
-        .get(UPDATE_METADATA_URL)
-        .header("User-Agent", "LOA Tracker")
-        .send()
-        .await
-    {
-        Ok(response) => match response.json::<UpdateMetadata>().await {
-            Ok(metadata) => metadata,
-            Err(e) => {
-                logging_service::warn(&format!("Failed to parse update metadata for delay check: {}", e));
-                return UpdateReleaseDelay::Unknown;
-            }
-        },
-        Err(e) => {
-            logging_service::warn(&format!("Failed to fetch update metadata for delay check: {}", e));
-            return UpdateReleaseDelay::Unknown;
-        }
-    };
-
-    if metadata.version.trim_start_matches('v') != version.trim_start_matches('v') {
-        return UpdateReleaseDelay::Unknown;
-    }
-
-    if !update_asset_urls_ready(&client, &metadata).await {
-        return UpdateReleaseDelay::Remaining(60);
-    }
-
-    UpdateReleaseDelay::Ready
-}
-
-async fn update_asset_urls_ready(client: &reqwest::Client, metadata: &UpdateMetadata) -> bool {
-    let Some(platforms) = metadata.platforms.as_ref() else {
-        return true;
-    };
-
-    let mut urls: Vec<String> = Vec::new();
-    for platform in platforms.values() {
-        let Some(url) = platform.url.as_deref() else {
-            continue;
-        };
-        if !urls.iter().any(|existing| existing == url) {
-            urls.push(url.to_string());
-        }
-    }
-
-    if urls.is_empty() {
-        return true;
-    }
-
-    for url in urls {
-        match client
-            .head(&url)
-            .header("User-Agent", "LOA Tracker")
-            .send()
-            .await
-        {
-            Ok(response) if response.status().is_success() => {}
-            Ok(response) => {
-                logging_service::warn(&format!(
-                    "Update asset is not reachable yet: {} returned {}",
-                    url,
-                    response.status()
-                ));
-                return false;
-            }
-            Err(e) => {
-                logging_service::warn(&format!("Failed to verify update asset availability for {}: {}", url, e));
-                return false;
-            }
-        }
-    }
-
-    true
-}
-
-#[tauri::command]
-pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
-    logging_service::info("Checking for updates");
-
-    let current_version = app.package_info().version.to_string();
-
-    match app.updater() {
-        Ok(updater) => match updater.check().await {
-            Ok(Some(update)) => {
-                let remaining_delay = match update_release_delay_status(&update.version).await {
-                    UpdateReleaseDelay::Remaining(seconds) => Some(seconds),
-                    UpdateReleaseDelay::Ready => None,
-                    UpdateReleaseDelay::Unknown => None,
-                };
-
-                if let Some(remaining_seconds) = remaining_delay {
-                    logging_service::info(&format!(
-                        "Update {} detected but hidden for {} more seconds while release artifacts settle",
-                        update.version, remaining_seconds
-                    ));
-                    return Ok(UpdateInfo {
-                        current_version,
-                        latest_version: None,
-                        update_available: false,
-                        body: None,
-                    });
-                }
-
-                logging_service::info(&format!("Update available: {}", update.version));
-                Ok(UpdateInfo {
-                    current_version,
-                    latest_version: Some(update.version),
-                    update_available: true,
-                    body: update.body,
-                })
-            }
-            Ok(None) => {
-                logging_service::info("No update available");
-                Ok(UpdateInfo {
-                    current_version,
-                    latest_version: None,
-                    update_available: false,
-                    body: None,
-                })
-            }
-            Err(e) => {
-                logging_service::error(&format!("Update check failed: {}", e));
-                Err(e.to_string())
-            }
-        },
-        Err(e) => {
-            logging_service::error(&format!("Failed to get updater: {}", e));
-            Err(e.to_string())
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn install_update(app: AppHandle) -> Result<String, String> {
-    logging_service::info("Starting update installation");
-
-    match app.updater() {
-        Ok(updater) => {
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    if let UpdateReleaseDelay::Remaining(remaining_seconds) =
-                        update_release_delay_status(&update.version).await
-                    {
-                        let remaining_minutes = ((remaining_seconds as f64) / 60.0).ceil() as i64;
-                        logging_service::info(&format!(
-                            "Install blocked because update {} is still in release grace period",
-                            update.version
-                        ));
-                        return Err(format!(
-                            "Update is still being prepared. Please try again in about {} minute{}.",
-                            remaining_minutes,
-                            if remaining_minutes == 1 { "" } else { "s" }
-                        ));
-                    }
-
-                    logging_service::info(&format!("Downloading and installing update: {}", update.version));
-
-                    // Download and install in one step like loa-logs-master
-                    match update.download_and_install(|_, _| {}, || {}).await {
-                        Ok(_) => {
-                            logging_service::info("Update installed successfully");
-                            Ok("Update installed successfully! The app will restart.".to_string())
-                        }
-                        Err(e) => {
-                            logging_service::error(&format!("Update installation failed: {}", e));
-                            Err(format!("Failed to install update: {}", e))
-                        }
-                    }
-                }
-                Ok(None) => Err("No update available".to_string()),
-                Err(e) => {
-                    logging_service::error(&format!("Failed to check for updates: {}", e));
-                    Err(format!("Failed to check for updates: {}", e))
-                }
-            }
-        }
-        Err(e) => {
-            logging_service::error(&format!("Failed to get updater: {}", e));
-            Err(format!("Failed to get updater: {}", e))
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn get_log_content() -> Result<String, String> {
-    if let Some(logger) = logging_service::get_logger() {
-        logger.get_log_content().map_err(|e| e.to_string())
-    } else {
-        Err("Logging system not initialized".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn clear_log() -> Result<(), String> {
-    if let Some(logger) = logging_service::get_logger() {
-        logger.clear_log().map_err(|e| e.to_string())
-    } else {
-        Err("Logging system not initialized".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn write_frontend_log(level: String, message: String) -> Result<(), String> {
-    let trimmed_message = message.trim();
-    if trimmed_message.is_empty() {
-        return Ok(());
-    }
-
-    let log_message = format!("Frontend: {}", trimmed_message);
-    match level.trim().to_lowercase().as_str() {
-        "error" => logging_service::error(&log_message),
-        "warn" | "warning" => logging_service::warn(&log_message),
-        "debug" => logging_service::debug(&log_message),
-        _ => logging_service::info(&log_message),
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_changelogs(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    use std::fs;
-    use std::path::PathBuf;
-
-    // Use Tauri's path resolution for consistency
-    let resources_path = crate::app::resources_dir(&app);
-
-    // Try multiple possible locations for changelog file
-    let mut possible_paths: Vec<PathBuf> = vec![
-        // Primary: app data resources directory (LOA Tracker/resources/)
-        resources_path.join("changelogs.json"),
-        // In development: resources relative to executable
-        {
-            let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get executable path: {}", e))?;
-            let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
-            exe_dir.join("../resources/changelogs.json")
-        },
-        // In production: app resource directory (Tauri's standard resource dir)
-        app.path()
-            .resource_dir()
-            .map_err(|e| format!("Failed to get resource directory: {}", e))?
-            .join("changelogs.json"),
-        // Fallback: src-tauri/resources/ (might work in some setups)
-        PathBuf::from("src-tauri/resources/changelogs.json"),
-    ];
-
-    // Find first existing path
-    let path = possible_paths.iter().find(|p| p.exists()).cloned();
-
-    let path = path.ok_or_else(|| {
-        format!(
-            "Changelogs file not found. Tried: {}",
-            possible_paths
-                .iter()
-                .map(|p| format!("{:?}", p))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    })?;
-
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read changelogs file from {:?}: {}", path, e))?;
-
-    serde_json::from_str(&content).map_err(|e| format!("Failed to parse changelogs JSON: {}", e))
-}
-
-#[tauri::command]
-pub async fn get_known_bugs(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    use std::fs;
-    use std::path::PathBuf;
-
-    // Get the app context to access the resources path
-    let app_context = app.state::<crate::context::AppContext>();
-    let resources_path = &app_context.resources_path;
-
-    // Try multiple possible locations for known bugs file
-    let mut possible_paths: Vec<PathBuf> = vec![
-        // Primary: app data resources directory (LOA Tracker/resources/)
-        resources_path.join("known_bugs.json"),
-        // In development: resources relative to executable
-        {
-            let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get executable path: {}", e))?;
-            let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
-            exe_dir.join("../resources/known_bugs.json")
-        },
-        // In production: app resource directory (Tauri's standard resource dir)
-        app.path()
-            .resource_dir()
-            .map_err(|e| format!("Failed to get resource directory: {}", e))?
-            .join("known_bugs.json"),
-        // Fallback: src-tauri/resources/ (might work in some setups)
-        PathBuf::from("src-tauri/resources/known_bugs.json"),
-    ];
-
-    // Find first existing path
-    let path = possible_paths.iter().find(|p| p.exists()).cloned();
-
-    let path = path.ok_or_else(|| {
-        format!(
-            "Known bugs file not found. Tried: {}",
-            possible_paths
-                .iter()
-                .map(|p| format!("{:?}", p))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    })?;
-
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read known bugs file from {:?}: {}", path, e))?;
-
-    serde_json::from_str(&content).map_err(|e| format!("Failed to parse known bugs JSON: {}", e))
-}
-
-#[tauri::command]
-pub async fn send_log_report() -> Result<String, String> {
-    if let Some(logger) = logging_service::get_logger() {
-        let log_content = logger.get_log_content().map_err(|e| e.to_string())?;
-
-        // Create a timestamp for the report
-        let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
-        let report_filename = format!("LOA_Tracker_log_report_{}.txt", timestamp);
-
-        // Save to temporary directory
-        let temp_dir = std::env::temp_dir();
-        let report_path = temp_dir.join(&report_filename);
-
-        std::fs::write(&report_path, &log_content).map_err(|e| e.to_string())?;
-
-        logging_service::info(&format!("Log report created: {}", report_path.display()));
-
-        // Open the file in default application using Windows command
-        #[cfg(target_os = "windows")]
-        {
-            std::process::Command::new("cmd")
-                .args(&["/c", "start", "", &report_path.to_string_lossy()])
-                .spawn()
-                .map_err(|e| format!("Failed to open log report: {}", e))?;
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            std::process::Command::new("xdg-open")
-                .arg(&report_path)
-                .spawn()
-                .map_err(|e| format!("Failed to open log report: {}", e))?;
-        }
-
-        Ok(format!("Log report saved to: {}", report_path.display()))
-    } else {
-        Err("Logging system not initialized".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn test_database_simple() -> Result<String, String> {
-    // Simple database connectivity test
-    crate::log_debug!("test_database_simple called");
-    Ok("Database connection test successful".to_string())
-}
-
-#[tauri::command]
-pub async fn test_sync_data_structure() -> Result<String, String> {
-    // Test sync data structure
-    crate::log_debug!("test_sync_data_structure called");
-    Ok("Sync data structure test successful".to_string())
-}
-
-#[tauri::command]
-pub async fn initialize_missing_data() -> Result<String, String> {
-    // Initialize any missing data in database
-    crate::log_debug!("initialize_missing_data called");
-    Ok("Missing data initialized successfully".to_string())
-}
-
-#[tauri::command]
-pub async fn add_gold_log(
-    character_id: i64,
-    gold_amount: i64,
-    source: String,
-    raid_name: Option<String>,
-) -> Result<(), String> {
-    // Add gold log entry - placeholder
-    crate::log_debug!(
-        "Adding gold log: {} gold for character {} from {}",
-        gold_amount,
-        character_id,
-        source
-    );
-    Ok(())
 }

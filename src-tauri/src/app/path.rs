@@ -1,6 +1,5 @@
 use dirs;
 use std::path::PathBuf;
-use tauri::Manager;
 
 /// Returns the path where we store application data
 ///

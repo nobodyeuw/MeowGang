@@ -20,6 +20,7 @@ pub struct RaidGateCompletionResponse {
 }
 
 #[tauri::command]
+/// Reads weekly/daily progress for a roster event task.
 pub async fn get_roster_event_progress(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
@@ -33,6 +34,7 @@ pub async fn get_roster_event_progress(
 }
 
 #[tauri::command]
+/// Toggles today's completion state for a roster event task.
 pub async fn update_roster_event_status(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
@@ -47,6 +49,7 @@ pub async fn update_roster_event_status(
 }
 
 #[tauri::command]
+/// Sets the manual weekly completion count for a roster event task.
 pub async fn update_roster_event_weekly_count(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
@@ -64,6 +67,7 @@ pub async fn update_roster_event_weekly_count(
 }
 
 #[tauri::command]
+/// Loads backend-owned To Do state for one roster.
 pub async fn get_todo_matrix(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
@@ -76,6 +80,7 @@ pub async fn get_todo_matrix(
 }
 
 #[tauri::command]
+/// Toggles a character task completion state.
 pub async fn update_task_status(
     todo_repo: State<'_, Arc<TodoRepository>>,
     character_id: i64,
@@ -91,6 +96,7 @@ pub async fn update_task_status(
 }
 
 #[tauri::command]
+/// Toggles a roster-wide task completion state.
 pub async fn update_roster_task_status(
     todo_repo: State<'_, Arc<TodoRepository>>,
     roster_id: String,
@@ -106,6 +112,7 @@ pub async fn update_roster_task_status(
 }
 
 #[tauri::command]
+/// Toggles a raid gate clear state.
 pub async fn update_raid_gate_status(
     todo_repo: State<'_, Arc<TodoRepository>>,
     character_id: i64,
@@ -131,6 +138,7 @@ pub async fn update_raid_gate_status(
 }
 
 #[tauri::command]
+/// Reads one raid gate clear state.
 pub async fn get_raid_gate_completed(
     todo_repo: tauri::State<'_, Arc<TodoRepository>>,
     character_id: i64,
@@ -145,6 +153,7 @@ pub async fn get_raid_gate_completed(
 }
 
 #[tauri::command]
+/// Reads many raid gate clear states in one command call.
 pub async fn get_raid_gate_completions_bulk(
     todo_repo: tauri::State<'_, Arc<TodoRepository>>,
     requests: Vec<RaidGateCompletionRequest>,

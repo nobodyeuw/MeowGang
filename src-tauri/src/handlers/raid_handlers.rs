@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use crate::database::repositories::{CharacterRepository, RaidRepository};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -82,8 +84,8 @@ pub struct CharacterRaidConfigs {
 }
 
 #[tauri::command]
+/// Converts the frontend raid source-of-truth payload into backend model structs.
 pub async fn get_game_raids(raids: Vec<Raid>) -> Result<Vec<crate::models::Raid>, String> {
-    // Convert frontend raids to backend model
     let backend_raids = raids
         .into_iter()
         .map(|raid| crate::models::Raid {
@@ -114,6 +116,7 @@ pub async fn get_game_raids(raids: Vec<Raid>) -> Result<Vec<crate::models::Raid>
 }
 
 #[tauri::command]
+/// Legacy raid tracking read path backed by `conf_tracking`.
 pub async fn get_character_raid_config(
     character_id: i64,
     raid_repo: State<'_, RaidRepository>,
@@ -124,6 +127,7 @@ pub async fn get_character_raid_config(
 }
 
 #[tauri::command]
+/// Legacy raid tracking write path backed by `conf_tracking`.
 pub async fn update_raid_config(
     character_id: i64,
     raid_id: String,
@@ -136,16 +140,19 @@ pub async fn update_raid_config(
 }
 
 #[tauri::command]
+/// Deprecated matrix command kept for compatibility with older frontends.
+///
+/// Current Settings > Raids loads data via `get_raid_matrix_data`.
 pub async fn get_raid_gate_matrix(
     _roster_id: String,
     _raid_repo: State<'_, RaidRepository>,
     _character_repo: State<'_, CharacterRepository>,
 ) -> Result<Vec<crate::models::RaidMatrixItem>, String> {
-    // Placeholder implementation
     Ok(vec![])
 }
 
 #[tauri::command]
+/// Loads characters plus their per-gate raid configuration for Settings > Raids.
 pub async fn get_raid_matrix_data(
     rosterId: String,
     raid_repo: State<'_, RaidRepository>,
@@ -193,6 +200,7 @@ pub async fn get_raid_matrix_data(
 }
 
 #[tauri::command]
+/// Applies a raid-level bulk change across every gate for one character.
 pub async fn update_raid_master_config(
     charId: i64,
     contentId: String,
@@ -238,6 +246,7 @@ pub async fn update_raid_master_config(
 }
 
 #[tauri::command]
+/// Applies a single gate update while preserving the rest of the character's raid config.
 pub async fn update_raid_gate_config(
     rosterId: String,
     charId: i64,

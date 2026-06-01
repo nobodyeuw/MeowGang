@@ -1,3 +1,4 @@
+// Source of truth for game class display names, icon ids, and class-name aliases.
 export interface GameClass {
   id: string;
   displayName: string;
@@ -34,3 +35,47 @@ export const GAME_CLASSES: Record<string, GameClass> = {
   "dragon_knight": { id: "dragon_knight", displayName: "Guardianknight", iconId: "702" },
   "holyknight_female": { id: "holyknight_female", displayName: "Valkyrie", iconId: "113" }
 };
+
+const CLASS_ALIASES: Record<string, string> = {
+  gunlancer: 'warlord',
+  paladin: 'holyknight',
+  slayer: 'berserker_female',
+  arcanist: 'arcana',
+  sorceress: 'elemental_master',
+  wardancer: 'battle_master',
+  soulfist: 'force_master',
+  glaivier: 'lance_master',
+  breaker: 'infighter_male',
+  deathblade: 'blade',
+  shadowhunter: 'demonic',
+  souleater: 'soul_eater',
+  deadeye: 'devil_hunter',
+  artillerist: 'blaster',
+  machinist: 'scouter',
+  scouter: 'scouter',
+  artist: 'yinyangshi',
+  aeromancer: 'weather_artist',
+  wildsoul: 'alchemist',
+  guardianknight: 'dragon_knight',
+  valkyrie: 'holyknight_female'
+};
+
+export function normalizeClassId(classId: string): string {
+  return classId.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+export function getGameClassInfo(classId: string): GameClass | undefined {
+  const normalized = normalizeClassId(classId);
+
+  return GAME_CLASSES[normalized] ||
+    GAME_CLASSES[CLASS_ALIASES[normalized]] ||
+    Object.values(GAME_CLASSES).find((entry) => entry.displayName.toLowerCase() === classId.trim().toLowerCase());
+}
+
+export function getGameClassDisplayName(classId: string): string {
+  return getGameClassInfo(classId)?.displayName || classId;
+}
+
+export function getGameClassIconId(classId: string): string {
+  return getGameClassInfo(classId)?.iconId || '0';
+}

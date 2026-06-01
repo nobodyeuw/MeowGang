@@ -1,0 +1,123 @@
+/*
+  Void Space: minimalist cosmic deep. Dark vacuum indigo layers with a
+  purple/pink nebula primary accent and cyan data highlights.
+*/
+:root[data-theme='void-nebula'] {
+  color-scheme: dark;
+
+  /* Nebula accent core */
+  --md-sys-color-primary: #d946ef;
+  --md-sys-color-on-primary: #1f0624;
+  --md-sys-color-primary-container: rgba(217, 70, 239, 0.1);
+  --md-sys-color-on-primary-container: #f9d5ff;
+
+  /* Cyan stays as the clean data/support accent. */
+  --md-sys-color-secondary: #00b4d8;
+  --md-sys-color-on-secondary: #001d24;
+  --md-sys-color-secondary-container: rgba(0, 180, 216, 0.1);
+  --md-sys-color-on-secondary-container: #b3f0ff;
+
+  --md-sys-color-tertiary: #7c3aed;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: rgba(124, 58, 237, 0.12);
+  --md-sys-color-on-tertiary-container: #eadcff;
+
+  /* Vacuum surfaces */
+  --md-sys-color-background: #070512;
+  --md-sys-color-on-background: #f0f2f5;
+  --md-sys-color-surface: #0d0a1a;
+  --md-sys-color-on-surface: #f0f2f5;
+  --md-sys-color-surface-variant: #171229;
+  --md-sys-color-on-surface-variant: #a9a0bc;
+  --md-sys-color-surface-container-low: #111026;
+  --md-sys-color-surface-container: #191330;
+  --md-sys-color-on-surface-container: #f0f2f5;
+  --md-sys-color-surface-container-high: #231943;
+  --md-sys-color-surface-container-highest: #2e2058;
+
+  --md-sys-color-outline: #33284f;
+  --md-sys-color-outline-variant: #4a3a72;
+
+  /* Semantic flags */
+  --md-sys-color-error: #ff5277;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #5f1530;
+  --md-sys-color-on-error-container: #ffe8ef;
+  --md-sys-color-warning: #ffd166;
+  --md-sys-color-success: #00f5d4;
+
+  /* Layout utilities and effects */
+  --app-color-overlay: rgba(7, 5, 18, 0.8);
+  --app-color-focus-ring: #d946ef;
+  --app-color-hover-surface: rgba(217, 70, 239, 0.06);
+  --app-color-selected-surface: rgba(217, 70, 239, 0.12);
+  --app-color-accent-row: rgba(217, 70, 239, 0.035);
+  --app-color-accent-divider: rgba(217, 70, 239, 0.12);
+  --app-color-accent-muted: rgba(217, 70, 239, 0.58);
+  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-variant));
+  --app-color-accent-glow-sm: 0 0 8px rgba(217, 70, 239, 0.34);
+  --app-color-accent-glow-md: 0 0 12px rgba(217, 70, 239, 0.32), 0 0 22px rgba(0, 180, 216, 0.18);
+  --app-color-highlight-surface: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, var(--md-sys-color-primary)),
+    var(--md-sys-color-surface-container)
+  );
+  --app-color-highlight-text: #f9d5ff;
+  --app-shadow-highlight: inset 0 1px 0 0 rgba(217, 70, 239, 0.3),
+    0 12px 32px -4px rgba(0, 0, 0, 0.7);
+  --app-shadow-highlight-text: 0 0 8px rgba(217, 70, 239, 0.36);
+  --app-color-modal-backdrop: rgba(5, 3, 12, 0.86);
+  --app-color-subtle-scrim: rgba(255, 255, 255, 0.035);
+
+  /* App badge and tracking states */
+  --app-color-gold: #ffd166;
+  --app-color-on-gold: #1d1200;
+  --app-color-hidden: #ff5277;
+  --app-color-on-hidden: #ffffff;
+  --app-color-tracked: #d946ef;
+  --app-color-tracked-alt: #00b4d8;
+  --app-color-on-tracked: #f9d5ff;
+  --app-color-muted-state: #6f6680;
+  --app-color-static: #7c3aed;
+  --app-color-on-static: #ffffff;
+
+  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.08), rgba(255, 209, 102, 0.02));
+  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(217, 70, 239, 0.1), rgba(0, 180, 216, 0.035));
+  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(111, 102, 128, 0.08), rgba(124, 58, 237, 0.025));
+  --app-color-success-gradient: linear-gradient(135deg, #00f5d4 0%, #072622 100%);
+  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #3d2900 100%);
+  --app-color-error-gradient: linear-gradient(135deg, #ff5277 0%, #31000b 100%);
+
+  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.62), 0 0 1px rgba(217, 70, 239, 0.12);
+  --app-shadow-md: 0 12px 36px rgba(0, 0, 0, 0.76), 0 0 1px rgba(0, 180, 216, 0.14);
+}
+
+/* Void-specific structural polish. Keep these scoped so Outlaw remains unchanged. */
+:root[data-theme='void-nebula'] .ui-button {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+:root[data-theme='void-nebula'] .ui-segmented-button.active {
+  box-shadow: var(--app-color-accent-glow-sm);
+}
+
+:root[data-theme='void-nebula'] .ui-inline-checkbox input {
+  border-radius: 4px;
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container);
+}
+
+:root[data-theme='void-nebula'] .ui-modal-overlay {
+  backdrop-filter: blur(8px) saturate(140%);
+}
+
+:root[data-theme='void-nebula'] .ui-modal-card {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--md-sys-color-outline-variant);
+}
+
+:root[data-theme='void-nebula'] .settings-matrix-sticky-col,
+:root[data-theme='void-nebula'] .settings-matrix-first-col {
+  box-shadow: 1px 0 0 0 var(--md-sys-color-outline);
+}

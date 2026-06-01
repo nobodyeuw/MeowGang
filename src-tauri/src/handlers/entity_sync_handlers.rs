@@ -3,7 +3,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
-// Import the JSON-based function from encounter_sync_handlers
+
 use crate::handlers::encounter_sync_handlers::get_encounters_db_path_from_settings;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +24,7 @@ pub struct EntitySyncResult {
 }
 
 #[tauri::command]
+/// Syncs gear score and combat power from one LOA Logs encounter's entity rows.
 pub async fn sync_entity_data(
     todo_repo: State<'_, Arc<TodoRepository>>,
     settings_manager: State<'_, crate::settings::SettingsManager>,
@@ -80,6 +81,7 @@ pub async fn sync_entity_data(
     })
 }
 
+/// Reads character entity rows for one encounter from LOA Logs.
 pub fn get_entities_for_encounter(encounters_db_path: &str, encounter_id: i64) -> Result<Vec<EntityData>, String> {
     let conn = rusqlite::Connection::open_with_flags(encounters_db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open encounters.db in read-only mode: {}", e))?;
@@ -111,6 +113,10 @@ pub fn get_entities_for_encounter(encounters_db_path: &str, encounter_id: i64) -
     Ok(entities)
 }
 
+/// Updates a known local character from a LOA Logs entity row.
+///
+/// Entity sync only refreshes scraped live stats. It does not create characters,
+/// move rosters, or touch raid/tracking settings.
 pub fn update_character_from_entity(todo_repo: &TodoRepository, entity: &EntityData) -> Result<bool, String> {
     let conn = todo_repo
         .pool
@@ -164,6 +170,7 @@ pub fn update_character_from_entity(todo_repo: &TodoRepository, entity: &EntityD
 }
 
 #[tauri::command]
+/// Syncs entity data for all encounters from the last 24 hours.
 pub async fn sync_all_recent_entities(
     todo_repo: State<'_, Arc<TodoRepository>>,
     settings_manager: State<'_, crate::settings::SettingsManager>,
@@ -216,16 +223,19 @@ pub async fn sync_all_recent_entities(
     })
 }
 
+/// Returns encounter ids from the last 24 hours.
 fn get_recent_encounter_ids(encounters_db_path: &str) -> Result<Vec<i64>, String> {
     let conn = rusqlite::Connection::open_with_flags(encounters_db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open encounters.db in read-only mode: {}", e))?;
 
-    let one_day_ago = chrono::Utc::now().timestamp_millis() - (86400 * 1000); // 24 hours ago
+    // `encounter_preview.fight_start` is stored in milliseconds, matching the
+    // timestamps used by local completion_status.
+    let one_day_ago = chrono::Utc::now().timestamp_millis() - (86400 * 1000);
 
     let mut stmt = conn
         .prepare(
-            "SELECT DISTINCT id FROM encounter_preview 
-         WHERE fight_start/1000 >= ? 
+            "SELECT DISTINCT id FROM encounter_preview
+         WHERE fight_start >= ?
          ORDER BY id DESC",
         )
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;

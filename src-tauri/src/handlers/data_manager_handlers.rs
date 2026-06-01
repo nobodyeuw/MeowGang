@@ -37,6 +37,10 @@ pub struct DashboardSnapshot {
         HashMap<i64, Vec<crate::database::repositories::character_repository::CharacterRaidConfig>>,
 }
 
+/// Loads the minimal app startup snapshot in one command.
+///
+/// The frontend uses this to hydrate rosters, characters, and the next daily
+/// reset without issuing separate startup requests for each piece.
 #[tauri::command]
 pub async fn get_app_bootstrap_snapshot(
     roster_repo: tauri::State<'_, RosterRepository>,
@@ -68,6 +72,10 @@ pub async fn get_app_bootstrap_snapshot(
     })
 }
 
+/// Loads dashboard-specific character state in batch form.
+///
+/// This avoids one command per character for rested values, completion state,
+/// tracking visibility, and raid settings.
 #[tauri::command]
 pub async fn get_dashboard_snapshot(
     roster_id: Option<String>,
@@ -119,6 +127,10 @@ pub async fn get_dashboard_snapshot(
     })
 }
 
+/// Initializes static app data from the frontend source-of-truth payload.
+///
+/// The frontend owns the display/game-data definitions in `src/lib/data/*`;
+/// the backend stores a local fallback copy for reset and migration paths.
 #[tauri::command]
 pub async fn initialize_application_data(
     data: InitializationDataWithClasses,
@@ -130,6 +142,7 @@ pub async fn initialize_application_data(
     }
 }
 
+/// Backfills missing per-character reset/tracking/raid rows after data changes.
 #[tauri::command]
 pub async fn ensure_character_data_complete(
     data: InitializationData,
@@ -141,6 +154,7 @@ pub async fn ensure_character_data_complete(
     }
 }
 
+/// Initializes local reset/tracking/raid rows for one newly scraped character.
 #[tauri::command]
 pub async fn initialize_character_data(
     character_id: i64,
@@ -154,6 +168,7 @@ pub async fn initialize_character_data(
     }
 }
 
+/// Refreshes reset metadata timestamps after startup or manual reset checks.
 #[tauri::command]
 pub async fn update_reset_timestamps(
     db_manager: tauri::State<'_, crate::database::DatabaseManager>,
@@ -164,6 +179,7 @@ pub async fn update_reset_timestamps(
     }
 }
 
+/// Returns the local SQLite schema version used by the frontend migration check.
 #[tauri::command]
 pub async fn get_schema_version(db_manager: tauri::State<'_, crate::database::DatabaseManager>) -> Result<i64, String> {
     match DataManager::get_schema_version(&db_manager.pool) {
@@ -172,6 +188,7 @@ pub async fn get_schema_version(db_manager: tauri::State<'_, crate::database::Da
     }
 }
 
+/// Runs local SQLite migrations up to the requested schema version.
 #[tauri::command]
 pub async fn migrate_database(
     target_version: i64,

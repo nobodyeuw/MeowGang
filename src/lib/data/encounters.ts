@@ -1,3 +1,5 @@
+// Maps LOA Logs encounter names back to the raid content/gate model from raids.ts.
+// Keep this as the encounter.db translation layer; raid rewards and ilvl rules live in raids.ts.
 export const encounterMap: { [key: string]: { [key: string]: Array<string> } } = {
 overture_echidna: {
     "Echidna G1": ["Red Doom Narkiel", "Agris"],

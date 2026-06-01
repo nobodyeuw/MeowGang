@@ -52,6 +52,7 @@ impl CharacterRepository {
         Self { pool }
     }
 
+    /// Loads active characters for one roster in display order.
     pub fn get_characters_by_roster(&self, roster_id: &str) -> Result<Vec<Character>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -76,7 +77,7 @@ impl CharacterRepository {
                 hide_from_dashboard: row.get(9)?,
                 meow_connect_enabled: row.get(10)?,
                 removed_from_roster: row.get(11)?,
-                class_display_name: None, // Not available in conf_character table
+                class_display_name: None,
             })
         })?;
 
@@ -88,6 +89,7 @@ impl CharacterRepository {
         Ok(characters)
     }
 
+    /// Loads one character by id, including soft-removed characters.
     pub fn get_character_by_id(&self, character_id: i64) -> Result<Option<Character>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -121,6 +123,7 @@ impl CharacterRepository {
         Ok(None)
     }
 
+    /// Loads the compact character shape used by older dashboard command paths.
     pub fn get_dashboard_characters(&self) -> Result<Vec<crate::models::DashboardCharacter>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -141,7 +144,7 @@ impl CharacterRepository {
                 item_level: row.get(4)?,
                 combat_power: row.get(5)?,
                 roster_name: row.get(6)?,
-                last_active: None, // Not in conf_character table
+                last_active: None,
                 earns_gold: row.get(8)?,
                 meow_connect_enabled: row.get(10)?,
                 display_order: row.get(7)?,
@@ -155,6 +158,7 @@ impl CharacterRepository {
         Ok(characters)
     }
 
+    /// Updates only the provided optional character settings.
     pub fn update_character_settings(
         &self,
         character_id: i64,
@@ -196,6 +200,7 @@ impl CharacterRepository {
         Ok(())
     }
 
+    /// Updates the roster-level gold-earner marker for one character.
     pub fn update_character_earns_gold(&self, character_id: i64, earns_gold: bool) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -205,10 +210,11 @@ impl CharacterRepository {
         Ok(())
     }
 
+    /// Loads character header data for matrix-style settings/todo tables.
     pub fn get_character_matrix_info(&self, roster_id: &str) -> Result<Vec<crate::models::CharacterMatrixInfo>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            "SELECT char_id, char_name, item_level, combat_power, class_id, display_order
+            "SELECT char_id, char_name, item_level, combat_power, class_id, earns_gold, display_order
              FROM conf_character 
              WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER), char_name",
@@ -221,7 +227,8 @@ impl CharacterRepository {
                 item_level: row.get(2)?,
                 combat_power: row.get(3)?,
                 class_id: row.get(4)?,
-                display_order: row.get(5)?,
+                earns_gold: row.get(5)?,
+                display_order: row.get(6)?,
             })
         })?;
 
@@ -232,6 +239,7 @@ impl CharacterRepository {
         Ok(characters)
     }
 
+    /// Upserts scraper output while preserving user-facing character settings.
     pub fn save_character_from_scraper(&self, character: &Character, roster_id: &str) -> Result<i64> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -265,6 +273,7 @@ impl CharacterRepository {
         Ok(character.char_id)
     }
 
+    /// Persists drag-and-drop character order inside a roster.
     pub fn update_character_order(&self, character_id: i64, new_order: &str) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute(
@@ -274,6 +283,7 @@ impl CharacterRepository {
         Ok(())
     }
 
+    /// Loads rested values for one character.
     pub fn get_character_rested_values(&self, character_id: i64) -> Result<Vec<RestedValue>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -298,6 +308,7 @@ impl CharacterRepository {
         Ok(rested_values)
     }
 
+    /// Loads task and raid clear states for one character.
     pub fn get_character_completion_status(&self, character_id: i64) -> Result<Vec<CompletionStatus>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
@@ -325,8 +336,12 @@ impl CharacterRepository {
         Ok(completion_status)
     }
 
+    /// Loads Settings > Raids configuration rows for one character.
+    ///
+    /// This reads `conf_raid`; Settings > Tracking visibility lives in
+    /// `conf_tracking` and must stay separate.
     pub fn get_character_raid_configs(&self, character_id: i64) -> Result<Vec<CharacterRaidConfig>> {
-        let mut conn = self.pool.get()?;
+        let conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
             "SELECT r.char_id,
@@ -367,8 +382,11 @@ impl CharacterRepository {
         Ok(raid_configs)
     }
 
+    /// Loads Settings > Tracking visibility rows for one character.
+    ///
+    /// This reads `conf_tracking`; per-gate raid options live in `conf_raid`.
     pub fn get_character_tracking_status(&self, character_id: i64) -> Result<Vec<TrackingStatus>> {
-        let mut conn = self.pool.get()?;
+        let conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(
             "SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) 
@@ -393,11 +411,13 @@ impl CharacterRepository {
         Ok(tracking_status)
     }
 
+    /// Permanently deletes one local character and its dependent local state.
     pub fn delete_character(&self, character_id: i64) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
 
-        // Delete from related tables first
+        // Delete dependent rows first so the local database stays consistent
+        // even without relying on SQLite foreign-key cascades.
         tx.execute("DELETE FROM conf_todo WHERE char_id = ?1", params![character_id])?;
         tx.execute("DELETE FROM conf_raid WHERE char_id = ?1", params![character_id])?;
         tx.execute(

@@ -26,7 +26,7 @@ pub struct RosterScrapeResult {
     pub duration_ms: u64,
 }
 
-/// Get the last scrape timestamp for a specific roster
+/// Returns the most recent completed daily scrape timestamp for one roster.
 pub fn get_last_roster_scrape_time(todo_repo: &TodoRepository, roster_id: &str) -> Result<Option<i64>, String> {
     let conn = todo_repo
         .pool
@@ -49,7 +49,11 @@ pub fn get_last_roster_scrape_time(todo_repo: &TodoRepository, roster_id: &str) 
     Ok(timestamp)
 }
 
-/// Update roster scrape metadata
+/// Records daily roster scrape progress in `sync_metadata`.
+///
+/// This metadata drives the 24-hour scrape cooldown and the roster settings
+/// scrape history. It is intentionally separate from character stats, which
+/// are written to `conf_character`.
 pub fn update_roster_scrape_metadata(
     todo_repo: &TodoRepository,
     roster_id: &str,
@@ -84,7 +88,7 @@ pub fn update_roster_scrape_metadata(
     Ok(())
 }
 
-/// Check if a roster should be scraped (more than 24 hours since last scrape)
+/// Checks whether the daily roster scrape cooldown has expired.
 pub fn should_scrape_roster_daily(todo_repo: &TodoRepository, roster_id: &str) -> Result<bool, String> {
     let last_scrape = get_last_roster_scrape_time(todo_repo, roster_id)?;
 
@@ -99,14 +103,15 @@ pub fn should_scrape_roster_daily(todo_repo: &TodoRepository, roster_id: &str) -
     Ok(should_scrape)
 }
 
-/// Get all roster IDs that need daily scraping
+/// Finds active rosters whose daily scrape cooldown has expired.
 pub fn get_rosters_needing_daily_scrape(todo_repo: &TodoRepository) -> Result<Vec<String>, String> {
     let conn = todo_repo
         .pool
         .get()
         .map_err(|e| format!("Database connection failed: {}", e))?;
 
-    // Get all unique roster IDs
+    // Rosters are represented by grouped characters; soft-removed characters
+    // should not keep a roster alive for daily scraping.
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT roster_id
@@ -132,16 +137,11 @@ pub fn get_rosters_needing_daily_scrape(todo_repo: &TodoRepository) -> Result<Ve
     Ok(rosters_needing_scrape)
 }
 
-/// Perform daily scraping for all rosters that need it
+/// Performs daily roster scraping on demand for all rosters whose cooldown expired.
 #[tauri::command]
 pub async fn perform_daily_roster_scraping(
     todo_repo: State<'_, Arc<TodoRepository>>,
-    roster_repo: State<'_, crate::database::repositories::RosterRepository>,
-    scraper: State<'_, crate::roster::HumanizedScraper>,
 ) -> Result<Vec<RosterScrapeResult>, String> {
-    let start_time = std::time::Instant::now();
-
-    // Get rosters that need scraping
     let rosters_needing_scrape = get_rosters_needing_daily_scrape(&*todo_repo)?;
 
     let mut results = Vec::new();
@@ -152,18 +152,15 @@ pub async fn perform_daily_roster_scraping(
         let mut errors = Vec::new();
         let mut scraped = false;
 
-        // Mark as started
         if let Err(e) = update_roster_scrape_metadata(&*todo_repo, &roster_id, "started", None) {
             errors.push(format!("Failed to mark scrape as started: {}", e));
         }
 
-        // Perform scraping
         match scrape_roster_for_updates(&*todo_repo, &roster_id).await {
             Ok(updated_count) => {
                 characters_updated = updated_count;
                 scraped = true;
 
-                // Mark as completed
                 if let Err(e) = update_roster_scrape_metadata(
                     &*todo_repo,
                     &roster_id,
@@ -176,7 +173,6 @@ pub async fn perform_daily_roster_scraping(
             Err(e) => {
                 errors.push(format!("Scraping failed: {}", e));
 
-                // Mark as failed
                 if let Err(e2) = update_roster_scrape_metadata(&*todo_repo, &roster_id, "failed", Some(&e)) {
                     errors.push(format!("Failed to mark scrape as failed: {}", e2));
                 }
@@ -195,26 +191,23 @@ pub async fn perform_daily_roster_scraping(
     Ok(results)
 }
 
-/// Scrape a specific roster and update character item_level and combat_power
-async fn scrape_roster_for_updates(todo_repo: &TodoRepository, roster_id: &str) -> Result<usize, String> {
-    // Get characters for this roster
+/// Scrapes one roster and upserts the latest character stats into `conf_character`.
+///
+/// New characters discovered by the scraper are added to the same roster id.
+/// Existing user-facing settings such as gold earner and dashboard visibility
+/// are preserved by the upsert statement.
+pub async fn scrape_roster_for_updates(todo_repo: &TodoRepository, roster_id: &str) -> Result<usize, String> {
     let characters = get_characters_for_roster(todo_repo, roster_id)?;
+    let first_character = characters
+        .first()
+        .ok_or_else(|| format!("Roster {} has no active characters to scrape", roster_id))?;
 
     let mut updated_count = 0;
 
-    // Create a new scraper for this roster
-    let mut scraper = crate::roster::HumanizedScraper::new(
-        characters
-            .first()
-            .map(|c| c.char_name.clone())
-            .unwrap_or_else(|| "Unknown".to_string()),
-        roster_id.to_string(),
-    );
+    let mut scraper = crate::roster::HumanizedScraper::new(first_character.char_name.clone(), roster_id.to_string());
 
-    // Scrape the entire roster at once
     match scraper.scrape_roster().await {
         Ok(scraper_result) => {
-            // Upsert each character from the scraped data so new roster members are added too.
             for scraped_char in scraper_result.mapped_for_models.roster.characters {
                 if upsert_scraped_character(todo_repo, &scraped_char, roster_id)? {
                     updated_count += 1;
@@ -229,7 +222,7 @@ async fn scrape_roster_for_updates(todo_repo: &TodoRepository, roster_id: &str) 
     Ok(updated_count)
 }
 
-/// Get all characters for a specific roster
+/// Loads active characters for the roster scraper seed lookup.
 pub fn get_characters_for_roster(todo_repo: &TodoRepository, roster_id: &str) -> Result<Vec<CharacterInfo>, String> {
     let conn = todo_repo
         .pool
@@ -265,33 +258,6 @@ pub fn get_characters_for_roster(todo_repo: &TodoRepository, roster_id: &str) ->
 pub struct CharacterInfo {
     pub char_name: String,
     pub char_id: i64,
-}
-
-/// Update character stats in database
-pub fn update_character_stats(
-    todo_repo: &TodoRepository,
-    char_name: &str,
-    item_level: f64,
-    combat_power: f64,
-) -> Result<bool, String> {
-    let conn = todo_repo
-        .pool
-        .get()
-        .map_err(|e| format!("Database connection failed: {}", e))?;
-
-    // Format item_level to 2 decimal places
-    let formatted_item_level = (item_level * 100.0).round() / 100.0;
-
-    let rows_affected = conn
-        .execute(
-            "UPDATE conf_character 
-         SET item_level = ?1, combat_power = ?2 
-         WHERE char_name = ?3",
-            params![formatted_item_level, combat_power, char_name],
-        )
-        .map_err(|e| format!("Failed to update character: {}", e))?;
-
-    Ok(rows_affected > 0)
 }
 
 /// Insert newly discovered characters and refresh existing scraper-managed stats.
@@ -342,7 +308,7 @@ pub fn upsert_scraped_character(
     Ok(rows_affected > 0)
 }
 
-/// Get scrape history for a roster
+/// Returns recent scrape history entries for Settings > Roster.
 #[tauri::command]
 pub async fn get_roster_scrape_history(
     todo_repo: State<'_, Arc<TodoRepository>>,

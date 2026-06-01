@@ -1,0 +1,98 @@
+/*
+  Sidereal Gold: luxury executive onyx. Clean charcoal obsidian surfaces with
+  elegant, sharp gold highlights and muted warm-gray support tones.
+*/
+:root[data-theme='sidereal-gold'] {
+  color-scheme: dark;
+
+  /* One champion accent */
+  --md-sys-color-primary: #ffd166;
+  --md-sys-color-on-primary: #241400;
+  --md-sys-color-primary-container: rgba(255, 209, 102, 0.08);
+  --md-sys-color-on-primary-container: #ffdf9e;
+
+  /* Warm executive grays */
+  --md-sys-color-secondary: #787366;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #302d25;
+  --md-sys-color-on-secondary-container: #ebe3d1;
+
+  --md-sys-color-tertiary: #4a473f;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #25231f;
+  --md-sys-color-on-tertiary-container: #ded8ca;
+
+  /* Premium obsidian surfaces */
+  --md-sys-color-background: #080808;
+  --md-sys-color-on-background: #f7f5f0;
+  --md-sys-color-surface: #101010;
+  --md-sys-color-on-surface: #f7f5f0;
+  --md-sys-color-surface-variant: #181818;
+  --md-sys-color-on-surface-variant: #a3a19b;
+  --md-sys-color-surface-container-low: #141414;
+  --md-sys-color-surface-container: #1c1c1c;
+  --md-sys-color-on-surface-container: #f7f5f0;
+  --md-sys-color-surface-container-high: #262626;
+  --md-sys-color-surface-container-highest: #303030;
+
+  --md-sys-color-outline: #2b2b2b;
+  --md-sys-color-outline-variant: #3b3b3b;
+
+  /* Semantic flags */
+  --md-sys-color-error: #ff5277;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #60001d;
+  --md-sys-color-on-error-container: #ffd9df;
+  --md-sys-color-warning: #ffd166;
+  --md-sys-color-success: #00f5d4;
+
+  /* Lighting and effects */
+  --app-color-overlay: rgba(8, 8, 8, 0.82);
+  --app-color-focus-ring: #ffd166;
+  --app-color-hover-surface: rgba(255, 209, 102, 0.05);
+  --app-color-selected-surface: rgba(255, 209, 102, 0.1);
+  --app-color-accent-row: color-mix(in srgb, var(--md-sys-color-primary) 5%, transparent);
+  --app-color-accent-divider: color-mix(in srgb, var(--md-sys-color-primary) 15%, transparent);
+  --app-color-accent-muted: color-mix(in srgb, var(--md-sys-color-primary) 60%, transparent);
+  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface-variant));
+  --app-color-accent-glow-sm: 0 0 8px color-mix(in srgb, var(--md-sys-color-primary) 50%, transparent);
+  --app-color-accent-glow-md: 0 0 14px color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent),
+    0 0 22px color-mix(in srgb, var(--md-sys-color-secondary) 18%, transparent);
+  --app-color-highlight-surface: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--md-sys-color-surface-container-high) 92%, var(--md-sys-color-primary)),
+    var(--md-sys-color-surface-container)
+  );
+  --app-color-highlight-text: #fff3d1;
+  --app-shadow-highlight: inset 0 1px 0 0 color-mix(in srgb, var(--md-sys-color-primary) 40%, transparent),
+    0 12px 32px -4px rgba(0, 0, 0, 0.72);
+  --app-shadow-highlight-text: 0 0 6px color-mix(in srgb, var(--md-sys-color-primary) 40%, transparent);
+  --app-color-modal-backdrop: rgba(4, 4, 4, 0.86);
+  --app-color-subtle-scrim: rgba(255, 255, 255, 0.04);
+
+  /* Item tracking states */
+  --app-color-gold: #ffd166;
+  --app-color-on-gold: #1d1200;
+  --app-color-hidden: #ff5277;
+  --app-color-on-hidden: #ffffff;
+  --app-color-tracked: #ffd166;
+  --app-color-tracked-alt: #787366;
+  --app-color-on-tracked: #fff6e0;
+  --app-color-muted-state: #5c5952;
+  --app-color-static: #4a473f;
+  --app-color-on-static: #ffffff;
+
+  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.12), rgba(255, 209, 102, 0.025));
+  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.08), rgba(120, 115, 102, 0.03));
+  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(92, 89, 82, 0.08), rgba(74, 71, 63, 0.03));
+  --app-color-success-gradient: linear-gradient(135deg, #00f5d4 0%, #032622 100%);
+  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #3d2400 100%);
+  --app-color-error-gradient: linear-gradient(135deg, #ff5277 0%, #31000b 100%);
+
+  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.65);
+  --app-shadow-md: 0 12px 38px rgba(0, 0, 0, 0.8);
+}
+
+:root[data-theme='sidereal-gold'] .ui-segmented-button.active {
+  box-shadow: var(--app-color-accent-glow-sm);
+}

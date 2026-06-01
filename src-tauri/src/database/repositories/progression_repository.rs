@@ -133,6 +133,7 @@ impl ProgressionRepository {
         chrono::Utc::now().timestamp()
     }
 
+    /// Loads all hidden progression-planner data for one character.
     pub fn get_snapshot(&self, character_id: i64) -> Result<CharacterProgressionSnapshot> {
         let conn = self.pool.get()?;
 
@@ -228,6 +229,11 @@ impl ProgressionRepository {
         })
     }
 
+    /// Replaces engraving rows for one character.
+    ///
+    /// This is reserved for future focused editing; scraper sync currently uses
+    /// `replace_scraped_progression` to update all progression detail tables in
+    /// one transaction.
     pub fn replace_engravings(&self, character_id: i64, rows: &[CharacterEngravingInput]) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
@@ -256,6 +262,10 @@ impl ProgressionRepository {
         Ok(())
     }
 
+    /// Replaces equipment rows for one character.
+    ///
+    /// This is reserved for future focused editing; scraper sync currently uses
+    /// `replace_scraped_progression`.
     pub fn replace_equipment(&self, character_id: i64, rows: &[CharacterEquipmentInput]) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
@@ -286,6 +296,10 @@ impl ProgressionRepository {
         Ok(())
     }
 
+    /// Replaces gem rows for one character.
+    ///
+    /// This is reserved for future focused editing; scraper sync currently uses
+    /// `replace_scraped_progression`.
     pub fn replace_gems(&self, character_id: i64, rows: &[CharacterGemInput]) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
@@ -409,6 +423,7 @@ impl ProgressionRepository {
         Ok(())
     }
 
+    /// Inserts or updates one progression goal for the hidden planner.
     pub fn upsert_goal(&self, character_id: i64, input: &ProgressionGoalInput) -> Result<i64> {
         let conn = self.pool.get()?;
         let ts = Self::now_ts();
@@ -444,6 +459,7 @@ impl ProgressionRepository {
         }
     }
 
+    /// Deletes one hidden progression-planner goal.
     pub fn delete_goal(&self, goal_id: i64) -> Result<bool> {
         let conn = self.pool.get()?;
         let n = conn.execute("DELETE FROM progression_goals WHERE id = ?1", params![goal_id])?;

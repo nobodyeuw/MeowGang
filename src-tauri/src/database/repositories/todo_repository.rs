@@ -88,14 +88,17 @@ impl TodoRepository {
         Self { pool }
     }
 
+    /// Tasks whose completion is represented once for the whole roster.
     fn is_roster_wide_task_id(task_id: &str) -> bool {
         matches!(task_id, "gate" | "boss" | "event_argeos_winter")
     }
 
+    /// Roster-wide tasks that can be completed multiple times per weekly window.
     fn is_roster_event_task_id(task_id: &str) -> bool {
         matches!(task_id, "event_argeos_winter")
     }
 
+    /// Weekly cap for roster event progress counters.
     fn roster_event_weekly_limit(task_id: &str) -> i64 {
         match task_id {
             "event_argeos_winter" => 3,
@@ -103,6 +106,7 @@ impl TodoRepository {
         }
     }
 
+    /// Most recent daily reset boundary in milliseconds.
     fn current_daily_reset_ms() -> i64 {
         let now = chrono::Utc::now();
         let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
@@ -113,6 +117,7 @@ impl TodoRepository {
         }
     }
 
+    /// Most recent weekly reset boundary in milliseconds.
     fn current_weekly_reset_ms() -> i64 {
         use chrono::Datelike;
 
@@ -130,6 +135,7 @@ impl TodoRepository {
         }
     }
 
+    /// Canonical character row used to store roster-wide completion records.
     fn get_first_character_id_for_roster(conn: &rusqlite::Connection, roster_id: &str) -> Result<i64> {
         let char_id = conn.query_row(
             "SELECT char_id FROM conf_character
@@ -144,6 +150,7 @@ impl TodoRepository {
         Ok(char_id)
     }
 
+    /// Reads current completion state for a roster-wide task.
     fn get_roster_task_completed_with_conn(
         conn: &rusqlite::Connection,
         roster_id: &str,
@@ -166,6 +173,10 @@ impl TodoRepository {
         Ok(completed == 1)
     }
 
+    /// Loads To Do data owned by the backend.
+    ///
+    /// Task/raid definitions are intentionally sparse here; the frontend fills
+    /// labels, order, rewards, and ilvl rules from `src/lib/data`.
     pub fn get_todo_matrix(&self, roster_id: &str) -> Result<TodoMatrixResponse> {
         let conn = self.pool.get()?;
 
@@ -228,7 +239,8 @@ impl TodoRepository {
 
         let rested_entries: Vec<(i64, String, i64)> = rested_iter.filter_map(Result::ok).collect();
 
-        // Load raids from conf_raid and group by raid_id
+        // Load raid ids/gates from conf_raid. Display names and rewards remain
+        // frontend-owned source-of-truth data.
         let mut raid_map = std::collections::HashMap::new();
         for character in &characters {
             let mut raid_stmt = conn.prepare("SELECT DISTINCT content_id FROM conf_raid WHERE char_id = ?1")?;
@@ -345,16 +357,7 @@ impl TodoRepository {
         Ok(matrix)
     }
 
-    pub fn is_task_tracked(&self, char_id: i64, task_id: &str) -> Result<bool> {
-        let conn = self.pool.get()?;
-
-        let mut stmt = conn.prepare("SELECT is_tracked FROM conf_tracking WHERE char_id = ?1 AND content_id = ?2")?;
-
-        let result: i64 = stmt.query_row(params![char_id, task_id], |row| row.get(0))?;
-
-        Ok(result == 1)
-    }
-
+    /// Reads task completion with reset-window awareness for daily rested tasks.
     pub fn get_task_completed(&self, char_id: i64, task_id: &str) -> Result<bool> {
         let conn = self.pool.get()?;
 
@@ -383,7 +386,7 @@ impl TodoRepository {
                AND content_id = ?2
                AND session_id IS NOT NULL
              ORDER BY timestamp DESC, rowid DESC
-             LIMIT 1"
+             LIMIT 1",
         )?;
 
         match stmt.query_row(params![char_id, task_id], |row| row.get::<_, i64>(0)) {
@@ -397,7 +400,7 @@ impl TodoRepository {
                        AND content_id = ?2
                        AND session_id IS NULL
                      ORDER BY timestamp DESC, rowid DESC
-                     LIMIT 1"
+                     LIMIT 1",
                 )?;
 
                 match stmt.query_row(params![char_id, task_id], |row| row.get::<_, i64>(0)) {
@@ -408,6 +411,7 @@ impl TodoRepository {
         }
     }
 
+    /// Gets the configured difficulty for a raid gate from Settings > Raids.
     pub fn get_raid_gate_difficulty(&self, char_id: i64, raid_id: &str, gate_id: &str) -> Result<Option<String>> {
         let conn = self.pool.get()?;
 
@@ -424,6 +428,7 @@ impl TodoRepository {
         }
     }
 
+    /// Reads whether a specific raid gate has been cleared this weekly cycle.
     pub fn get_raid_gate_completed(
         &self,
         char_id: i64,
@@ -450,16 +455,7 @@ impl TodoRepository {
         }
     }
 
-    pub fn get_rested_value(&self, char_id: i64, task_id: &str) -> Result<i64> {
-        let conn = self.pool.get()?;
-
-        let mut stmt =
-            conn.prepare("SELECT current_value FROM rested_values WHERE char_id = ?1 AND content_id = ?2")?;
-
-        let result: i64 = stmt.query_row(params![char_id, task_id], |row| row.get(0))?;
-        Ok(result)
-    }
-
+    /// Writes a character task completion row and handles roster-wide delegation.
     pub fn set_task_completed(&self, char_id: i64, task_id: &str, completed: bool) -> Result<()> {
         let conn = self.pool.get()?;
 
@@ -509,6 +505,7 @@ impl TodoRepository {
         Ok(())
     }
 
+    /// Writes an externally synced character task completion at the source timestamp.
     pub fn set_character_task_completed_at(
         &self,
         char_id: i64,
@@ -572,7 +569,7 @@ impl TodoRepository {
         Ok(changed)
     }
 
-    /// Consume 20 rested points when chaos/guardian is completed (if available)
+    /// Consumes 20 rested points when chaos/guardian is completed, if available.
     fn consume_rested_on_completion(&self, char_id: i64, task_id: &str) -> Result<()> {
         let conn = self.pool.get()?;
 
@@ -602,15 +599,19 @@ impl TodoRepository {
                 params![roster_id, char_id, task_id, new_rested, last_updated],
             )?;
 
-            println!(
+            crate::log_debug!(
                 "Consumed 20 rested points for {} (character {}): {} -> {}",
-                task_id, char_id, current_rested, new_rested
+                task_id,
+                char_id,
+                current_rested,
+                new_rested
             );
         }
 
         Ok(())
     }
 
+    /// Writes a single raid gate clear into completion_status.
     pub fn set_raid_gate_completed(
         &self,
         char_id: i64,
@@ -660,6 +661,7 @@ impl TodoRepository {
         Ok(())
     }
 
+    /// Writes completion state for a roster-wide task.
     pub fn set_roster_task_completed(&self, roster_id: &str, task_id: &str, completed: bool) -> Result<()> {
         if Self::is_roster_event_task_id(task_id) {
             self.set_roster_event_completed(roster_id, task_id, completed)?;
@@ -719,6 +721,7 @@ impl TodoRepository {
         Ok(())
     }
 
+    /// Returns weekly/daily progress for roster event tasks.
     pub fn get_roster_event_progress(&self, roster_id: &str, task_id: &str) -> Result<RosterEventProgress> {
         let conn = self.pool.get()?;
         let weekly_reset_ms = Self::current_weekly_reset_ms();
@@ -761,6 +764,7 @@ impl TodoRepository {
         })
     }
 
+    /// Adds or toggles today's completion row for a roster event task.
     pub fn set_roster_event_completed(&self, roster_id: &str, task_id: &str, completed: bool) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
@@ -850,6 +854,7 @@ impl TodoRepository {
         Ok(())
     }
 
+    /// Rebuilds this week's manual event completions to match a requested count.
     pub fn set_roster_event_weekly_count(&self, roster_id: &str, task_id: &str, completed_count: i64) -> Result<()> {
         let weekly_limit = Self::roster_event_weekly_limit(task_id);
         if completed_count < 0 || completed_count > weekly_limit {

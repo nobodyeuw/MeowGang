@@ -395,8 +395,10 @@ impl MarketDatabase {
         Ok(now - last_refresh > 3600)
     }
 
-    /// Seed gem entries into manual_price_overrides if they don't exist yet.
-    /// Gems are manual-only (no API source), so we pre-populate them with price 0.
+    /// Seeds manual-only gem rows if they do not exist yet.
+    ///
+    /// The marketplace API does not provide gem prices, so these rows are a
+    /// small local allowlist for user-entered progression cost estimates.
     pub fn seed_gem_entries(&self) -> Result<usize> {
         let conn = self.pool.get()?;
         let mut count = 0;

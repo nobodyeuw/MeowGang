@@ -27,6 +27,11 @@ pub struct EncounterPreview {
     pub players: Vec<String>,
 }
 
+/// Syncs cleared LOA Logs encounters into local `completion_status` rows.
+///
+/// Encounter sync owns completion state only. It reads raid difficulty from the
+/// encounter/log row for details, but raid configuration remains owned by
+/// `conf_raid` and tracking visibility remains owned by `conf_tracking`.
 pub fn sync_encounters_to_completions_internal(
     app: AppHandle,
     todo_repo: Arc<TodoRepository>,
@@ -111,6 +116,7 @@ pub fn sync_encounters_to_completions_internal(
 }
 
 #[command]
+/// Tauri command for manually syncing encounters.db into local completions.
 pub fn sync_encounters_to_completions(
     app: AppHandle,
     todo_repo: State<'_, Arc<TodoRepository>>,
@@ -120,6 +126,7 @@ pub fn sync_encounters_to_completions(
 }
 
 #[command]
+/// Returns recent cleared encounters for diagnostics/previews without mutating data.
 pub fn get_encounters_preview(
     todo_repo: State<'_, Arc<TodoRepository>>,
     settings_manager: State<'_, crate::settings::SettingsManager>,
@@ -137,6 +144,7 @@ pub fn get_encounters_preview(
 }
 
 #[command]
+/// Debug command used to verify raw boss names against the mapper.
 pub fn test_boss_mapping(boss_name: String) -> Result<Option<EncounterMappingResult>, String> {
     let boss_mapper = BossMapper::new();
 
@@ -158,6 +166,7 @@ pub struct EncounterMappingResult {
     pub boss_names: Vec<String>,
 }
 
+/// Reads the configured encounters.db path from persisted system settings.
 pub fn get_encounters_db_path_from_settings(
     settings_manager: &crate::settings::SettingsManager,
 ) -> Result<String, String> {
@@ -172,6 +181,7 @@ pub fn get_encounters_db_path_from_settings(
         .ok_or_else(|| "encounters_db_path not found in settings".to_string())
 }
 
+/// Returns the latest weekly reset boundary stored by the app.
 fn get_weekly_reset_from_app_state(pool: &r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>) -> Result<i64, String> {
     let conn = pool.get().map_err(|e| format!("Database connection failed: {}", e))?;
 
@@ -182,14 +192,7 @@ fn get_weekly_reset_from_app_state(pool: &r2d2::Pool<r2d2_sqlite::SqliteConnecti
     Ok(weekly_reset)
 }
 
-fn calculate_next_weekly_reset(last_reset: i64, _current_time: i64) -> i64 {
-    let last_reset_dt = chrono::DateTime::from_timestamp(last_reset, 0).unwrap_or_else(|| chrono::Utc::now());
-
-    // Add 7 days to get next reset
-    let next_reset = last_reset_dt + chrono::Duration::days(7);
-    next_reset.timestamp()
-}
-
+/// Reads cleared encounters since the current weekly reset from LOA Logs.
 fn get_cleared_encounters(
     encounters_db_path: &str,
     pool: &r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
@@ -214,7 +217,11 @@ fn get_cleared_encounters(
         .map_err(|e| format!("Failed to inspect encounter_preview columns: {}", e))?
         .unwrap_or(false);
 
-    let duration_select = if has_duration_column { "COALESCE(duration, 0)" } else { "0" };
+    let duration_select = if has_duration_column {
+        "COALESCE(duration, 0)"
+    } else {
+        "0"
+    };
     let query = format!(
         "SELECT id, current_boss, local_player, difficulty, fight_start, {duration_select}, cleared, COALESCE(players, '')
          FROM encounter_preview
@@ -253,15 +260,12 @@ fn get_cleared_encounters(
     Ok(encounters)
 }
 
+/// Parses the comma-separated player field emitted by LOA Logs.
 fn parse_encounter_players(players: &str) -> Vec<String> {
     players
         .split(',')
         .filter_map(|entry| {
-            let name = entry
-                .split_once(':')
-                .map(|(_, name)| name)
-                .unwrap_or(entry)
-                .trim();
+            let name = entry.split_once(':').map(|(_, name)| name).unwrap_or(entry).trim();
 
             if name.is_empty() {
                 None
@@ -272,6 +276,7 @@ fn parse_encounter_players(players: &str) -> Vec<String> {
         .collect()
 }
 
+/// Processes one encounter row and writes the matching local completion.
 fn process_encounter(
     encounter: &EncounterPreview,
     boss_mapper: &BossMapper,
@@ -309,8 +314,10 @@ fn process_encounter(
         }
     };
 
-    // Generate session_id for the gate; only create a new entry if it doesn't already exist
-    let session_id = format!("{}_Gate {}", mapping.content_id, mapping.gate);
+    // Gate completions intentionally do not include difficulty in session_id.
+    // Users can mix gate difficulties in Settings > Raids; completion identity
+    // must stay stable for the physical gate.
+    let session_id = make_raid_gate_session_id(&mapping.content_id, mapping.gate);
 
     let conn = todo_repo.pool.get()?;
     let existing_entry: Option<(i64, Option<i64>)> = conn
@@ -323,7 +330,7 @@ fn process_encounter(
         .optional()?;
 
     match existing_entry {
-        Some((is_completed, existing_timestamp)) => {
+        Some((is_completed, _existing_timestamp)) => {
             if is_completed == 1 {
                 crate::log_debug!(
                     "Skipping encounter: {} - {} already completed for char_id {}",
@@ -378,6 +385,7 @@ fn process_encounter(
     Ok(true)
 }
 
+/// Processes guardian encounters as daily guardian task completions.
 fn process_guardian_encounter(
     encounter: &EncounterPreview,
     todo_repo: &TodoRepository,
@@ -439,6 +447,7 @@ fn process_guardian_encounter(
     Ok(true)
 }
 
+/// Returns true for bosses that should complete the daily Guardian task.
 fn is_guardian_boss(boss_name: &str) -> bool {
     const GUARDIAN_BOSSES: [&str; 11] = [
         "Krathios",
@@ -460,6 +469,7 @@ fn is_guardian_boss(boss_name: &str) -> bool {
         .any(|guardian| boss_name.eq_ignore_ascii_case(guardian))
 }
 
+/// Most recent daily reset boundary in milliseconds.
 fn current_daily_reset_ms() -> i64 {
     let now = chrono::Utc::now();
     let today_reset = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
@@ -470,6 +480,12 @@ fn current_daily_reset_ms() -> i64 {
     }
 }
 
+/// Builds the local raid gate session key used in `completion_status`.
+fn make_raid_gate_session_id(content_id: &str, gate: u8) -> String {
+    format!("{}_Gate {}", content_id, gate)
+}
+
+/// Syncs character ilvl/combat-power details from encounter entities.
 fn sync_entity_data_for_encounter(
     todo_repo: &TodoRepository,
     settings_manager: &crate::settings::SettingsManager,
@@ -495,6 +511,7 @@ fn sync_entity_data_for_encounter(
     Ok(())
 }
 
+/// Resolves a local character id by the character name reported by LOA Logs.
 fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -> Result<Option<i64>> {
     let conn = todo_repo.pool.get()?;
 
@@ -525,19 +542,7 @@ fn find_character_id_by_name(todo_repo: &TodoRepository, character_name: &str) -
     Ok(result)
 }
 
-fn entry_already_exists(todo_repo: &TodoRepository, char_id: i64, content_id: &str, session_id: &str) -> Result<bool> {
-    let conn = todo_repo.pool.get()?;
-
-    let mut stmt = conn.prepare(
-        "SELECT COUNT(*) as count FROM completion_status
-         WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3",
-    )?;
-
-    let count: i64 = stmt.query_row(params![char_id, content_id, session_id], |row| row.get(0))?;
-
-    Ok(count > 0)
-}
-
+/// Inserts a new local completion row for a raid gate.
 fn create_completion_entry(
     todo_repo: &TodoRepository,
     char_id: i64,
@@ -584,8 +589,8 @@ mod tests {
 
     #[test]
     fn test_session_id_generation() {
-        let session_id = format!("act_3_mordum_Gate {}_hard", 1);
-        assert_eq!(session_id, "act_3_mordum_Gate 1_hard");
+        let session_id = make_raid_gate_session_id("act_3_mordum", 1);
+        assert_eq!(session_id, "act_3_mordum_Gate 1");
     }
 
     #[test]

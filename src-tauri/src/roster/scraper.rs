@@ -107,11 +107,13 @@ pub struct HumanizedScraper {
 
 impl HumanizedScraper {
     pub fn new(main_character: String, roster_name: String) -> Self {
-        crate::log_info!(
-            "Starting new scraper-session for character '{}' in roster '{}'",
-            main_character,
-            roster_name
-        );
+        if !main_character.is_empty() || !roster_name.is_empty() {
+            crate::log_info!(
+                "Starting new scraper-session for character '{}' in roster '{}'",
+                main_character,
+                roster_name
+            );
+        }
 
         let client = Client::builder()
             .timeout(Duration::from_secs(15))
@@ -251,12 +253,6 @@ impl HumanizedScraper {
 
     fn normalize_class_name(&self, class_name: &str) -> String {
         class_name.to_lowercase().replace(" ", "_")
-    }
-
-    fn parse_item_level(&self, ilvl_str: &str) -> f64 {
-        // Remove commas and parse as f64
-        let cleaned = ilvl_str.replace(",", "");
-        cleaned.parse().unwrap_or(0.0)
     }
 
     fn parse_roster_data(&self, html: &str) -> Result<Vec<Character>, ScraperError> {
@@ -519,48 +515,6 @@ impl HumanizedScraper {
 
         Err(last_error)
     }
-
-    pub(crate) async fn setup_character_session(
-        &self,
-        character_name: &str,
-    ) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
-        crate::log_debug!("Setting up HTTP session for character detail scraping");
-
-        let (user_agent, referer) = {
-            let mut rng = rand::thread_rng();
-            let ua = self.user_agents[rng.gen_range(0..self.user_agents.len())].clone();
-            let referrer = self.referers[rng.gen_range(0..self.referers.len())].clone();
-            crate::log_debug!("Selected user agent and referer for character request");
-            (ua, referrer)
-        };
-
-        let encoded_character = urlencoding::encode(character_name);
-        let url = format!("https://lostark.bible/character/CE/{}", encoded_character);
-        crate::log_debug!("Constructed character detail URL: {}", url);
-
-        let request = self
-            .client
-            .get(&url)
-            .header("User-Agent", user_agent)
-            .header(
-                "Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            )
-            .header("Accept-Language", "en-US,en;q=0.5")
-            .header("Accept-Encoding", "identity")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "cross-site")
-            .header("Pragma", "no-cache")
-            .header("Cache-Control", "no-cache")
-            .header("Referer", referer);
-
-        crate::log_debug!("HTTP request configured with headers");
-        Ok(request)
-    }
 }
 
 pub struct ScraperManager {
@@ -581,9 +535,9 @@ impl ScraperManager {
             main_character,
             roster_name
         );
-        let scraper = HumanizedScraper::new(main_character, roster_name.clone());
-        self.scrapers.insert(roster_name.clone(), scraper);
-        self.scrapers.get_mut(&roster_name).unwrap()
+        self.scrapers
+            .entry(roster_name.clone())
+            .or_insert_with(|| HumanizedScraper::new(main_character, roster_name))
     }
 
     pub fn get_scraper(&mut self, roster_name: &str) -> Option<&mut HumanizedScraper> {
@@ -640,6 +594,7 @@ mod tests {
     use tokio;
 
     #[tokio::test]
+    #[ignore = "External lostark.bible smoke test; run manually when scraper behavior is being investigated"]
     async fn test_vaanyar_scraper() {
         println!("Testing scraper with character: Vaanyar");
 
@@ -714,10 +669,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "External lostark.bible smoke test; run manually when scraper behavior is being investigated"]
     async fn test_vaanyar_character_details() {
         println!("Testing character detail scraper with character: Vaanyar");
 
-        let mut scraper = HumanizedScraper::new("Vaanyar".to_string(), "test_roster".to_string());
+        let mut scraper = crate::roster::DetailedCharacterScraper::new("test_roster".to_string());
 
         match scraper.scrape_character_details("Vaanyar".to_string()).await {
             Ok(detail_data) => {

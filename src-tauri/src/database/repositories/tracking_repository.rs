@@ -1,4 +1,3 @@
-use crate::models::*;
 use anyhow::Result;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -13,16 +12,22 @@ impl TrackingRepository {
         Self { pool }
     }
 
+    /// Returns true for tasks whose tracking state is controlled once per roster.
     fn is_roster_wide_task_id(content_id: &str) -> bool {
         matches!(content_id, "gate" | "boss" | "event_argeos_winter")
     }
 
+    /// Loads the Settings > Tracking matrix state.
+    ///
+    /// `conf_tracking` owns visibility/tracking state for tasks and raid rows.
+    /// Raid details such as difficulty, take-gold, box, and static reservation
+    /// remain owned by `conf_raid`.
     pub fn get_tracking_config_matrix(&self, roster_id: &str) -> Result<crate::models::TodoConfigMatrix> {
         let conn = self.pool.get()?;
 
         // Get characters for this roster, ordered by display_order
         let mut char_stmt = conn.prepare(
-            "SELECT char_id, char_name, class_id, item_level, combat_power, display_order
+            "SELECT char_id, char_name, class_id, item_level, combat_power, earns_gold, display_order
              FROM conf_character 
              WHERE roster_id = ?1 AND COALESCE(removed_from_roster, 0) = 0
              ORDER BY CAST(display_order AS INTEGER)",
@@ -35,7 +40,8 @@ impl TrackingRepository {
                 item_level: row.get::<_, f64>(3)?,
                 combat_power: row.get::<_, f64>(4)?,
                 class_id: row.get::<_, String>(2)?,
-                display_order: row.get::<_, String>(5)?.parse().unwrap_or(0),
+                earns_gold: row.get::<_, bool>(5)?,
+                display_order: row.get::<_, String>(6)?.parse().unwrap_or(0),
             })
         })?;
 
@@ -120,17 +126,16 @@ impl TrackingRepository {
                     .collect(),
             ),
             rested_entries: Some(rested_entries),
-            character_states: Some(
-                character_states
-                    .into_iter()
-                    .map(|((char_id, content_id), state)| state)
-                    .collect(),
-            ),
+            character_states: Some(character_states.into_iter().map(|(_, state)| state).collect()),
         };
 
         Ok(matrix)
     }
 
+    /// Updates one tracking toggle in `conf_tracking`.
+    ///
+    /// Roster-wide tasks are expanded across all active characters so every
+    /// matrix cell has a row, while completion state remains roster-level.
     pub fn update_tracking_config(&self, character_id: i64, content_id: &str, is_tracked: bool) -> Result<()> {
         let mut conn = self.pool.get()?;
 
@@ -171,6 +176,7 @@ impl TrackingRepository {
         Ok(())
     }
 
+    /// Updates the "lazy daily" preference for a character task.
     pub fn update_lazy_daily_config(&self, character_id: i64, content_id: &str, lazy_daily: bool) -> Result<()> {
         let conn = self.pool.get()?;
 
@@ -192,6 +198,7 @@ impl TrackingRepository {
         Ok(())
     }
 
+    /// Stores the manual rested value shown in Settings > Tracking.
     pub fn save_rested_value(&self, character_id: i64, content_id: &str, rested_value: i64) -> Result<()> {
         let conn = self.pool.get()?;
 
@@ -209,107 +216,69 @@ impl TrackingRepository {
             .as_millis() as i64;
 
         conn.execute(
-            "INSERT OR REPLACE INTO rested_values (char_id, content_id, current_value, roster_id, last_updated) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO rested_values (char_id, content_id, current_value, roster_id, last_updated)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(char_id, content_id) DO UPDATE SET
+               current_value = excluded.current_value,
+               roster_id = excluded.roster_id,
+               last_updated = excluded.last_updated",
             params![character_id, content_id, rested_value, roster_id, timestamp],
         )?;
         Ok(())
     }
 
+    /// Compatibility command for older To Do tracking toggles.
     pub fn set_todo_tracked(&self, character_id: i64, content_id: &str, tracked: bool) -> Result<()> {
         let conn = self.pool.get()?;
+        let roster_id: String = conn.query_row(
+            "SELECT roster_id FROM conf_character WHERE char_id = ?1",
+            params![character_id],
+            |row| row.get(0),
+        )?;
+
         conn.execute(
-            "UPDATE conf_tracking SET is_tracked = ?1 WHERE char_id = ?2 AND content_id = ?3",
-            params![if tracked { 1 } else { 0 }, character_id, content_id],
+            "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+             VALUES (?1, ?2, ?3, ?4, 0)
+             ON CONFLICT(char_id, content_id) DO UPDATE SET
+               roster_id = excluded.roster_id,
+               is_tracked = excluded.is_tracked",
+            params![roster_id, character_id, content_id, if tracked { 1 } else { 0 }],
         )?;
         Ok(())
     }
 
+    /// Compatibility bulk save for older Tracking UI payloads.
     pub fn batch_update_task_status(
         &self,
         character_id: i64,
         task_updates: Vec<crate::models::TaskStatusStruct>,
     ) -> Result<()> {
         let mut conn = self.pool.get()?;
+        let roster_id: String = conn.query_row(
+            "SELECT roster_id FROM conf_character WHERE char_id = ?1",
+            params![character_id],
+            |row| row.get(0),
+        )?;
         let tx = conn.transaction()?;
 
         for update in task_updates {
             tx.execute(
                 "INSERT INTO conf_tracking 
-                 (char_id, content_id, is_tracked, lazy_daily) 
-                 VALUES (?1, ?2, ?3, 0)
+                 (roster_id, char_id, content_id, is_tracked, lazy_daily)
+                 VALUES (?1, ?2, ?3, ?4, 0)
                  ON CONFLICT(char_id, content_id) DO UPDATE SET
+                   roster_id = excluded.roster_id,
                    is_tracked = excluded.is_tracked",
-                params![character_id, update.task_id, (if update.tracked { 1 } else { 0 }),],
+                params![
+                    &roster_id,
+                    character_id,
+                    update.task_id,
+                    (if update.tracked { 1 } else { 0 }),
+                ],
             )?;
         }
 
         tx.commit()?;
         Ok(())
-    }
-
-    // Methods needed for todo handlers
-    pub fn get_tracked_tasks_for_roster(&self, roster_id: &str) -> Result<Vec<crate::models::TaskConfig>> {
-        let conn = self.pool.get()?;
-
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT ct.content_id, gt.content_name, gt.category, gt.reset_schedule, 
-                    gt.logic_type, gt.max_rest_value, gt.min_ilvl
-             FROM conf_tracking ct
-             JOIN game_tasks gt ON ct.content_id = gt.id
-             WHERE ct.roster_id = ?1 AND ct.is_tracked = 1
-             ORDER BY gt.category, gt.reset_schedule, gt.content_name",
-        )?;
-
-        let task_iter = stmt.query_map([roster_id], |row| {
-            Ok(crate::models::TaskConfig {
-                content_id: row.get(0)?,
-                content_name: row.get(1)?,
-                category: row.get(2)?,
-                reset_schedule: row.get(3)?,
-                logic_type: row.get(4)?,
-                max_rest_value: row.get(5)?,
-                min_ilvl: row.get(6)?,
-            })
-        })?;
-
-        let mut tasks = Vec::new();
-        for task in task_iter {
-            tasks.push(task?);
-        }
-
-        Ok(tasks)
-    }
-
-    pub fn is_task_tracked(&self, char_id: i64, task_id: &str) -> Result<bool> {
-        let conn = self.pool.get()?;
-
-        let mut stmt = conn.prepare("SELECT is_tracked FROM conf_tracking WHERE char_id = ?1 AND content_id = ?2")?;
-
-        let result: Result<i64, rusqlite::Error> = stmt.query_row(params![char_id, task_id], |row| row.get(0));
-
-        match result {
-            Ok(tracked) => Ok(tracked == 1),
-            Err(_) => Ok(false),
-        }
-    }
-
-    pub fn get_rested_value(&self, char_id: i64, task_id: &str) -> Result<i64> {
-        let conn = self.pool.get()?;
-
-        let mut stmt =
-            conn.prepare("SELECT current_value FROM rested_values WHERE char_id = ?1 AND content_id = ?2")?;
-
-        let result: i64 = stmt.query_row(params![char_id, task_id], |row| row.get(0))?;
-        Ok(result)
-    }
-
-    pub fn is_raid_tracked(&self, char_id: i64, raid_id: &str) -> Result<bool> {
-        let conn = self.pool.get()?;
-
-        let mut stmt = conn.prepare("SELECT COUNT(*) FROM conf_raid WHERE char_id = ?1 AND content_id = ?2")?;
-
-        let count: i64 = stmt.query_row(params![char_id, raid_id], |row| row.get(0))?;
-
-        Ok(count > 0)
     }
 }

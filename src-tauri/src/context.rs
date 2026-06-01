@@ -82,10 +82,4 @@ impl AppContext {
 
         Ok(())
     }
-
-    fn copy_resource_files(&self) -> Result<()> {
-        // Skip resource file copying to avoid file locking issues
-        // Resources will be loaded directly from the app bundle
-        Ok(())
-    }
 }

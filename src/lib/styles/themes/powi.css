@@ -1,0 +1,91 @@
+/*
+  Powi: cosmic rose. Clean smoky graphite bases with a singular muted pink
+  action profile and soft ash-rose support tones.
+*/
+:root[data-theme='powi'] {
+  color-scheme: dark;
+
+  --md-sys-color-primary: #ff75a0;
+  --md-sys-color-on-primary: #3d0019;
+  --md-sys-color-primary-container: rgba(255, 117, 160, 0.08);
+  --md-sys-color-on-primary-container: #ffdae4;
+
+  --md-sys-color-secondary: #7d7075;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #30292c;
+  --md-sys-color-on-secondary-container: #eadce1;
+
+  --md-sys-color-tertiary: #4f4549;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #282225;
+  --md-sys-color-on-tertiary-container: #e1d6da;
+
+  --md-sys-color-background: #0a0809;
+  --md-sys-color-on-background: #f7f2f4;
+  --md-sys-color-surface: #120f11;
+  --md-sys-color-on-surface: #f7f2f4;
+  --md-sys-color-surface-variant: #1a1618;
+  --md-sys-color-on-surface-variant: #a3969b;
+  --md-sys-color-surface-container-low: #151113;
+  --md-sys-color-surface-container: #1e191b;
+  --md-sys-color-on-surface-container: #f7f2f4;
+  --md-sys-color-surface-container-high: #292225;
+  --md-sys-color-surface-container-highest: #342b2e;
+
+  --md-sys-color-outline: #2e2629;
+  --md-sys-color-outline-variant: #3f3438;
+
+  --md-sys-color-error: #ff5277;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #5f1530;
+  --md-sys-color-on-error-container: #ffe8ef;
+  --md-sys-color-warning: #ffd166;
+  --md-sys-color-success: #35f58f;
+
+  --app-color-overlay: rgba(10, 8, 9, 0.78);
+  --app-color-focus-ring: #ff75a0;
+  --app-color-hover-surface: rgba(255, 117, 160, 0.06);
+  --app-color-selected-surface: rgba(255, 117, 160, 0.12);
+  --app-color-accent-row: rgba(255, 117, 160, 0.035);
+  --app-color-accent-divider: rgba(255, 117, 160, 0.12);
+  --app-color-accent-muted: color-mix(in srgb, var(--md-sys-color-primary) 60%, transparent);
+  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 9%, var(--md-sys-color-surface-variant));
+  --app-color-accent-glow-sm: 0 0 8px rgba(255, 117, 160, 0.32);
+  --app-color-accent-glow-md: 0 0 12px rgba(255, 117, 160, 0.3),
+    0 0 20px rgba(125, 112, 117, 0.16);
+  --app-color-highlight-surface: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, var(--md-sys-color-primary)),
+    var(--md-sys-color-surface-container)
+  );
+  --app-color-highlight-text: #ffdae4;
+  --app-shadow-highlight: inset 0 1px 0 rgba(255, 117, 160, 0.3),
+    0 12px 32px -4px rgba(0, 0, 0, 0.68);
+  --app-shadow-highlight-text: 0 0 8px rgba(255, 117, 160, 0.34);
+  --app-color-modal-backdrop: rgba(8, 6, 7, 0.84);
+  --app-color-subtle-scrim: rgba(255, 255, 255, 0.035);
+
+  --app-color-gold: #ffd166;
+  --app-color-on-gold: #1f1300;
+  --app-color-hidden: #ff5277;
+  --app-color-on-hidden: #ffffff;
+  --app-color-tracked: #ff75a0;
+  --app-color-tracked-alt: #7d7075;
+  --app-color-on-tracked: #ffdae4;
+  --app-color-muted-state: #61565b;
+  --app-color-static: #4f4549;
+  --app-color-on-static: #f7f2f4;
+  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.08), rgba(255, 209, 102, 0.02));
+  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(255, 117, 160, 0.1), rgba(125, 112, 117, 0.03));
+  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(97, 86, 91, 0.08), rgba(79, 69, 73, 0.025));
+  --app-color-success-gradient: linear-gradient(135deg, #35f58f 0%, #082916 100%);
+  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #3d2900 100%);
+  --app-color-error-gradient: linear-gradient(135deg, #ff5277 0%, #31000b 100%);
+
+  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --app-shadow-md: 0 12px 36px rgba(0, 0, 0, 0.7);
+}
+
+:root[data-theme='powi'] .ui-segmented-button.active {
+  box-shadow: var(--app-color-accent-glow-sm);
+}

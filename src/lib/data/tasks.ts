@@ -1,3 +1,4 @@
+// Source of truth for non-raid task definitions used by setup, tracking, dashboard, and To Do.
 export interface GameTask {
   id: string;          // content_id
   name: string;        // content_name 
@@ -105,11 +106,11 @@ export function getTasksByCategory(category: 'roster' | 'character'): GameTask[]
 }
 
 export function getDailyTasks(): GameTask[] {
-  return Object.keys(GAME_TASKS).map(key => GAME_TASKS[key]).filter(task => task.resetSchedule === 'daily');
+  return Object.keys(GAME_TASKS).map(key => GAME_TASKS[key]).filter(task => task.reset_schedule === 'daily');
 }
 
 export function getWeeklyTasks(): GameTask[] {
-  return Object.keys(GAME_TASKS).map(key => GAME_TASKS[key]).filter(task => task.resetSchedule === 'weekly');
+  return Object.keys(GAME_TASKS).map(key => GAME_TASKS[key]).filter(task => task.reset_schedule === 'weekly');
 }
 
 export function getRosterTasks(): GameTask[] {
@@ -125,15 +126,15 @@ export function getAvailableDays(): CalendarDay[] {
 }
 
 export function getDayByName(dayName: string): CalendarDay | undefined {
-  return CALENDAR.find(day => day.dayName === dayName);
+  return CALENDAR.find(day => day.day_name === dayName);
 }
 
 export function isGateAvailable(dayName: string): boolean {
   const day = getDayByName(dayName);
-  return day ? day.gateAvailable : false;
+  return day ? day.gate_available : false;
 }
 
 export function isBossAvailable(dayName: string): boolean {
   const day = getDayByName(dayName);
-  return day ? day.bossAvailable : false;
+  return day ? day.boss_available : false;
 }

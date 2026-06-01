@@ -1,8 +1,10 @@
+#![allow(non_snake_case)]
+
 use crate::database::repositories::CharacterRepository;
 use crate::database::repositories::ProgressionRepository;
 use crate::models::{CharacterSettings, DashboardCharacter};
-use crate::roster::HumanizedScraper;
-use serde::{Deserialize, Serialize};
+use crate::roster::DetailedCharacterScraper;
+use serde::Deserialize;
 use tauri::State;
 
 #[derive(Deserialize)]
@@ -12,6 +14,7 @@ pub struct CharacterSettingsRequest {
     pub settings: CharacterSettings,
 }
 
+/// Updates optional per-character settings from Settings > Roster and MeowConnect toggles.
 #[tauri::command]
 pub async fn update_character_settings(
     request: CharacterSettingsRequest,
@@ -23,6 +26,7 @@ pub async fn update_character_settings(
         .map_err(|e| format!("Failed to update character settings: {}", e))
 }
 
+/// Updates whether one character counts toward weekly gold.
 #[tauri::command]
 pub async fn update_character_earns_gold(
     character_id: i64,
@@ -35,6 +39,7 @@ pub async fn update_character_earns_gold(
         .map_err(|e| format!("Failed to update character earns gold: {}", e))
 }
 
+/// Loads one character by id for detail/debug views.
 #[tauri::command]
 pub async fn get_character_details(
     character_id: i64,
@@ -46,6 +51,7 @@ pub async fn get_character_details(
         .map_err(|e| format!("Failed to get character details: {}", e))
 }
 
+/// Loads the compact dashboard character list used by legacy dashboard paths.
 #[tauri::command]
 pub async fn get_dashboard_characters(
     character_repo: State<'_, CharacterRepository>,
@@ -55,6 +61,7 @@ pub async fn get_dashboard_characters(
         .map_err(|e| format!("Failed to get dashboard characters: {}", e))
 }
 
+/// Loads rested values for one character.
 #[tauri::command]
 pub async fn get_character_rested_values(
     characterId: i64,
@@ -66,6 +73,7 @@ pub async fn get_character_rested_values(
         .map_err(|e| format!("Failed to get character rested values: {}", e))
 }
 
+/// Loads task and raid completion state for one character.
 #[tauri::command]
 pub async fn get_character_completion_status(
     characterId: i64,
@@ -77,6 +85,7 @@ pub async fn get_character_completion_status(
         .map_err(|e| format!("Failed to get character completion status: {}", e))
 }
 
+/// Loads Settings > Raids configuration for one character.
 #[tauri::command]
 pub async fn get_character_raid_configs(
     characterId: i64,
@@ -88,6 +97,7 @@ pub async fn get_character_raid_configs(
         .map_err(|e| format!("Failed to get character raid configs: {}", e))
 }
 
+/// Loads Settings > Tracking visibility for one character.
 #[tauri::command]
 pub async fn get_character_tracking_status(
     characterId: i64,
@@ -99,24 +109,6 @@ pub async fn get_character_tracking_status(
         .map_err(|e| format!("Failed to get character tracking status: {}", e))
 }
 
-#[tauri::command]
-pub async fn test_character_query(
-    character_id: i64,
-    character_repo: State<'_, CharacterRepository>,
-) -> Result<String, String> {
-    let character = character_repo
-        .get_character_by_id(character_id)
-        .map_err(|e| format!("Failed to query character: {}", e))?;
-
-    match character {
-        Some(char) => Ok(format!(
-            "Found character: {} (ILvl: {:.1})",
-            char.char_name, char.item_level
-        )),
-        None => Ok("Character not found".to_string()),
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScrapeCharacterDetailsRequest {
@@ -125,6 +117,10 @@ pub struct ScrapeCharacterDetailsRequest {
     pub roster_name: String,
 }
 
+/// Scrapes detailed progression data for the hidden progression planner.
+///
+/// This path writes engravings, equipment, and gems only; it does not mutate
+/// roster membership or raid/tracking configuration.
 #[tauri::command]
 pub async fn scrape_character_details(
     request: ScrapeCharacterDetailsRequest,
@@ -132,16 +128,13 @@ pub async fn scrape_character_details(
 ) -> Result<String, String> {
     crate::validation::validate_character_id(request.character_id)?;
 
-    // Create a scraper instance
-    let mut scraper = HumanizedScraper::new(request.character_name.clone(), request.roster_name);
+    let mut scraper = DetailedCharacterScraper::new(request.roster_name);
 
-    // Scrape character details
     let detail_data = scraper
         .scrape_character_details(request.character_name.clone())
         .await
         .map_err(|e| format!("Failed to scrape character details: {}", e))?;
 
-    // Convert to repository input format
     let engravings: Vec<crate::database::repositories::progression_repository::CharacterEngravingInput> = detail_data
         .engravings
         .into_iter()
@@ -192,7 +185,6 @@ pub async fn scrape_character_details(
         )
         .collect();
 
-    // Save to database
     progression_repo
         .replace_scraped_progression(request.character_id, &engravings, &equipment, &gems)
         .map_err(|e| format!("Failed to save character details: {}", e))?;

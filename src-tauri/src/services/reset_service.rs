@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::{Datelike, Timelike, Utc, Weekday};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 
 pub struct ResetService {

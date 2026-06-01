@@ -1,7 +1,11 @@
 use super::item_mapping::{get_engraving_name, get_gem_name};
 use super::skill_mapping::get_gem_skill_label;
-use super::{HumanizedScraper, ScraperError};
+use super::ScraperError;
+use rand::Rng;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterEngraving {
@@ -43,7 +47,127 @@ pub struct CharacterDetailData {
     pub gems: Vec<CharacterGem>,
 }
 
-impl HumanizedScraper {
+/// Experimental character-detail scraper used only by the hidden progression planner.
+///
+/// This intentionally does not extend the working roster scraper type. Keeping
+/// detail scraping isolated lets us tune loadout/equipment/gem parsing without
+/// risking roster scraping, which is the stable production path.
+#[derive(Debug, Clone)]
+pub struct DetailedCharacterScraper {
+    roster_name: String,
+    client: Client,
+    user_agents: Vec<String>,
+    referers: Vec<String>,
+}
+
+impl DetailedCharacterScraper {
+    pub fn new(roster_name: String) -> Self {
+        crate::log_info!("Starting character-detail scraper session for roster '{}'", roster_name);
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(15))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
+            .expect("Failed to create HTTP client");
+
+        let user_agents = vec![
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/120.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        let referers = vec![
+            "https://www.google.com/",
+            "https://www.google.com/search?q=lostark.bible",
+            "https://duckduckgo.com/?q=lostark.bible",
+            "https://www.bing.com/search?q=lostark.bible",
+            "https://www.reddit.com/r/lostarkgame/",
+            "https://lost-ark.fandom.com/",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        Self {
+            roster_name,
+            client,
+            user_agents,
+            referers,
+        }
+    }
+
+    async fn humanized_delay(&self, min_seconds: f64, max_seconds: f64) {
+        let delay = {
+            let mut rng = rand::thread_rng();
+            rng.gen_range(min_seconds..=max_seconds)
+        };
+        crate::log_debug!("Applying character-detail scraper delay: {:.2} seconds", delay);
+        sleep(Duration::from_secs_f64(delay)).await;
+    }
+
+    fn is_cloudflare_challenge(status: u16, content: &str) -> bool {
+        if status == 403 || status == 503 {
+            return true;
+        }
+        content.contains("Just a moment...")
+            || content.contains("challenges.cloudflare.com")
+            || content.contains("cf-browser-verification")
+            || content.contains("cf_clearance")
+    }
+
+    async fn setup_character_session(
+        &self,
+        character_name: &str,
+    ) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error + Send + Sync>> {
+        crate::log_debug!(
+            "Setting up HTTP session for character detail scraping in roster '{}'",
+            self.roster_name
+        );
+
+        let (user_agent, referer) = {
+            let mut rng = rand::thread_rng();
+            let ua = self.user_agents[rng.gen_range(0..self.user_agents.len())].clone();
+            let referrer = self.referers[rng.gen_range(0..self.referers.len())].clone();
+            crate::log_debug!("Selected user agent and referer for character request");
+            (ua, referrer)
+        };
+
+        let encoded_character = urlencoding::encode(character_name);
+        let url = format!("https://lostark.bible/character/CE/{}", encoded_character);
+        crate::log_debug!("Constructed character detail URL: {}", url);
+
+        let request = self
+            .client
+            .get(&url)
+            .header("User-Agent", user_agent)
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            )
+            .header("Accept-Language", "en-US,en;q=0.5")
+            .header("Accept-Encoding", "identity")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Sec-Fetch-Dest", "document")
+            .header("Sec-Fetch-Mode", "navigate")
+            .header("Sec-Fetch-Site", "cross-site")
+            .header("Pragma", "no-cache")
+            .header("Cache-Control", "no-cache")
+            .header("Referer", referer);
+
+        crate::log_debug!("Character detail HTTP request configured with headers");
+        Ok(request)
+    }
+
     fn parse_character_loadouts(&self, html: &str) -> Result<Vec<serde_json::Value>, ScraperError> {
         crate::log_debug!("Parsing character loadouts from HTML, length: {}", html.len());
 

@@ -1,0 +1,22 @@
+body {
+  margin: 0;
+  font-family: var(--app-font-family);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-background);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--app-color-focus-ring);
+  outline-offset: 2px;
+}

@@ -4,7 +4,7 @@ use dirs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 pub struct LoggingService {
     log_file: Mutex<File>,
@@ -48,10 +48,11 @@ impl LoggingService {
             let _ = file.flush();
         }
 
-        // Also print to console for development
+        // Keep DEBUG in the log file without flooding the dev terminal.
         match level {
             "ERROR" => eprintln!("{}", log_entry.trim()),
             "WARN" => eprintln!("{}", log_entry.trim()),
+            "DEBUG" => {}
             _ => println!("{}", log_entry.trim()),
         }
     }
@@ -102,22 +103,24 @@ pub fn init_logging_with_app_handle(app: &tauri::AppHandle) -> Result<()> {
         log_file: Mutex::new(log_file),
     };
 
-    unsafe {
-        GLOBAL_LOGGER = Some(logger);
+    if let Ok(mut global_logger) = GLOBAL_LOGGER.lock() {
+        *global_logger = Some(logger);
     }
 
     Ok(())
 }
 
 // Global logging instance
-static mut GLOBAL_LOGGER: Option<LoggingService> = None;
+static GLOBAL_LOGGER: LazyLock<Mutex<Option<LoggingService>>> = LazyLock::new(|| Mutex::new(None));
 static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
 
 pub fn init_logging() -> Result<()> {
     LOGGER_INIT.call_once(|| match LoggingService::new() {
         Ok(logger) => {
-            unsafe {
-                GLOBAL_LOGGER = Some(logger);
+            if let Ok(mut global_logger) = GLOBAL_LOGGER.lock() {
+                if global_logger.is_none() {
+                    *global_logger = Some(logger);
+                }
             }
             crate::log_info!("Logging system initialized");
         }
@@ -128,44 +131,59 @@ pub fn init_logging() -> Result<()> {
     Ok(())
 }
 
-pub fn get_logger() -> Option<&'static LoggingService> {
-    unsafe {
-        // Suppress the warning by using raw pointer pattern
-        GLOBAL_LOGGER.as_ref()
+fn with_logger(callback: impl FnOnce(&LoggingService)) -> bool {
+    if let Ok(global_logger) = GLOBAL_LOGGER.lock() {
+        if let Some(logger) = global_logger.as_ref() {
+            callback(logger);
+            return true;
+        }
     }
+    false
+}
+
+pub fn get_log_content() -> Result<String> {
+    let global_logger = GLOBAL_LOGGER
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Logging system lock is poisoned"))?;
+    let logger = global_logger
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Logging system not initialized"))?;
+
+    logger.get_log_content()
+}
+
+pub fn clear_log() -> Result<()> {
+    let global_logger = GLOBAL_LOGGER
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Logging system lock is poisoned"))?;
+    let logger = global_logger
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Logging system not initialized"))?;
+
+    logger.clear_log()
 }
 
 // Convenience functions
 pub fn info(message: &str) {
-    if let Some(logger) = get_logger() {
-        logger.log_info(message);
-    } else {
+    if !with_logger(|logger| logger.log_info(message)) {
         println!("[INFO] {}", message);
     }
 }
 
 pub fn error(message: &str) {
-    if let Some(logger) = get_logger() {
-        logger.log_error(message);
-    } else {
+    if !with_logger(|logger| logger.log_error(message)) {
         eprintln!("[ERROR] {}", message);
     }
 }
 
 pub fn warn(message: &str) {
-    if let Some(logger) = get_logger() {
-        logger.log_warn(message);
-    } else {
+    if !with_logger(|logger| logger.log_warn(message)) {
         eprintln!("[WARN] {}", message);
     }
 }
 
 pub fn debug(message: &str) {
-    if let Some(logger) = get_logger() {
-        logger.log_debug(message);
-    } else {
-        println!("[DEBUG] {}", message);
-    }
+    let _ = with_logger(|logger| logger.log_debug(message));
 }
 
 // Macro for formatted logging

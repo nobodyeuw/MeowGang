@@ -1,73 +1,48 @@
 {
   "versions": [
     {
-      "version": "1.2.8",
-      "date": "2026-05-26",
+      "version": "1.3.0",
+      "date": "2026-06-01",
       "changes": [
         {
           "type": "Added",
-          "description": "Group tags appear on dashboard raid badges.",
-          "details": "MeowConnect group assignments are mirrored into the local userlogs database so dashboard raid badges can show the assigned group tag, such as WIPE or SWINE, instead of the default Static label."
-        },
-        {
-          "type": "Improved",
-          "description": "Group assignments now apply raid-wide.",
-          "details": "Assigning a static-marked character to a MeowConnect group now applies to the full raid instead of one specific difficulty filter, so the group marker remains visible across Normal, Hard, Nightmare, and unfiltered views."
-        },
-        {
-          "type": "Improved",
-          "description": "Group realtime changes refresh MeowConnect.",
-          "details": "The MeowConnect realtime listener now also watches group, group member, and group raid assignment tables so group changes can refresh while the app is open."
-        },
-        {
-          "type": "Improved",
-          "description": "Group tags are globally unique.",
-          "details": "MeowConnect group tags are now reserved globally across groups so short dashboard badges stay unambiguous for every user."
-        },
-        {
-          "type": "Improved",
-          "description": "MeowConnect refresh logging is clearer.",
-          "details": "MeowConnect now writes focused debug logs for initial loads, manual syncs, debounced realtime refreshes, local group tag mirroring, and header pending-request checks so Supabase request spikes are easier to trace without flooding the log for every realtime row event."
-        },
-        {
-          "type": "Improved",
-          "description": "Pending request refreshes are less chatty.",
-          "details": "The app header now only receives a MeowConnect pending-request update when the pending count actually changes, and the regular header poll uses a pending-only lookup instead of loading full friends, groups, members, and assignments."
-        },
-        {
-          "type": "Fixed",
-          "description": "MeowConnect sync preserves group assignments.",
-          "details": "Roster uploads now upsert current MeowConnect characters before deleting only stale character IDs, preventing Supabase cascade deletes from wiping group raid assignments for characters that still exist."
-        },
-        {
-          "type": "Fixed",
-          "description": "Static reservations stay visible after legacy cleanup.",
-          "details": "The Supabase reservation read policy now follows accepted friend and shared group visibility instead of the removed legacy static-friend marker, so expanded MeowConnect profiles can still show Reserved or group labels for static-marked raids."
-        },
-        {
-          "type": "Fixed",
-          "description": "Reserved characters no longer look group-assigned.",
-          "details": "MeowConnect now uses the green shared-static character frame only when a reserved character is actually assigned to a shared group. Plain static reservations remain visible as Reserved without being counted or styled as available group characters."
-        },
-        {
-          "type": "Fixed",
-          "description": "Discord remember-me no longer trusts a raw ID file.",
-          "details": "App access now relies on the persisted Supabase Discord OAuth session instead of the legacy editable meowgang_auth.txt Discord ID cache. Old auth text files are removed on launch, and whitelist display-name checks no longer write local auth state."
-        },
-        {
-          "type": "Fixed",
-          "description": "Legacy Party Planner browser storage is cleaned up.",
-          "details": "Startup now removes stale WebView localStorage and sessionStorage entries related to the old Google Apps Script Party Planner flow so obsolete script URLs no longer remain visible in DevTools."
-        },
-        {
-          "type": "Improved",
-          "description": "Idle MeowConnect header polling is slower.",
-          "details": "The app header now checks pending MeowConnect requests every three minutes while idle instead of every minute, while local raid completion and MeowConnect setting changes still trigger an immediate lightweight refresh."
+          "description": "Theme options are now available.",
+          "details": "General settings now include app themes. Outlaw remains the default, with Alchemist, Void Space, Sidereal Gold, and Powi available as alternate styles."
         },
         {
           "type": "Added",
-          "description": "Dashboard static badges can be hidden.",
-          "details": "General settings now include a Dashboard Static Badges toggle so users can hide Static and group tag badges from dashboard raid labels without changing their raid reservation data."
+          "description": "The app now uses a custom header.",
+          "details": "The native title bar was replaced with a tighter in-app header that includes drag support and window controls for minimize, maximize, and close."
+        },
+        {
+          "type": "Added",
+          "description": "Set-Up Guide now covers more features.",
+          "details": "The Set-Up Guide now walks through Dashboard, Roster, Tracking, Raid settings, To Do, Marketplace, MeowConnect, System options, Updates, and the hidden Progression workspace. Guide highlights now use a distinct color and move away from the controls they explain."
+        },
+        {
+          "type": "Added",
+          "description": "Haal's Hourglass reminder added.",
+          "details": "General settings now include an optional Tuesday reminder for 1730+ characters that have Cube tracked but unfinished before weekly reset."
+        },
+        {
+          "type": "Improved",
+          "description": "Settings pages are easier to scan.",
+          "details": "Raid, Tracking, Roster, and System settings received tighter layouts, shared controls, clearer row actions, and more consistent character header details."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect guidance is clearer.",
+          "details": "The guide now explains Sync now, first uploads, friend requests, groups and tags, Raid Together, and expanded profile details."
+        },
+        {
+          "type": "Improved",
+          "description": "Dashboard and To Do labels are more consistent.",
+          "details": "Mixed raid difficulties, character details, gold markers, and shared matrix headers now use more consistent styling and behavior across Dashboard, To Do, Tracking, and Raid settings."
+        },
+        {
+          "type": "Fixed",
+          "description": "Several cleanup fixes were included.",
+          "details": "The update changelog date display now uses day.month.year, custom window controls have the required Tauri permissions, and the app startup/logging path is quieter while keeping useful diagnostics."
         }
       ]
     }

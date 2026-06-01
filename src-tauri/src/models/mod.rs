@@ -24,6 +24,7 @@ pub struct CharacterMatrixInfo {
     pub item_level: f64,
     pub combat_power: f64,
     pub class_id: String,
+    pub earns_gold: bool,
     pub display_order: i64,
 }
 
