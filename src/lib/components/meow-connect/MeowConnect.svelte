@@ -2,6 +2,7 @@
   // MeowConnect is the orchestration layer for refresh, filters, popover state, and actions.
   // Individual tabs/panels own presentation only.
   import { createEventDispatcher, onMount } from 'svelte';
+  import { appAsset } from '$lib/assets';
   import MeowConnectLogs from '$lib/components/meow-connect/MeowConnectLogs.svelte';
   import MeowConnectProfilePopover from '$lib/components/meow-connect/MeowConnectProfilePopover.svelte';
   import MeowConnectSettings from '$lib/components/meow-connect/MeowConnectSettings.svelte';
@@ -64,6 +65,7 @@
 
   export let activeSection: MeowConnectTab = 'together';
   const dispatch = createEventDispatcher<{ pendingRequestsChanged: number }>();
+  const meowConnectIcon = appAsset('meowconnect_tab.png');
 
   let consentAccepted = false;
   let visibleRaidIds = raidOptions.map((raid) => raid.id);
@@ -900,7 +902,7 @@
   {#if !consentAccepted}
     <header class="mc-header">
       <div class="mc-title">
-        <img src="/images/meowconnect_tab.png" alt="" />
+        <img src={meowConnectIcon} alt="" />
         <h2>MeowConnect</h2>
       </div>
     </header>
@@ -1022,6 +1024,10 @@
 
 <style>
   .meow-connect {
+    --app-control-accent: var(--app-meowconnect-accent);
+    --app-control-on-accent: var(--md-sys-color-on-primary);
+    --app-control-accent-container: var(--app-meowconnect-accent-soft);
+    --app-control-hover-border: var(--app-meowconnect-accent);
     width: min(1280px, 100%);
     margin: 0 auto;
     padding: 0.65rem 0.85rem;

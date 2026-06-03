@@ -1,4 +1,5 @@
 import type { Character } from '$lib/store';
+import { iconAsset } from '$lib/assets';
 import { RAIDS, type Raid } from '$lib/data/raids';
 import { getCurrentAvailabilityStatus } from '$lib/utils/availability';
 import type {
@@ -54,12 +55,22 @@ export function calculateGoldProgress(
   characters: Character[],
   raidConfigsByCharacter: Record<string, RaidConfigEntry[]>,
   characterDataMap: Record<string, DashboardCharacterData>
-): { plannedGold: number; actualGold: number; actualBoundGold: number; actualTradableGold: number; lostGold: number } {
+): {
+  plannedGold: number;
+  clearedPlannedGold: number;
+  actualGold: number;
+  actualBoundGold: number;
+  actualTradableGold: number;
+  lostGold: number;
+  bonusGold: number;
+} {
   let plannedGold = 0;
+  let clearedPlannedGold = 0;
   let actualGold = 0;
   let actualBoundGold = 0;
   let actualTradableGold = 0;
   let lostGold = 0;
+  let bonusGold = 0;
 
   for (const character of characters) {
     if (!character.earns_gold) continue;
@@ -88,6 +99,8 @@ export function calculateGoldProgress(
         );
         if (!clearedEntry) continue;
 
+        clearedPlannedGold += plannedGateGold.totalGold;
+
         const actualGateGold = getGateGoldBreakdown(config.content_id, clearedEntry.details, gateId, config.buy_box);
         actualGold += actualGateGold.totalGold;
         actualBoundGold += actualGateGold.boundGold;
@@ -96,6 +109,8 @@ export function calculateGoldProgress(
         const diff = plannedGateGold.totalGold - actualGateGold.totalGold;
         if (diff > 0) {
           lostGold += diff;
+        } else if (diff < 0) {
+          bonusGold += Math.abs(diff);
         }
       }
     } catch (error) {
@@ -103,7 +118,7 @@ export function calculateGoldProgress(
     }
   }
 
-  return { plannedGold, actualGold, actualBoundGold, actualTradableGold, lostGold };
+  return { plannedGold, clearedPlannedGold, actualGold, actualBoundGold, actualTradableGold, lostGold, bonusGold };
 }
 
 export function getRestedValue(restedValues: RestedValueEntry[], contentId: string): number {
@@ -133,6 +148,12 @@ export function getOpenStatusKind(completed: number, possible: number, configure
 }
 
 export function isRosterTaskTracked(snapshot: DashboardSnapshot, taskId: string): boolean {
+  // Roster-wide tasks, like temporary event tasks, are stored once per roster
+  // conceptually even though the matrix expands rows per character.
+  if (snapshot.roster_tracking_status?.some((entry) => entry.content_id === taskId && Number(entry.is_tracked) === 1)) {
+    return true;
+  }
+
   return Object.values(snapshot.tracking_by_character || {})
     .flat()
     .some((entry) => entry.content_id === taskId && Number(entry.is_tracked) === 1);
@@ -189,12 +210,12 @@ export function getCurrentCalendarEventIcons(): string[] {
   const icons: string[] = [];
 
   if (availability.gate) {
-    icons.push('/images/chaos_gate.png');
+    icons.push(iconAsset('chaos_gate.png'));
   }
 
   if (availability.boss) {
-    icons.push('/images/boss.png');
+    icons.push(iconAsset('boss.png'));
   }
 
-  return icons.length > 0 ? icons : ['images/calendar_7743808.png'];
+  return icons.length > 0 ? icons : [iconAsset('calendar_7743808.png')];
 }

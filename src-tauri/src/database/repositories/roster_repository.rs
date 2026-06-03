@@ -125,6 +125,35 @@ impl RosterRepository {
         Ok(())
     }
 
+    /// Records the latest successful roster scrape for the Settings > Roster cooldown badge.
+    ///
+    /// Manual roster creation already performs a full scrape, so it should also
+    /// count as the first daily update instead of immediately showing "Daily
+    /// update available".
+    pub fn record_completed_roster_scrape(&self, roster_id: &str, data: &str) -> Result<()> {
+        let conn = self.pool.get()?;
+        let sync_id = format!("scraper_roster_{}", roster_id);
+        let timestamp = chrono::Utc::now().timestamp_millis();
+
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_metadata
+             (sync_id, table_name, record_id, operation, timestamp, sync_status, source, data)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                sync_id,
+                "conf_character",
+                roster_id,
+                "scrape",
+                timestamp,
+                "completed",
+                "scraper",
+                data
+            ],
+        )?;
+
+        Ok(())
+    }
+
     /// Checks whether a roster scrape is older than the 24-hour refresh window.
     pub fn should_update_roster(&self, roster_name: &str) -> Result<bool> {
         let conn = self.pool.get()?;

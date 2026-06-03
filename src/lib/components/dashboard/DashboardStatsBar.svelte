@@ -1,14 +1,31 @@
 <script lang="ts">
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { onDestroy, onMount } from 'svelte';
+  import { iconAsset } from '$lib/assets';
   import {
     getCurrentCalendarEventIcons,
     getCurrentCalendarEventLabel,
     getOpenCount,
     getOpenStatusKind
   } from '$lib/components/dashboard/helpers';
-  import type { ArgeosStatusKind } from '$lib/components/dashboard/types';
+  import { getCurrentAvailabilityStatus, getTimeUntilAvailable } from '$lib/utils/availability';
+  import { activeFilterCharId, activeRosterId } from '$lib/store';
+  import { updateTodoRosterEventStatus } from '$lib/services/todo';
+  import type {
+    ArgeosStatusKind,
+    DashboardDailyDetail,
+    DashboardFocusEntry,
+    DashboardRaidDetail,
+    DashboardRosterEventDetail,
+    DashboardWeeklyTaskDetail
+  } from '$lib/components/dashboard/types';
+
+  type PopoverKind = 'raids' | 'dailies' | 'weeklies' | 'calendar' | 'argeos' | 'gold-earners';
 
   export let totalRaidsCompleted = 0;
   export let totalRaidsPossible = 0;
+  export let totalAdditionalRaidsCompleted = 0;
+  export let totalAdditionalRaidsPossible = 0;
   export let totalDailiesCompleted = 0;
   export let totalDailiesPossible = 0;
   export let totalDailiesTracked = 0;
@@ -18,48 +35,176 @@
   export let totalCalendarEventsPossible = 0;
   export let totalArgeosTracked = 0;
   export let totalArgeosAvailableToday = 0;
+  export let totalArgeosDoneToday = 0;
+  export let totalArgeosFullyDone = 0;
   export let goldEarnerCount = 0;
   export let visibleCharacterCount = 0;
   export let argeosStatusKind: ArgeosStatusKind = 'empty';
+  export let raidDetails: DashboardRaidDetail[] = [];
+  export let additionalRaidDetails: DashboardRaidDetail[] = [];
+  export let dailyDetails: DashboardDailyDetail[] = [];
+  export let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
+  export let calendarEventDetails: DashboardRosterEventDetail[] = [];
+  export let argeosDetails: DashboardRosterEventDetail[] = [];
+
+  let activePopover: PopoverKind | null = null;
+  let goldEarnerArmed = false;
+  const statIcons = {
+    raid: iconAsset('kazeros-raid.webp'),
+    daily: iconAsset('icons8-last-24-hours-80.png'),
+    weekly: iconAsset('calendar_7743808.png'),
+    argeos: iconAsset('event_quest.webp'),
+    gold: iconAsset('gold.png'),
+    gate: iconAsset('chaos_gate.png'),
+    boss: iconAsset('boss.png')
+  };
+
+  $: calendarAvailability = getCurrentAvailabilityStatus();
+  $: currentCalendarEventIcons = calendarAvailability.gate || calendarAvailability.boss
+    ? getCurrentCalendarEventIcons()
+    : [statIcons.gate, statIcons.boss];
+  $: currentCalendarEventLabel = calendarAvailability.gate || calendarAvailability.boss
+    ? getCurrentCalendarEventLabel()
+    : 'Chaos Gate | Field Boss';
+  $: resolvedArgeosStatusKind =
+    totalArgeosTracked > 0 && totalArgeosFullyDone >= totalArgeosTracked
+      ? 'done'
+      : totalArgeosAvailableToday > 0
+        ? 'open'
+        : totalArgeosDoneToday > 0
+          ? 'today'
+          : argeosStatusKind;
 
   $: showStats =
     totalRaidsPossible > 0 ||
+    totalAdditionalRaidsPossible > 0 ||
     totalDailiesTracked > 0 ||
     totalWeekliesPossible > 0 ||
     totalArgeosTracked > 0 ||
     goldEarnerCount > 0 ||
     visibleCharacterCount > 0;
+
+  onMount(() => {
+    document.addEventListener('click', handleOutsideClick);
+  });
+
+  onDestroy(() => {
+    document.removeEventListener('click', handleOutsideClick);
+  });
+
+  function handleOutsideClick(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.stat-card')) return;
+    activePopover = null;
+    goldEarnerArmed = false;
+  }
+
+  function togglePopover(kind: PopoverKind, event: MouseEvent | KeyboardEvent) {
+    event.stopPropagation();
+    if (kind === 'gold-earners' && activePopover === 'gold-earners' && goldEarnerArmed) {
+      hideToTray();
+      activePopover = null;
+      goldEarnerArmed = false;
+      return;
+    }
+
+    activePopover = activePopover === kind ? null : kind;
+    goldEarnerArmed = kind === 'gold-earners' && activePopover === 'gold-earners';
+  }
+
+  function handleCardKeydown(kind: PopoverKind, event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      togglePopover(kind, event);
+    }
+  }
+
+  async function hideToTray() {
+    try {
+      await getCurrentWindow().hide();
+    } catch (error) {
+      console.warn('Failed to hide LOA Tracker to tray:', error);
+    }
+  }
+
+  function focusCharacter(entry: DashboardFocusEntry, event?: MouseEvent) {
+    event?.stopPropagation();
+    activeRosterId.set(entry.rosterId);
+    activeFilterCharId.set(entry.charId);
+    activePopover = null;
+    const target = document.querySelector(`[data-dashboard-character-id="${entry.charId}"]`) as HTMLElement | null;
+    const rosterTarget = document.querySelector(`[data-dashboard-roster-id="${entry.rosterId}"]`) as HTMLElement | null;
+    const highlightTarget = target || rosterTarget;
+    highlightTarget?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    if (target) {
+      target.classList.add('dashboard-focus-highlight');
+      window.setTimeout(() => target.classList.remove('dashboard-focus-highlight'), 2600);
+    }
+  }
+
+  async function markRosterEvent(detail: DashboardRosterEventDetail, event: MouseEvent) {
+    event.stopPropagation();
+    await updateTodoRosterEventStatus(detail.rosterId, detail.taskId, true);
+    window.dispatchEvent(new CustomEvent('roster-event-progress-updated'));
+    activePopover = null;
+  }
+
+  function openRaidEntries() {
+    return [...raidDetails, ...additionalRaidDetails].filter((detail) => !detail.completed);
+  }
+
+  function formatOpenDailyTasks(tasks: string[]) {
+    return tasks.map((task) => task === 'chaos' ? 'Chaos' : task === 'guardian' ? 'Guardian' : task).join(' + ');
+  }
 </script>
 
 {#if showStats}
   <div class="header-stats">
-    {#if totalRaidsPossible > 0}
-      <div class="stat-card">
+    {#if totalRaidsPossible > 0 || totalAdditionalRaidsPossible > 0}
+      {@const displayedRaidCompleted = totalRaidsPossible > 0 ? totalRaidsCompleted : totalAdditionalRaidsCompleted}
+      {@const displayedRaidPossible = totalRaidsPossible > 0 ? totalRaidsPossible : totalAdditionalRaidsPossible}
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('raids', event)} on:keydown={(event) => handleCardKeydown('raids', event)}>
         <div class="stat-card-main">
-          <div class="stat-icon">
-            <img src="/images/kazeros-raid.webp" alt="Raids" />
-          </div>
+          <div class="stat-icon"><img src={statIcons.raid} alt="Raids" /></div>
           <div class="stat-content">
-            <div class="stat-status" class:done={getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}>
-              {#if getOpenStatusKind(totalRaidsCompleted, totalRaidsPossible) === 'done'}
+            <div class="stat-status" class:done={getOpenStatusKind(displayedRaidCompleted, displayedRaidPossible) === 'done'}>
+              {#if getOpenStatusKind(displayedRaidCompleted, displayedRaidPossible) === 'done'}
                 <span class="stat-status-text">All done</span>
               {:else}
-                <span class="stat-open-count">{getOpenCount(totalRaidsCompleted, totalRaidsPossible)}</span>
+                <span class="stat-open-count">{getOpenCount(displayedRaidCompleted, displayedRaidPossible)}</span>
                 <span class="stat-open-label">open</span>
               {/if}
             </div>
           </div>
         </div>
         <div class="stat-label">Raids</div>
+        {#if activePopover === 'raids'}
+          <div class="stat-popover">
+            <strong>You cleared {totalRaidsCompleted} out of {totalRaidsPossible} gold raids.</strong>
+            {#if totalAdditionalRaidsPossible > 0}
+              <p>+ an additional {totalAdditionalRaidsCompleted} out of {totalAdditionalRaidsPossible} raids.</p>
+            {/if}
+            {#if openRaidEntries().length > 0}
+              <div class="popover-list">
+                {#each openRaidEntries().slice(0, 8) as entry}
+                  <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
+                    <span>{entry.charName}</span>
+                    <small>{entry.rosterName}</small>
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <p>No open raid focus needed.</p>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
 
     {#if totalDailiesTracked > 0}
-      <div class="stat-card">
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('dailies', event)} on:keydown={(event) => handleCardKeydown('dailies', event)}>
         <div class="stat-card-main">
-          <div class="stat-icon">
-            <img src="/images/icons8-last-24-hours-80.png" alt="Dailies" />
-          </div>
+          <div class="stat-icon"><img src={statIcons.daily} alt="Dailies" /></div>
           <div class="stat-content">
             <div
               class="stat-status"
@@ -78,15 +223,29 @@
           </div>
         </div>
         <div class="stat-label">Dailies</div>
+        {#if activePopover === 'dailies'}
+          <div class="stat-popover">
+            <strong>You cleared {totalDailiesCompleted} out of {totalDailiesPossible} available dailies.</strong>
+            <p>Resting lazy dailies are treated as not available today.</p>
+            {#if dailyDetails.length > 0}
+              <div class="popover-list">
+                {#each dailyDetails.slice(0, 8) as entry}
+                  <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
+                    <span>{entry.charName}</span>
+                    <small>{formatOpenDailyTasks(entry.openTasks)}</small>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
 
     {#if totalWeekliesPossible > 0}
-      <div class="stat-card">
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('weeklies', event)} on:keydown={(event) => handleCardKeydown('weeklies', event)}>
         <div class="stat-card-main">
-          <div class="stat-icon">
-            <img src="images/calendar_7743808.png" alt="Weeklies" />
-          </div>
+          <div class="stat-icon"><img src={statIcons.weekly} alt="Weeklies" /></div>
           <div class="stat-content">
             <div class="stat-status" class:done={getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}>
               {#if getOpenStatusKind(totalWeekliesCompleted, totalWeekliesPossible) === 'done'}
@@ -99,13 +258,37 @@
           </div>
         </div>
         <div class="stat-label">Weeklies</div>
+        {#if activePopover === 'weeklies'}
+          <div class="stat-popover">
+            <strong>You cleared {totalWeekliesCompleted} out of {totalWeekliesPossible} tracked weeklies.</strong>
+            <div class="task-summary">
+              {#each weeklyTaskDetails as task}
+                <div class="task-summary-row">
+                  <img src={task.icon} alt={task.name} />
+                  <span>{task.completed}/{task.total}</span>
+                  <small>{task.name}</small>
+                </div>
+              {/each}
+            </div>
+            {#each weeklyTaskDetails.filter((task) => task.openCharacters.length > 0) as task}
+              <div class="popover-list">
+                {#each task.openCharacters.slice(0, 4) as entry}
+                  <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
+                    <span>{entry.charName}</span>
+                    <small>{task.name}</small>
+                  </button>
+                {/each}
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {/if}
 
-    <div class="stat-card calendar-event-card">
+    <div class="stat-card calendar-event-card" role="button" tabindex="0" on:click={(event) => togglePopover('calendar', event)} on:keydown={(event) => handleCardKeydown('calendar', event)}>
       <div class="stat-card-main">
         <div class="stat-icon event-icon-stack">
-          {#each getCurrentCalendarEventIcons() as icon, iconIndex}
+          {#each currentCalendarEventIcons as icon, iconIndex}
             <img src={icon} alt="Calendar Event" style={`--event-icon-index: ${iconIndex}`} />
           {/each}
         </div>
@@ -116,7 +299,7 @@
             class:empty={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
           >
             {#if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
-              <span class="stat-status-text">No event</span>
+              <span class="stat-status-text">Not today</span>
             {:else if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
               <span class="stat-status-text">All done</span>
             {:else}
@@ -126,26 +309,57 @@
           </div>
         </div>
       </div>
-      <div class="stat-label event-name">{getCurrentCalendarEventLabel()}</div>
+      <div class="stat-label event-name">{currentCalendarEventLabel}</div>
+      {#if activePopover === 'calendar'}
+        <div class="stat-popover">
+          {#if totalCalendarEventsPossible <= 0}
+            <strong>Not today.</strong>
+            <div class="popover-list">
+              <div class="popover-row static-row calendar-event-row">
+                <img src={statIcons.gate} alt="Chaos Gate" class="popover-task-icon" />
+                <span>Chaos Gate</span>
+                <small>{getTimeUntilAvailable('gate') || 'available now'}</small>
+              </div>
+              <div class="popover-row static-row calendar-event-row">
+                <img src={statIcons.boss} alt="Field Boss" class="popover-task-icon" />
+                <span>Field Boss</span>
+                <small>{getTimeUntilAvailable('boss') || 'available now'}</small>
+              </div>
+            </div>
+          {:else}
+            <strong>You cleared {totalCalendarEventsCompleted} out of {totalCalendarEventsPossible} calendar events.</strong>
+            <div class="popover-list">
+              {#each calendarEventDetails as eventDetail}
+                <div class="popover-row static-row calendar-event-row">
+                  <img src={eventDetail.icon} alt={eventDetail.name} class="popover-task-icon" />
+                  <span>{eventDetail.rosterName}</span>
+                  <button
+                    type="button"
+                    class="mini-action"
+                    disabled={eventDetail.completedToday || !eventDetail.available}
+                    on:click={(event) => markRosterEvent(eventDetail, event)}
+                  >
+                    {eventDetail.completedToday ? 'Completed' : eventDetail.available ? 'Available' : 'Not today'}
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     {#if totalArgeosTracked > 0}
-      <div class="stat-card">
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('argeos', event)} on:keydown={(event) => handleCardKeydown('argeos', event)}>
         <div class="stat-card-main">
-          <div class="stat-icon">
-            <img src="/images/event_quest.webp" alt="Stoopid Argeos" />
-          </div>
+          <div class="stat-icon"><img src={statIcons.argeos} alt="Stoopid Argeos" /></div>
           <div class="stat-content">
-            <div
-              class="stat-status"
-              class:done={argeosStatusKind === 'done'}
-              class:idle={argeosStatusKind === 'today'}
-            >
-              {#if argeosStatusKind === 'done'}
-                <span class="stat-status-text">Fully done</span>
-              {:else if argeosStatusKind === 'today'}
+            <div class="stat-status" class:done={resolvedArgeosStatusKind === 'done'} class:idle={resolvedArgeosStatusKind === 'today'}>
+              {#if resolvedArgeosStatusKind === 'done'}
+                <span class="stat-status-text">All done</span>
+              {:else if resolvedArgeosStatusKind === 'today'}
                 <span class="stat-status-text">Done today</span>
-              {:else if argeosStatusKind === 'open'}
+              {:else if resolvedArgeosStatusKind === 'open'}
                 <span class="stat-open-count">{totalArgeosAvailableToday}</span>
                 <span class="stat-open-label">open</span>
               {:else}
@@ -155,20 +369,43 @@
           </div>
         </div>
         <div class="stat-label event-name">Stoopid Argeos</div>
+        {#if activePopover === 'argeos'}
+          <div class="stat-popover">
+            <strong>{totalArgeosFullyDone} out of {totalArgeosTracked} rosters fully done.</strong>
+            <div class="popover-list">
+              {#each argeosDetails as detail}
+                <div class="popover-row static-row roster-event-row">
+                  <img src={detail.icon} alt={detail.name} class="popover-task-icon" />
+                  <span>{detail.rosterName}</span>
+                  <small>{detail.completedThisWeek}/{detail.weeklyLimit}</small>
+                  <button
+                    type="button"
+                    class="mini-action"
+                    disabled={detail.completedToday || !detail.available}
+                    on:click={(event) => markRosterEvent(detail, event)}
+                  >
+                    {detail.completedToday ? 'Completed' : detail.available ? 'Available' : 'Not today'}
+                  </button>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
 
     {#if goldEarnerCount > 0}
-      <div class="stat-card">
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
         <div class="stat-card-main">
-          <div class="stat-icon">
-            <img src="/images/gold.png" alt="Gold Earners" />
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{goldEarnerCount}</div>
-          </div>
+          <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
+          <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
         </div>
         <div class="stat-label">Gold Earners</div>
+        {#if activePopover === 'gold-earners'}
+          <div class="stat-popover">
+            <strong>if you click me again LOA Tracker will uninstall itself</strong>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -199,6 +436,14 @@
     align-items: center;
     justify-content: center;
     gap: 0.14rem;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .stat-card:hover,
+  .stat-card:focus-visible {
+    border-color: var(--app-dashboard-accent-border);
+    box-shadow: var(--app-shadow-sm);
   }
 
   .stat-card-main {
@@ -328,5 +573,140 @@
 
   .stat-label.event-name {
     font-size: 0.54rem;
+  }
+
+  .stat-popover {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 0.35rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(19rem, 82vw);
+    max-height: 22rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    cursor: default;
+    text-align: left;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 8px;
+    padding: 0.7rem;
+    box-shadow: var(--app-shadow-md);
+  }
+
+  .stat-popover strong {
+    display: block;
+    font-size: 0.78rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .stat-popover p {
+    margin: 0.25rem 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.72rem;
+  }
+
+  .popover-list {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: 0.45rem;
+  }
+
+  .popover-row {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 6px;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+    padding: 0.36rem 0.4rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.28rem;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .popover-row:hover {
+    border-color: var(--app-dashboard-accent-border);
+    background: var(--app-dashboard-accent-soft);
+  }
+
+  .popover-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.76rem;
+  }
+
+  .popover-row small {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.66rem;
+  }
+
+  .static-row {
+    cursor: default;
+  }
+
+  .calendar-event-row {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+  }
+
+  .roster-event-row {
+    grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  }
+
+  .popover-task-icon {
+    width: 15px;
+    height: 15px;
+    object-fit: contain;
+  }
+
+  .task-summary {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .task-summary-row {
+    display: grid;
+    grid-template-columns: 18px auto minmax(0, 1fr);
+    gap: 0.4rem;
+    align-items: center;
+    font-size: 0.72rem;
+  }
+
+  .task-summary-row img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+  }
+
+  .task-summary-row small {
+    color: var(--md-sys-color-on-surface-variant);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mini-action {
+    box-sizing: border-box;
+    border: 1px solid var(--app-dashboard-accent-border);
+    border-radius: 5px;
+    background: var(--app-dashboard-accent-soft);
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.65rem;
+    padding: 0.2rem 0.34rem;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .mini-action:disabled {
+    cursor: default;
+    opacity: 0.72;
+    color: var(--md-sys-color-on-surface-variant);
   }
 </style>

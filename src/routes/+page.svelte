@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { classAsset } from '$lib/assets';
   import Sidebar from '$lib/components/app/Sidebar.svelte';
   import SetupGuide from '$lib/components/app/SetupGuide.svelte';
   import AppAuthScreen from '$lib/components/app/AppAuthScreen.svelte';
@@ -713,7 +714,7 @@
         <ul>
           {#each haalsHourglassReminderCharacters as character}
             <li>
-              <img src={`/images/classes/${character.iconId}.png`} alt="" />
+              <img src={classAsset(character.iconId)} alt="" />
               <div class="haals-character-main">
                 <strong>{character.name}</strong>
                 <span>{character.className}</span>

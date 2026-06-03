@@ -518,6 +518,42 @@ impl CharacterRepository {
         Ok(map)
     }
 
+    /// Loads one roster-level tracking summary from `conf_tracking`.
+    ///
+    /// Roster-wide rows such as temporary event tasks are expanded across
+    /// characters for matrix editing, but dashboard labels need a single
+    /// roster answer: tracked when any active character row has it enabled.
+    pub fn get_roster_tracking_status(&self, roster_id: &str) -> Result<Vec<TrackingStatus>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT MIN(ct.char_id) AS char_id,
+                    ct.content_id,
+                    MAX(ct.is_tracked) AS is_tracked,
+                    MAX(COALESCE(ct.lazy_daily, 0)) AS lazy_daily
+             FROM conf_tracking ct
+             INNER JOIN conf_character c ON c.char_id = ct.char_id
+             WHERE ct.roster_id = ?1
+               AND c.roster_id = ?1
+               AND COALESCE(c.removed_from_roster, 0) = 0
+             GROUP BY ct.content_id",
+        )?;
+
+        let rows = stmt.query_map([roster_id], |row| {
+            Ok(TrackingStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_tracked: row.get(2)?,
+                lazy_daily: row.get(3)?,
+            })
+        })?;
+
+        let mut tracking = Vec::new();
+        for row in rows {
+            tracking.push(row?);
+        }
+        Ok(tracking)
+    }
+
     /// Load raid configs for all given characters in a single query.
     pub fn get_batch_raid_configs(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<CharacterRaidConfig>>> {
         if char_ids.is_empty() {

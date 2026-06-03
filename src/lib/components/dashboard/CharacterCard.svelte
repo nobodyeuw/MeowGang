@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { iconAsset } from '$lib/assets';
   import type { Character } from '$lib/store';
   import { getGameClassInfo } from '$lib/data';
   import { activeFilterCharId, activeRosterId } from '$lib/store';
@@ -33,6 +34,9 @@
   export let raidConfigs: CharacterCardRaidConfig[] = [];
   export let trackingStatus: CharacterCardTrackingEntry[] = [];
   export let showStaticBadges = true;
+
+  const goldIcon = iconAsset('gold.png');
+  const raidIcon = iconAsset('kazeros-raid.webp');
 
   // Reactive values
   $: classInfo = getGameClassInfo(character.class_id);
@@ -143,6 +147,7 @@
      class:daily-only-minimal={isDailyOnlyMinimalCard}
      class:gold-earner={character.earns_gold}
      class:non-gold-earner={!character.earns_gold}
+     data-dashboard-character-id={character.char_id}
      aria-label={`Select character ${character.char_name}`}>
 
   {#if viewMode === 'compact'}
@@ -281,7 +286,7 @@
               on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
-                <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
+                <img src={raidIcon} alt="Raid" class="raid-icon">
                 <span class="raid-name compact-raid-name">
                   <span>{getRaidName(raid.content_id, raid.difficulty)}</span>
                   <span class="compact-raid-difficulty">{normalizeDifficulty(raid.difficulty)}</span>
@@ -296,7 +301,7 @@
                   </span>
                 {/if}
                 {#if raid.isGoldRaid}
-                  <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                  <img src={goldIcon} alt="Gold" class="gold-icon">
                 {/if}
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
@@ -440,7 +445,7 @@
               on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
-                <img src="/images/kazeros-raid.webp" alt="Raid" class="raid-icon">
+                <img src={raidIcon} alt="Raid" class="raid-icon">
                 <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
                 {#if raid.gateProgress.total > 0}
                   <span
@@ -452,7 +457,7 @@
                   </span>
                 {/if}
                 {#if raid.isGoldRaid}
-                  <img src="/images/gold.png" alt="Gold" class="gold-icon">
+                  <img src={goldIcon} alt="Gold" class="gold-icon">
                 {/if}
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
@@ -500,14 +505,21 @@
     flex-direction: column;
   }
 
+  .character-card:global(.dashboard-focus-highlight) {
+    outline: 2px solid var(--app-color-guide-highlight, #00e5ff);
+    box-shadow:
+      var(--app-shadow-highlight),
+      0 0 0 4px color-mix(in srgb, var(--app-color-guide-highlight, #00e5ff) 20%, transparent) !important;
+  }
+
   .character-card.gold-earner {
-    border-color: var(--app-color-gold);
-    box-shadow: 0 4px 20px color-mix(in srgb, var(--app-color-gold) 20%, transparent);
+    border-color: var(--app-dashboard-card-gold-border);
+    box-shadow: var(--app-dashboard-card-gold-shadow);
   }
 
   .character-card.non-gold-earner {
-    border-color: color-mix(in srgb, var(--app-color-tracked) 45%, transparent);
-    box-shadow: 0 4px 18px color-mix(in srgb, var(--app-color-tracked) 12%, transparent);
+    border-color: var(--app-dashboard-card-tracked-border);
+    box-shadow: var(--app-dashboard-card-tracked-shadow);
   }
 
   .character-card.compact {

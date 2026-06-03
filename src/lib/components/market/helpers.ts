@@ -1,3 +1,4 @@
+import { marketAsset } from '$lib/assets';
 import type { HistoricalPriceEntry, HoningFilter, MarketCategory, MarketItem, MarketSortKey } from './types';
 
 const HONING_T3_SLUGS = new Set<string>([
@@ -82,7 +83,7 @@ const PNG_ONLY_MARKET_ICON_BASES = new Set<string>([
   'artisans_tailoring_level_4'
 ]);
 
-const MARKET_ICON_FALLBACK = '/images/market_icons/fallback_gem.png';
+const MARKET_ICON_FALLBACK = marketAsset('gem/fallback_gem.png');
 
 export function doesHoningTierMatchFilter(slug: string, filter: HoningFilter) {
   if (filter === 'all') return true;
@@ -161,18 +162,18 @@ export function buildMarketIconUrl(itemSlug: string, category: MarketCategory): 
     const match = itemSlug.match(/^gem-(t[34])-(damage|cooldown)-lv(\d+)$/);
     if (match) {
       const [, tier, type, level] = match;
-      return `/images/market_icons/${tier}_${type}_gem_${level}.png`;
+      return marketAsset(`${tier}_${type}_gem_${level}.png`);
     }
   }
 
   if (category === 'engraving') {
-    return '/images/market_icons/relic_book.webp';
+    return marketAsset('engraving/relic_book.webp');
   }
 
   if (category === 'honing' || category === 'additional_honing') {
     const base = slugToMarketIconBase(itemSlug);
     const extension = PNG_ONLY_MARKET_ICON_BASES.has(base) ? 'png' : 'webp';
-    return `/images/market_icons/${base}.${extension}`;
+    return marketAsset(`honing/${base}.${extension}`);
   }
 
   return MARKET_ICON_FALLBACK;

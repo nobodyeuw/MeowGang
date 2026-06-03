@@ -69,7 +69,7 @@
 
   .task-name-cell {
     padding: 0.75rem;
-    border-bottom: 2px solid var(--app-color-accent-divider);
+    border-bottom: 2px solid var(--app-todo-accent-divider);
   }
 
   .task-info {
@@ -90,7 +90,7 @@
   .toggle-cell {
     padding: 0.5rem;
     text-align: center;
-    border-bottom: 2px solid var(--app-color-accent-divider);
+    border-bottom: 2px solid var(--app-todo-accent-divider);
   }
 
   .ilvl-warning {
@@ -105,8 +105,8 @@
   }
 
   .gate-toggle:disabled .gate-button {
-    background: var(--md-sys-color-surface-variant);
-    border-color: var(--md-sys-color-outline);
+    background: var(--app-todo-gate-disabled-inner, var(--md-sys-color-surface-variant));
+    border-color: var(--app-todo-gate-disabled-border, var(--md-sys-color-outline));
   }
 
   .untracked-task {
@@ -133,34 +133,40 @@
   }
 
   .gate-toggle:hover {
-    background: var(--md-sys-color-surface-container-highest);
+    background: var(--app-todo-gate-hover-shell, var(--md-sys-color-surface-container-highest));
   }
 
   .gate-toggle.completed {
-    background: var(--md-sys-color-surface-container);
+    background: var(--app-todo-gate-completed-shell, var(--md-sys-color-surface-container));
   }
 
   .gate-button {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: var(--md-sys-color-surface);
-    border: 2px solid var(--md-sys-color-outline);
+    background: var(--app-todo-gate-inner, var(--md-sys-color-surface));
+    border: 2px solid var(--app-todo-gate-border, var(--md-sys-color-outline));
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
+    box-shadow: var(--app-todo-gate-shadow, none);
   }
 
   .gate-toggle:hover .gate-button {
-    border-color: var(--md-sys-color-primary);
+    background: var(--app-todo-gate-hover-inner, var(--app-todo-gate-inner, var(--md-sys-color-surface)));
+    border-color: var(--app-todo-gate-hover-border, var(--md-sys-color-primary));
+    box-shadow: var(--app-todo-gate-hover-shadow, var(--app-todo-gate-shadow, none));
     transform: scale(1.1);
   }
 
   .gate-toggle.completed .gate-button {
-    background: var(--md-sys-color-primary);
-    border-color: var(--md-sys-color-primary);
-    box-shadow: 0 1px 4px color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+    background: var(--app-todo-gate-completed-inner, var(--md-sys-color-primary));
+    border-color: var(--app-todo-gate-completed-border, var(--md-sys-color-primary));
+    box-shadow: var(
+      --app-todo-gate-completed-shadow,
+      0 1px 4px color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent)
+    );
   }
 
   .gate-number {
@@ -170,6 +176,6 @@
   }
 
   .gate-toggle.completed .gate-number {
-    color: var(--md-sys-color-on-primary);
+    color: var(--app-todo-gate-completed-text, var(--md-sys-color-on-primary));
   }
 </style>

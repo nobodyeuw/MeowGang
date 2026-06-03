@@ -1,6 +1,7 @@
 <script lang="ts">
   import { flip } from 'svelte/animate';
   import { dndzone } from 'svelte-dnd-action';
+  import { appAsset, classAsset, iconAsset } from '$lib/assets';
   import type { Character } from '$lib/store';
   import { getClassIcon, getClassName } from './helpers';
 
@@ -14,6 +15,10 @@
   export let onToggleHideFromDashboard: (char: Character) => void;
   export let onToggleMeowConnect: (char: Character) => void;
   export let onRequestSoftRemove: (char: Character) => void;
+
+  const visibleIcon = iconAsset('visble.png');
+  const invisibleIcon = iconAsset('invisble.png');
+  const meowConnectIcon = appAsset('meowconnect_tab.png');
 </script>
 
 <div class="character-section">
@@ -46,7 +51,7 @@
         </div>
 
         <div class="char-info">
-          <img src="/images/classes/{getClassIcon(char.class_id)}.png" alt="" class="class-icon" />
+          <img src={classAsset(getClassIcon(char.class_id))} alt="" class="class-icon" />
           <div class="name-box">
             <span class="char-name">{char.char_name}</span>
             <span class="class-name">{getClassName(char.class_id)}</span>
@@ -75,7 +80,7 @@
           >
             <img
               class="visibility-icon"
-              src={char.hide_from_dashboard ? '/images/invisble.png' : '/images/visble.png'}
+              src={char.hide_from_dashboard ? invisibleIcon : visibleIcon}
               alt=""
             />
             <span>{char.hide_from_dashboard ? 'HIDDEN' : 'VISIBLE'}</span>
@@ -87,7 +92,7 @@
             on:click|stopPropagation={() => onToggleMeowConnect(char)}
             title={char.meow_connect_enabled ? 'Connected to MeowConnect shared availability' : 'Not connected to MeowConnect shared availability'}
           >
-            <img class="connect-icon" src="/images/meowconnect_tab.png" alt="" />
+            <img class="connect-icon" src={meowConnectIcon} alt="" />
             <span>{char.meow_connect_enabled ? 'CONNECTED' : 'OFF'}</span>
           </button>
           <button

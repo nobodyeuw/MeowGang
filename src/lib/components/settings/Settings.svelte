@@ -49,6 +49,12 @@
 
 <style>
   .settings-container {
+    --app-control-accent: var(--app-settings-accent);
+    --app-control-on-accent: var(--md-sys-color-on-primary);
+    --app-control-accent-container: var(--app-settings-accent-soft);
+    --app-control-hover-border: var(--app-settings-accent);
+    --app-matrix-ilvl-color: var(--app-settings-matrix-ilvl-color);
+    --app-matrix-cp-color: var(--app-settings-matrix-cp-color);
     height: 100%;
     display: flex;
     flex-direction: column;

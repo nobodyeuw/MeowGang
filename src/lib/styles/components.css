@@ -26,7 +26,7 @@
 
 .ui-button:hover:not(:disabled) {
   background: var(--md-sys-color-surface-variant);
-  border-color: var(--md-sys-color-primary);
+  border-color: var(--app-control-hover-border);
 }
 
 .ui-button:disabled {
@@ -35,9 +35,9 @@
 }
 
 .ui-button.primary {
-  background: var(--md-sys-color-primary);
-  border-color: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  background: var(--app-control-accent);
+  border-color: var(--app-control-accent);
+  color: var(--app-control-on-accent);
 }
 
 .ui-button.danger {
@@ -88,9 +88,9 @@
 }
 
 .ui-badge.primary {
-  border-color: color-mix(in srgb, var(--md-sys-color-primary) 55%, var(--md-sys-color-outline));
-  background: color-mix(in srgb, var(--md-sys-color-primary) 16%, var(--md-sys-color-surface));
-  color: var(--md-sys-color-primary);
+  border-color: color-mix(in srgb, var(--app-control-accent) 55%, var(--md-sys-color-outline));
+  background: color-mix(in srgb, var(--app-control-accent) 16%, var(--md-sys-color-surface));
+  color: var(--app-control-accent);
 }
 
 .ui-segmented {
@@ -126,9 +126,9 @@
 }
 
 .ui-segmented-button.active {
-  border-color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  border-color: var(--app-control-accent);
+  background: var(--app-control-accent);
+  color: var(--app-control-on-accent);
 }
 
 .ui-segmented.compact {
@@ -169,14 +169,14 @@
 
 .ui-toggle-button:hover:not(:disabled) {
   background: var(--md-sys-color-surface-container-highest);
-  border-color: var(--md-sys-color-primary);
+  border-color: var(--app-control-hover-border);
   color: var(--md-sys-color-on-surface);
 }
 
 .ui-toggle-button.active {
-  border-color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  border-color: var(--app-control-accent);
+  background: var(--app-control-accent);
+  color: var(--app-control-on-accent);
 }
 
 .ui-toggle-button.compact {
@@ -206,7 +206,7 @@
 .ui-inline-checkbox input {
   width: 14px;
   height: 14px;
-  accent-color: var(--md-sys-color-primary);
+  accent-color: var(--app-control-accent);
   cursor: pointer;
 }
 
@@ -251,13 +251,13 @@
 }
 
 .ui-switch.active {
-  border-color: var(--md-sys-color-primary);
-  background: color-mix(in srgb, var(--md-sys-color-primary) 36%, var(--md-sys-color-surface-variant));
+  border-color: var(--app-control-accent);
+  background: color-mix(in srgb, var(--app-control-accent) 36%, var(--md-sys-color-surface-variant));
 }
 
 .ui-switch.active::after {
   transform: translateX(1.05rem);
-  background: var(--md-sys-color-on-primary);
+  background: var(--app-control-on-accent);
 }
 
 .ui-empty-state,
@@ -400,8 +400,8 @@
 }
 
 .setting-card:hover {
-  border-color: var(--md-sys-color-primary);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  border-color: var(--app-settings-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--app-settings-accent) 20%, transparent);
 }
 
 .setting-header {
@@ -448,8 +448,8 @@
 
 .setting-icon.executable,
 .setting-icon.meowconnect-icon {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
-  color: var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--app-settings-accent) 20%, transparent);
+  color: var(--app-settings-accent);
 }
 
 .setting-icon.danger {
@@ -580,12 +580,12 @@
 .settings-matrix-checkbox {
   width: 16px;
   height: 16px;
-  accent-color: var(--md-sys-color-primary);
+  accent-color: var(--app-settings-accent);
   cursor: pointer;
 }
 
 .settings-matrix-checkbox.accent-secondary {
-  accent-color: var(--md-sys-color-secondary);
+  accent-color: var(--app-settings-accent-secondary);
 }
 
 .settings-matrix-meta-pill {
@@ -626,7 +626,7 @@
 .settings-matrix-option-toggle input[type='checkbox'] {
   width: 14px;
   height: 14px;
-  accent-color: var(--md-sys-color-primary);
+  accent-color: var(--app-settings-accent);
   cursor: pointer;
 }
 
@@ -657,12 +657,12 @@
 }
 
 .matrix-character-ilvl {
-  color: var(--md-sys-color-tertiary);
+  color: var(--app-matrix-ilvl-color, var(--app-settings-matrix-ilvl-color, var(--md-sys-color-tertiary)));
 }
 
 .matrix-character-cp,
 .matrix-character-stat-label.cp-label {
-  color: var(--md-sys-color-secondary);
+  color: var(--app-matrix-cp-color, var(--app-settings-matrix-cp-color, var(--md-sys-color-secondary)));
 }
 
 .settings-list-card {
@@ -682,7 +682,7 @@
 }
 
 .settings-list-card.interactive:hover {
-  border-color: var(--md-sys-color-primary);
+  border-color: var(--app-settings-accent);
   box-shadow: var(--app-shadow-md);
   transform: translateY(-1px);
 }

@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { classAsset } from '$lib/assets';
   import { getGameClassIconId } from '$lib/data/classes';
   import type {
     MeowConnectCharacterSnapshot,
@@ -183,7 +184,7 @@
               {#each getLogParticipantCharacters(entry) as character (character.key)}
                 <span class="log-character-token">
                   {#if character.classId}
-                    <img src={`/images/classes/${getClassIcon(character.classId)}.png`} alt="" />
+                    <img src={classAsset(getClassIcon(character.classId))} alt="" />
                   {/if}
                   <span>{character.name}</span>
                 </span>

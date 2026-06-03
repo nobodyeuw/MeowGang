@@ -1,5 +1,5 @@
 use crate::database::repositories::TodoRepository;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
@@ -123,48 +123,64 @@ pub fn update_character_from_entity(todo_repo: &TodoRepository, entity: &EntityD
         .get()
         .map_err(|e| format!("Database connection failed: {}", e))?;
 
-    // Check if character exists
-    let char_exists: bool = conn
+    let current_stats: Option<(f64, f64)> = conn
         .query_row(
-            "SELECT COUNT(*) > 0 FROM conf_character WHERE char_name = ?1",
+            "SELECT COALESCE(item_level, 0), COALESCE(combat_power, 0)
+             FROM conf_character
+             WHERE char_name = ?1
+             LIMIT 1",
             [entity.name.clone()],
-            |row| row.get(0),
+            |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)),
         )
-        .map_err(|e| format!("Failed to check character existence: {}", e))?;
+        .optional()
+        .map_err(|e| format!("Failed to load current character stats: {}", e))?;
 
-    if !char_exists {
+    let Some((current_item_level, current_combat_power)) = current_stats else {
         return Ok(false); // Skip if character doesn't exist
-    }
+    };
 
     // Format gear_score to 2 decimal places
     let formatted_item_level = (entity.gear_score * 100.0).round() / 100.0;
 
-    // Only update combat_power if it's not NULL (0.0 in our struct means NULL from database)
-    let combat_power_update = if entity.combat_power > 0.0 {
-        Some(entity.combat_power)
+    let item_level_update = if formatted_item_level > current_item_level {
+        Some(formatted_item_level)
     } else {
-        None // Skip updating combat_power if it's NULL
+        None
     };
 
-    // Update character data with conditional combat_power update
-    let rows_affected = if let Some(cp) = combat_power_update {
-        conn.execute(
-            "UPDATE conf_character 
-                 SET item_level = ?1, combat_power = ?2 
-                 WHERE char_name = ?3",
-            params![formatted_item_level, cp, entity.name.clone()],
-        )
-        .map_err(|e| format!("Failed to update character: {}", e))?
+    // Only update combat_power when LOA Logs has a real value and it is newer/higher.
+    let combat_power_update = if entity.combat_power > current_combat_power {
+        Some(entity.combat_power)
     } else {
-        // Only update item_level if combat_power is NULL
-        conn.execute(
-            "UPDATE conf_character 
-                 SET item_level = ?1 
-                 WHERE char_name = ?2",
-            params![formatted_item_level, entity.name.clone()],
-        )
-        .map_err(|e| format!("Failed to update character: {}", e))?
+        None
     };
+
+    if item_level_update.is_none() && combat_power_update.is_none() {
+        return Ok(false);
+    }
+
+    let rows_affected = match (item_level_update, combat_power_update) {
+        (Some(ilvl), Some(cp)) => conn.execute(
+            "UPDATE conf_character
+             SET item_level = ?1, combat_power = ?2
+             WHERE char_name = ?3",
+            params![ilvl, cp, entity.name.clone()],
+        ),
+        (Some(ilvl), None) => conn.execute(
+            "UPDATE conf_character
+             SET item_level = ?1
+             WHERE char_name = ?2",
+            params![ilvl, entity.name.clone()],
+        ),
+        (None, Some(cp)) => conn.execute(
+            "UPDATE conf_character
+             SET combat_power = ?1
+             WHERE char_name = ?2",
+            params![cp, entity.name.clone()],
+        ),
+        (None, None) => Ok(0),
+    }
+    .map_err(|e| format!("Failed to update character: {}", e))?;
 
     Ok(rows_affected > 0)
 }

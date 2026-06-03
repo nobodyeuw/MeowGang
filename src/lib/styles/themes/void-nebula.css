@@ -1,100 +1,297 @@
 /*
-  Void Space: minimalist cosmic deep. Dark vacuum indigo layers with a
-  purple/pink nebula primary accent and cyan data highlights.
+  Void Space: onyx void base with purple nebula glow. The surface stack follows
+  Sidereal Gold's black/charcoal feel, while interaction accents stay purple.
 */
 :root[data-theme='void-nebula'] {
   color-scheme: dark;
 
   /* Nebula accent core */
-  --md-sys-color-primary: #d946ef;
-  --md-sys-color-on-primary: #1f0624;
-  --md-sys-color-primary-container: rgba(217, 70, 239, 0.1);
-  --md-sys-color-on-primary-container: #f9d5ff;
+  --md-sys-color-primary: #7c3aed;
+  /* Text/icon color rendered on top of the primary accent. */
+  --md-sys-color-on-primary: #f6efff;
+  /* Soft primary-accent container background for selected or elevated states. */
+  --md-sys-color-primary-container: rgba(124, 58, 237, 0.1);
+  /* Text/icon color used on primary-accent containers. */
+  --md-sys-color-on-primary-container: #eadcff;
 
-  /* Cyan stays as the clean data/support accent. */
-  --md-sys-color-secondary: #00b4d8;
-  --md-sys-color-on-secondary: #001d24;
-  --md-sys-color-secondary-container: rgba(0, 180, 216, 0.1);
-  --md-sys-color-on-secondary-container: #b3f0ff;
+  /* Muted void grays keep purple as the only loud signal. */
+  --md-sys-color-secondary: #6f6378;
+  /* Text/icon color rendered on top of the secondary accent. */
+  --md-sys-color-on-secondary: #ffffff;
+  /* Soft secondary-accent container background. */
+  --md-sys-color-secondary-container: #1b1e24;
+  /* Text/icon color used on secondary containers. */
+  --md-sys-color-on-secondary-container: #dce2ee;
 
-  --md-sys-color-tertiary: #7c3aed;
+  /* Tertiary support accent used for special states and secondary visual variety. */
+  --md-sys-color-tertiary: #4f3b5f;
+  /* Text/icon color rendered on top of the tertiary accent. */
   --md-sys-color-on-tertiary: #ffffff;
-  --md-sys-color-tertiary-container: rgba(124, 58, 237, 0.12);
+  /* Soft tertiary-accent container background. */
+  --md-sys-color-tertiary-container: rgba(124, 58, 237, 0.05);
+  /* Text/icon color used on tertiary containers. */
   --md-sys-color-on-tertiary-container: #eadcff;
 
-  /* Vacuum surfaces */
-  --md-sys-color-background: #070512;
+  /* Onyx void surfaces: black/gravel base borrowed from Sidereal's structure. */
+  --md-sys-color-background: #080808;
+  /* Default readable text color on the app background. */
   --md-sys-color-on-background: #f0f2f5;
-  --md-sys-color-surface: #0d0a1a;
+  /* Base panel and shell surface color. */
+  --md-sys-color-surface: #101010;
+  /* Default readable text color on base surfaces. */
   --md-sys-color-on-surface: #f0f2f5;
-  --md-sys-color-surface-variant: #171229;
-  --md-sys-color-on-surface-variant: #a9a0bc;
-  --md-sys-color-surface-container-low: #111026;
-  --md-sys-color-surface-container: #191330;
+  /* Alternate panel surface for sections, rows, and secondary blocks. */
+  --md-sys-color-surface-variant: #181818;
+  /* Secondary text color on alternate surfaces. */
+  --md-sys-color-on-surface-variant: #8e95a5;
+  /* Lowest nested container layer above the base surface. */
+  --md-sys-color-surface-container-low: #141414;
+  /* Standard card, matrix, and control container surface. */
+  --md-sys-color-surface-container: #1c1c1c;
+  /* Text color used on standard containers. */
   --md-sys-color-on-surface-container: #f0f2f5;
-  --md-sys-color-surface-container-high: #231943;
-  --md-sys-color-surface-container-highest: #2e2058;
+  /* Raised container layer for hover, focus, and nested panels. */
+  --md-sys-color-surface-container-high: #262626;
+  /* Highest container layer for strongest nested elevation. */
+  --md-sys-color-surface-container-highest: #303030;
 
-  --md-sys-color-outline: #33284f;
-  --md-sys-color-outline-variant: #4a3a72;
+  /* Primary border and divider color. */
+  --md-sys-color-outline: #2b2434;
+  /* Stronger border color for emphasized outlines. */
+  --md-sys-color-outline-variant: #47335c;
 
   /* Semantic flags */
   --md-sys-color-error: #ff5277;
+  /* Text/icon color rendered on error backgrounds. */
   --md-sys-color-on-error: #ffffff;
+  /* Soft error container background. */
   --md-sys-color-error-container: #5f1530;
+  /* Text/icon color used on error containers. */
   --md-sys-color-on-error-container: #ffe8ef;
+  /* Warning accent color. */
   --md-sys-color-warning: #ffd166;
+  /* Success accent color. */
   --md-sys-color-success: #00f5d4;
 
   /* Layout utilities and effects */
-  --app-color-overlay: rgba(7, 5, 18, 0.8);
-  --app-color-focus-ring: #d946ef;
-  --app-color-hover-surface: rgba(217, 70, 239, 0.06);
-  --app-color-selected-surface: rgba(217, 70, 239, 0.12);
-  --app-color-accent-row: rgba(217, 70, 239, 0.035);
-  --app-color-accent-divider: rgba(217, 70, 239, 0.12);
-  --app-color-accent-muted: rgba(217, 70, 239, 0.58);
-  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-variant));
-  --app-color-accent-glow-sm: 0 0 8px rgba(217, 70, 239, 0.34);
-  --app-color-accent-glow-md: 0 0 12px rgba(217, 70, 239, 0.32), 0 0 22px rgba(0, 180, 216, 0.18);
+  --app-color-overlay: rgba(8, 8, 8, 0.85);
+  /* Keyboard focus ring and high-attention outline color. */
+  --app-color-focus-ring: #9f6bff;
+  /* Shared hover background tint for controls and rows. */
+  --app-color-hover-surface: rgba(124, 58, 237, 0.06);
+  /* Shared selected/active background tint. */
+  --app-color-selected-surface: rgba(124, 58, 237, 0.11);
+  /* Very soft row accent used in matrices and grouped lists. */
+  --app-color-accent-row: rgba(124, 58, 237, 0.02);
+  /* Accent-tinted divider color. */
+  --app-color-accent-divider: rgba(159, 107, 255, 0.14);
+  /* Muted accent color for subtle labels and inactive highlights. */
+  --app-color-accent-muted: rgba(178, 139, 255, 0.52);
+  /* Soft accent surface for badges and low-emphasis highlights. */
+  --app-color-accent-soft: color-mix(in srgb, var(--md-sys-color-primary) 6%, var(--md-sys-color-surface-variant));
+  /* Small glow shadow used for active controls. */
+  --app-color-accent-glow-sm: 0 0 8px rgba(159, 107, 255, 0.24);
+  /* Medium glow shadow used for stronger highlighted elements. */
+  --app-color-accent-glow-md: 0 0 12px rgba(159, 107, 255, 0.24), 0 0 22px rgba(124, 58, 237, 0.1);
+  /* Highlighted panel background for important cards and selected blocks. */
   --app-color-highlight-surface: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, var(--md-sys-color-primary)),
+    color-mix(in srgb, var(--md-sys-color-surface-container-high) 94%, var(--md-sys-color-primary)),
     var(--md-sys-color-surface-container)
   );
-  --app-color-highlight-text: #f9d5ff;
-  --app-shadow-highlight: inset 0 1px 0 0 rgba(217, 70, 239, 0.3),
-    0 12px 32px -4px rgba(0, 0, 0, 0.7);
-  --app-shadow-highlight-text: 0 0 8px rgba(217, 70, 239, 0.36);
-  --app-color-modal-backdrop: rgba(5, 3, 12, 0.86);
-  --app-color-subtle-scrim: rgba(255, 255, 255, 0.035);
+  /* Text color used on highlighted surfaces. */
+  --app-color-highlight-text: #eadcff;
+  /* Composite shadow used by highlighted panels. */
+  --app-shadow-highlight: inset 0 1px 0 0 rgba(159, 107, 255, 0.24),
+    0 12px 32px -4px rgba(0, 0, 0, 0.8);
+  /* Text glow used on highlighted labels. */
+  --app-shadow-highlight-text: 0 0 6px rgba(159, 107, 255, 0.24);
+  /* Modal backdrop color. */
+  --app-color-modal-backdrop: rgba(4, 4, 4, 0.88);
+  /* Very subtle scrim used for low-contrast overlays. */
+  --app-color-subtle-scrim: rgba(255, 255, 255, 0.03);
 
   /* App badge and tracking states */
   --app-color-gold: #ffd166;
+  /* Text/icon color rendered on gold accents. */
   --app-color-on-gold: #1d1200;
+  /* Hidden/disabled visibility accent color. */
   --app-color-hidden: #ff5277;
+  /* Text/icon color rendered on hidden-state accents. */
   --app-color-on-hidden: #ffffff;
-  --app-color-tracked: #d946ef;
-  --app-color-tracked-alt: #00b4d8;
-  --app-color-on-tracked: #f9d5ff;
-  --app-color-muted-state: #6f6680;
-  --app-color-static: #7c3aed;
+  /* Tracked-task and tracked-raid accent color. */
+  --app-color-tracked: #7c3aed;
+  /* Secondary tracked-state accent for gradients and paired states. */
+  --app-color-tracked-alt: #6f6378;
+  /* Text/icon color used on tracked-state surfaces. */
+  --app-color-on-tracked: #eadcff;
+  /* Muted state color for weekly, inactive, or lower-emphasis states. */
+  --app-color-muted-state: #525866;
+  /* Static reservation and group/static badge accent color. */
+  --app-color-static: #4f3b5f;
+  /* Text/icon color used on static reservation accents. */
   --app-color-on-static: #ffffff;
 
-  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.08), rgba(255, 209, 102, 0.02));
-  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(217, 70, 239, 0.1), rgba(0, 180, 216, 0.035));
-  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(111, 102, 128, 0.08), rgba(124, 58, 237, 0.025));
-  --app-color-success-gradient: linear-gradient(135deg, #00f5d4 0%, #072622 100%);
-  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #3d2900 100%);
-  --app-color-error-gradient: linear-gradient(135deg, #ff5277 0%, #31000b 100%);
 
-  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.62), 0 0 1px rgba(217, 70, 239, 0.12);
-  --app-shadow-md: 0 12px 36px rgba(0, 0, 0, 0.76), 0 0 1px rgba(0, 180, 216, 0.14);
+  /* Global shared-control color, for example primary buttons and active segmented controls unless a feature overrides it. */
+  --app-control-accent: var(--md-sys-color-primary);
+  /* Text/icon color on shared active controls, for example text inside a primary button. */
+  --app-control-on-accent: var(--md-sys-color-on-primary);
+  /* Soft shared-control backing, for example selected segmented-control group surfaces. */
+  --app-control-accent-container: var(--md-sys-color-primary-container);
+  /* Shared-control hover border, for example button hover outline. */
+  --app-control-hover-border: var(--app-control-accent);
+  /* Shared-control glow, for example active segmented-control shadow. */
+  --app-control-accent-glow: var(--app-color-accent-glow-sm);
+
+  /* Dashboard accent color, for example dashboard-only buttons or highlighted dashboard controls. */
+  --app-dashboard-accent: var(--md-sys-color-primary);
+  /* Dashboard soft accent surface, for example subtle selected dashboard panels. */
+  --app-dashboard-accent-soft: var(--app-color-accent-soft);
+  /* Dashboard accent border, for example dashboard card or row divider tint. */
+  --app-dashboard-accent-border: rgba(159, 107, 255, 0.2);
+  /* Dashboard muted accent text, for example low-emphasis dashboard labels. */
+  --app-dashboard-accent-muted: rgba(178, 139, 255, 0.62);
+
+  /* To Do tab action color, for example To Do matrix buttons and active controls. */
+  --app-todo-accent: #7c3aed;
+  /* To Do matrix row tint, for example section header rows. */
+  --app-todo-accent-row: rgba(124, 58, 237, 0.015);
+  /* To Do matrix divider color, for example row separators under task rows. */
+  --app-todo-accent-divider: rgba(159, 107, 255, 0.1);
+  /* To Do muted accent text, for example section captions in the To Do matrix. */
+  --app-todo-accent-muted: rgba(178, 139, 255, 0.58);
+  /* To Do soft selected surface, for example selected matrix row backing. */
+  --app-todo-accent-soft: rgba(124, 58, 237, 0.06);
+  /* To Do matrix iLvl number color in character headers. */
+  --app-todo-matrix-ilvl-color: #9f6bff;
+  /* To Do matrix CP label and number color in character headers. */
+  --app-todo-matrix-cp-color: #9b8aa6;
+  /* To Do raid gate circle inner fill before completion. */
+  --app-todo-gate-inner: color-mix(in srgb, var(--md-sys-color-surface-container) 92%, black);
+  /* To Do raid gate circle border before completion. */
+  --app-todo-gate-border: rgba(159, 107, 255, 0.2);
+  /* To Do raid gate circle subtle inner highlight before completion. */
+  --app-todo-gate-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  /* To Do raid gate circle inner fill on hover. */
+  --app-todo-gate-hover-inner: color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, black);
+  /* To Do raid gate circle border on hover. */
+  --app-todo-gate-hover-border: rgba(178, 139, 255, 0.58);
+  /* To Do raid gate circle glow on hover. */
+  --app-todo-gate-hover-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 8px rgba(159, 107, 255, 0.14);
+  /* To Do completed raid gate shell behind the circle. */
+  --app-todo-gate-completed-shell: rgba(124, 58, 237, 0.06);
+  /* To Do completed raid gate circle inner fill. */
+  --app-todo-gate-completed-inner: linear-gradient(180deg, rgba(124, 58, 237, 0.12), color-mix(in srgb, var(--md-sys-color-surface-container) 90%, black));
+  /* To Do completed raid gate circle border. */
+  --app-todo-gate-completed-border: rgba(178, 139, 255, 0.68);
+  /* To Do completed raid gate circle glow. */
+  --app-todo-gate-completed-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(124, 58, 237, 0.15), 0 0 10px rgba(159, 107, 255, 0.14);
+  /* To Do completed raid gate number text color. */
+  --app-todo-gate-completed-text: #eadcff;
+
+  /* Settings action color, for example Settings buttons, toggles, card hover outlines, and checkboxes. */
+  --app-settings-accent: var(--md-sys-color-primary);
+  /* Settings secondary support color for less dominant settings controls. */
+  --app-settings-accent-secondary: var(--md-sys-color-secondary);
+  /* Settings tertiary support color for alternate settings highlights. */
+  --app-settings-accent-tertiary: var(--md-sys-color-tertiary);
+  /* Settings matrix row tint, for example Tracking/Raid section header rows. */
+  --app-settings-accent-row: var(--app-color-accent-row);
+  /* Settings matrix divider color, for example Tracking/Raid row separators. */
+  --app-settings-accent-divider: var(--app-color-accent-divider);
+  /* Settings muted accent text, for example low-emphasis matrix labels. */
+  --app-settings-accent-muted: var(--app-color-accent-muted);
+  /* Settings soft selected surface, for example active matrix cell backing. */
+  --app-settings-accent-soft: var(--app-color-accent-soft);
+  /* Settings matrix iLvl number color in Tracking and Raid Settings character headers. */
+  --app-settings-matrix-ilvl-color: #9f6bff;
+  /* Settings matrix CP label and number color in Tracking and Raid Settings character headers. */
+  --app-settings-matrix-cp-color: #9b8aa6;
+
+  /* MeowConnect action color, for example Sync/Friend/Group controls and selected MeowConnect UI. */
+  --app-meowconnect-accent: var(--md-sys-color-primary);
+  /* MeowConnect secondary color, for example secondary friend/group metadata accents. */
+  --app-meowconnect-accent-secondary: var(--md-sys-color-secondary);
+  /* MeowConnect soft accent surface, for example selected friend or raid-together panels. */
+  --app-meowconnect-accent-soft: var(--app-color-accent-soft);
+  /* MeowConnect accent border, for example friend/group card outlines. */
+  --app-meowconnect-accent-border: var(--app-color-accent-divider);
+
+  /* Marketplace action color, for example chart/action icons and market buttons. */
+  --app-market-accent: var(--md-sys-color-primary);
+  /* Marketplace value color, for example gold price numbers in market rows. */
+  --app-market-value-accent: var(--app-color-gold);
+  /* Marketplace soft accent surface, for example selected market filters or panels. */
+  --app-market-accent-soft: var(--app-color-accent-soft);
+  /* Marketplace accent border, for example highlighted market cards or rows. */
+  --app-market-accent-border: var(--app-color-accent-divider);
+
+  /* Updates tab action color, for example Check Update buttons and update links. */
+  --app-updates-accent: var(--md-sys-color-primary);
+  /* Updates label color for Added/Info-style badges. */
+  --app-updates-tracked-accent: var(--app-color-tracked);
+  /* Updates secondary label color for Improved/Long-term badges. */
+  --app-updates-tracked-accent-alt: var(--app-color-tracked-alt);
+  /* Updates gold badge color, for example Minor severity badges. */
+  --app-updates-gold-accent: var(--app-color-gold);
+  /* Updates muted badge color, for example Changed/No-priority badges. */
+  --app-updates-muted-accent: var(--app-color-muted-state);
+
+  /* Dashboard weekly gold progress card border only; separate from gold-earner character card borders. */
+  --app-dashboard-gold-panel-border: rgba(255, 209, 102, 0.12);
+  /* Dashboard weekly gold progress card ambient overlay only. */
+  --app-dashboard-gold-panel-overlay: radial-gradient(circle at center, rgba(255, 209, 102, 0.03) 0%, transparent 70%);
+  /* Dashboard weekly gold progress icon glow only. */
+  --app-dashboard-gold-icon-glow: drop-shadow(0 0 6px rgba(255, 209, 102, 0.3));
+  /* Dashboard current earned-gold number color only. */
+  --app-dashboard-gold-number-color: var(--app-color-gold);
+  /* Optional Dashboard current earned-gold number gradient token; currently kept for future text-gradient use. */
+  --app-dashboard-gold-number-gradient: linear-gradient(90deg, #b38f3b 0%, var(--app-color-gold) var(--gold-progress), #fff0cc 100%);
+  /* Dashboard current earned-gold number glow only. */
+  --app-dashboard-gold-number-shadow: 0 0 10px rgba(255, 209, 102, 0.15);
+  /* Dashboard weekly gold progress bar fill only. */
+  --app-dashboard-gold-progress-gradient: linear-gradient(90deg, #b38f3b, var(--app-color-gold), #fff0cc);
+  /* Dashboard weekly gold progress bar glow only. */
+  --app-dashboard-gold-progress-shadow: 0 0 12px rgba(255, 209, 102, 0.3);
+  /* Dashboard weekly gold percentage label color only. */
+  --app-dashboard-gold-percent-color: var(--app-color-gold);
+  /* Dashboard tradable-gold detail dot color only. */
+  --app-dashboard-gold-tradable-dot: var(--app-color-gold);
+  /* Dashboard tradable-gold detail dot glow only. */
+  --app-dashboard-gold-tradable-dot-shadow: 0 0 4px var(--app-color-gold);
+
+  /* Raid row take-gold surface, for example gold raid pills in Dashboard and Raid Settings. */
+  --app-color-raid-gold-surface: linear-gradient(135deg, rgba(255, 209, 102, 0.06), rgba(255, 209, 102, 0.01));
+  /* Raid row tracked non-gold surface, for example tracked raid pills without take-gold. */
+  --app-color-raid-tracked-surface: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(159, 107, 255, 0.02));
+  /* Weekly task row surface, for example Cube/Shop/Guild task pills. */
+  --app-color-raid-weekly-surface: linear-gradient(135deg, rgba(111, 99, 120, 0.06), rgba(124, 58, 237, 0.01));
+  /* Dashboard character card border for gold-earner characters only. */
+  --app-dashboard-card-gold-border: rgba(255, 209, 102, 0.8);
+  /* Dashboard character card glow for gold-earner characters only. */
+  --app-dashboard-card-gold-shadow: 0 4px 20px rgba(255, 209, 102, 0.12), 0 0 0 1px rgba(159, 107, 255, 0.1);
+  /* Dashboard character card border for non-gold tracked characters only. */
+  --app-dashboard-card-tracked-border: rgba(159, 107, 255, 0.38);
+  /* Dashboard character card glow for non-gold tracked characters only. */
+  --app-dashboard-card-tracked-shadow: 0 4px 18px rgba(124, 58, 237, 0.08), 0 0 12px rgba(159, 107, 255, 0.08);
+
+  /* Success gradient used by status cards and badges. */
+  --app-color-success-gradient: linear-gradient(135deg, #00f5d4 0%, #04211d 100%);
+  /* Warning gradient used by status cards and badges. */
+  --app-color-warning-gradient: linear-gradient(135deg, #ffd166 0%, #332200 100%);
+  /* Error gradient used by status cards and badges. */
+  --app-color-error-gradient: linear-gradient(135deg, #ff5277 0%, #2e000b 100%);
+
+  /* Small shared elevation shadow. */
+  --app-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 1px rgba(159, 107, 255, 0.1);
+  /* Medium shared elevation shadow. */
+  --app-shadow-md: 0 12px 38px rgba(0, 0, 0, 0.75), 0 0 1px rgba(159, 107, 255, 0.12);
 }
 
 /* Void-specific structural polish. Keep these scoped so Outlaw remains unchanged. */
 :root[data-theme='void-nebula'] .ui-button {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -110,14 +307,47 @@
 }
 
 :root[data-theme='void-nebula'] .ui-modal-overlay {
-  backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(120%);
 }
 
 :root[data-theme='void-nebula'] .ui-modal-card {
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--md-sys-color-outline-variant);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--md-sys-color-outline-variant);
 }
 
 :root[data-theme='void-nebula'] .settings-matrix-sticky-col,
 :root[data-theme='void-nebula'] .settings-matrix-first-col {
   box-shadow: 1px 0 0 0 var(--md-sys-color-outline);
+}
+
+:root[data-theme='void-nebula'] .dashboard-container .gold-card-modern,
+:root[data-theme='void-nebula'] .dashboard-container .character-card {
+  box-shadow:
+    var(--app-shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 18px rgba(159, 107, 255, 0.03);
+}
+
+:root[data-theme='void-nebula'] .todo-container .ui-toggle-button {
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 90%, black);
+  border-color: rgba(159, 107, 255, 0.12);
+}
+
+:root[data-theme='void-nebula'] .todo-container .ui-toggle-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 90%, black);
+  border-color: rgba(178, 139, 255, 0.38);
+  box-shadow: 0 0 8px rgba(159, 107, 255, 0.1);
+}
+
+:root[data-theme='void-nebula'] .todo-container .ui-toggle-button.active {
+  background: linear-gradient(
+    180deg,
+    rgba(124, 58, 237, 0.1),
+    color-mix(in srgb, var(--md-sys-color-surface-container) 88%, black)
+  );
+  border-color: rgba(178, 139, 255, 0.58);
+  color: #eadcff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(124, 58, 237, 0.12),
+    0 0 12px rgba(159, 107, 255, 0.12);
 }

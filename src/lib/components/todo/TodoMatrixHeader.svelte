@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { classAsset, iconAsset } from '$lib/assets';
   import { GAME_CLASSES } from '$lib/data/classes';
 
   export let characters: any[] = [];
@@ -22,7 +23,7 @@
       <th class="char-header sticky-col {character.id === highlightCharId ? 'highlighted' : ''}">
         <div class="char-info">
           <img
-            src="/images/classes/{getClassIcon(character.class)}.png"
+            src={classAsset(getClassIcon(character.class))}
             alt={getClassName(character.class)}
             class="class-icon"
             on:error={(event: any) => { event.currentTarget.style.display = 'none'; }}
@@ -30,7 +31,7 @@
           <div class="char-name-section">
             <span class="char-name">{character.name}</span>
             {#if character.earns_gold}
-              <img src="/images/gold.png" alt="Gold Earner" class="gold-earner-icon" />
+              <img src={iconAsset('gold.png')} alt="Gold Earner" class="gold-earner-icon" />
             {/if}
           </div>
           <div class="matrix-character-stats">

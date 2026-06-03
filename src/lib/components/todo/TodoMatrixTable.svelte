@@ -5,6 +5,7 @@
   import TodoRaidRow from '$lib/components/todo/TodoRaidRow.svelte';
   import TodoRosterTaskRow from '$lib/components/todo/TodoRosterTaskRow.svelte';
   import TodoTaskRow from '$lib/components/todo/TodoTaskRow.svelte';
+  import { iconAsset } from '$lib/assets';
   import { RAIDS } from '$lib/data/raids';
 
   export let matrixData: any;
@@ -27,26 +28,26 @@
 
   function getTaskIcon(taskId: string): string {
     if (taskId.startsWith('event_')) {
-      return '/images/event_quest.webp';
+      return iconAsset('event_quest.webp');
     }
 
     const raidIds = RAIDS.map((raid) => raid.id);
     if (raidIds.includes(taskId)) {
-      return '/images/kazeros-raid.webp';
+      return iconAsset('kazeros-raid.webp');
     }
 
     const iconMap: Record<string, string> = {
-      chaos: '/images/chaos-dungeon.webp',
-      guardian: '/images/guardian.png',
-      gate: '/images/chaos_gate.png',
-      boss: '/images/boss.png',
-      guild: '/images/guild.webp',
-      cube: '/images/ebony1720.png',
-      paradise: '/images/paradise.webp',
-      shop: '/images/daily.webp'
+      chaos: iconAsset('chaos-dungeon.webp'),
+      guardian: iconAsset('guardian.png'),
+      gate: iconAsset('chaos_gate.png'),
+      boss: iconAsset('boss.png'),
+      guild: iconAsset('guild.webp'),
+      cube: iconAsset('ebony1720.png'),
+      paradise: iconAsset('paradise.webp'),
+      shop: iconAsset('daily.webp')
     };
 
-    return iconMap[taskId] || '/images/daily.webp';
+    return iconMap[taskId] || iconAsset('daily.webp');
   }
 
 </script>
@@ -182,16 +183,16 @@
   }
 
   .section-separator td {
-    background: var(--app-color-accent-row);
-    border-bottom: 1px solid var(--app-color-accent-divider);
+    background: var(--app-todo-accent-row);
+    border-bottom: 1px solid var(--app-todo-accent-divider);
     padding: 0.5rem;
     text-align: left;
     font-weight: 600;
-    color: var(--app-color-accent-muted);
+    color: var(--app-todo-accent-muted);
   }
 
   .section-separator .section-title-cell {
-    background: var(--app-color-accent-soft);
+    background: var(--app-todo-accent-soft);
     min-width: 200px;
     position: sticky;
     left: 0;

@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { appAsset } from '$lib/assets';
   import type { DiscordAuthState } from '$lib/types/app-shell';
+  import AppWindowControls from './AppWindowControls.svelte';
 
   export let discordAuthState: DiscordAuthState;
   export let discordAuthUser = '';
@@ -7,17 +10,43 @@
   export let loginWithDiscord: () => void | Promise<void>;
   export let proceedFromWelcome: () => void | Promise<void>;
   export let retryDiscordLogin: () => void;
+
+  const appWindow = getCurrentWindow();
+  const appIcon = appAsset('LOAtracker_appicon.png');
+
+  function startWindowDrag(event: MouseEvent) {
+    if (event.button !== 0) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, a, input, select, textarea, [role="button"], .no-window-drag')) {
+      return;
+    }
+
+    appWindow.startDragging().catch((error) => {
+      console.warn('Failed to start window drag:', error);
+    });
+  }
 </script>
 
 <svelte:head>
   <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
 </svelte:head>
 
-<div class="auth-screen">
+<div class="auth-shell">
+  <!-- svelte-ignore a11y_no_static_element_interactions - the auth titlebar uses mousedown to start native window dragging. -->
+  <header class="auth-titlebar" data-tauri-drag-region on:mousedown={startWindowDrag}>
+    <div class="auth-titlebar-brand" data-tauri-drag-region>
+      <img src={appIcon} alt="" />
+      <span>LOA Tracker</span>
+    </div>
+    <AppWindowControls />
+  </header>
+
+  <div class="auth-screen">
   <div class="auth-card">
     <div class="auth-topline">
       <div class="auth-brand">
-        <img src="/images/LOAtracker_icon.png" alt="" class="auth-icon" />
+        <img src={appIcon} alt="" class="auth-icon" />
         <span>LOA Tracker</span>
       </div>
       <span class="auth-badge">Private Access</span>
@@ -83,20 +112,60 @@
       <button class="auth-button" type="button" on:click={loginWithDiscord}>Login with Discord</button>
     {/if}
   </div>
+  </div>
 </div>
 
 <style>
+  .auth-shell {
+    min-height: 100vh;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent), transparent 32%),
+      linear-gradient(315deg, color-mix(in srgb, var(--app-color-gold) 5%, transparent), transparent 38%),
+      var(--md-sys-color-background);
+  }
+
+  .auth-titlebar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 10;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 94%, transparent);
+    border-bottom: 1px solid var(--md-sys-color-outline);
+    user-select: none;
+  }
+
+  .auth-titlebar-brand {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.85rem;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .auth-titlebar-brand img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+
+  :global(.auth-titlebar .window-controls) {
+    margin: 0;
+  }
+
   .auth-screen {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1.5rem;
+    padding: calc(42px + 1.5rem) 1.5rem 1.5rem;
     box-sizing: border-box;
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent), transparent 32%),
-      linear-gradient(315deg, color-mix(in srgb, var(--app-color-gold) 5%, transparent), transparent 38%),
-      var(--md-sys-color-background);
   }
 
   .auth-card {

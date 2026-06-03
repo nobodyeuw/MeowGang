@@ -585,6 +585,12 @@
 </div>
 <style>
   .todo-container {
+    --app-control-accent: var(--app-todo-accent);
+    --app-control-on-accent: var(--md-sys-color-on-primary);
+    --app-control-accent-container: var(--app-todo-accent-soft);
+    --app-control-hover-border: var(--app-todo-accent);
+    --app-matrix-ilvl-color: var(--app-todo-matrix-ilvl-color);
+    --app-matrix-cp-color: var(--app-todo-matrix-cp-color);
     padding: 1rem;
     display: flex;
     flex-direction: column;

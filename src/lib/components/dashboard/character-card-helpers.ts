@@ -1,4 +1,5 @@
 import { GAME_TASKS, RAIDS } from '$lib/data';
+import { classAsset, iconAsset } from '$lib/assets';
 
 export interface CharacterCardCompletionEntry {
   content_id: string;
@@ -287,22 +288,24 @@ export function formatCombatPower(combatPower: number): string {
 }
 
 export function getClassIconUrl(iconId: string): string {
-  return `/images/classes/${iconId}.png`;
+  return classAsset(iconId);
 }
 
 export function getTaskIcon(taskId: string): string {
   if (taskId.startsWith('event_')) {
-    return '/images/event_quest.webp';
+    return iconAsset('event_quest.webp');
   }
 
   const iconMap: Record<string, string> = {
-    chaos: '/images/chaos-dungeon.webp',
-    guardian: '/images/guardian.png',
-    cube: '/images/ebony1720.png',
-    paradise: '/images/paradise.webp',
-    shop: '/images/daily.webp',
-    guild: '/images/guild.webp'
+    chaos: iconAsset('chaos-dungeon.webp'),
+    guardian: iconAsset('guardian.png'),
+    cube: iconAsset('ebony1720.png'),
+    paradise: iconAsset('paradise.webp'),
+    shop: iconAsset('daily.webp'),
+    guild: iconAsset('guild.webp'),
+    gate: iconAsset('chaos_gate.png'),
+    boss: iconAsset('boss.png')
   };
 
-  return iconMap[taskId] || '/images/daily.webp';
+  return iconMap[taskId] || iconAsset('daily.webp');
 }

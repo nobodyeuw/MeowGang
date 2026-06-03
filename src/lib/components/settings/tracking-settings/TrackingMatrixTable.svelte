@@ -139,16 +139,16 @@
   }
 
   .section-separator td {
-    background: var(--app-color-accent-row);
-    border-bottom: 1px solid var(--app-color-accent-divider);
+    background: var(--app-settings-accent-row);
+    border-bottom: 1px solid var(--app-settings-accent-divider);
     padding: 8px 12px;
     font-weight: 600;
-    color: var(--app-color-accent-muted);
+    color: var(--app-settings-accent-muted);
     text-align: left;
   }
 
   .section-separator .section-title-cell {
-    background: var(--app-color-accent-soft);
+    background: var(--app-settings-accent-soft);
     min-width: var(--task-column-width);
     position: sticky;
     left: 0;

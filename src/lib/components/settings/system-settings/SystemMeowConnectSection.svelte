@@ -1,16 +1,19 @@
 <script lang="ts">
+  import { appAsset } from '$lib/assets';
   import ToggleSwitch from '$lib/components/common/ToggleSwitch.svelte';
 
   export let meowConnectEnabled = true;
   export let meowConnectRealtimeEnabled = true;
   export let onToggleMeowConnectEnabled: () => void;
   export let onToggleMeowConnectRealtime: () => void;
+
+  const meowConnectIcon = appAsset('meowconnect_tab.png');
 </script>
 
 <div class="settings-section" data-guide="system-meowconnect">
   <div class="section-header">
     <div class="section-icon">
-      <img src="/images/meowconnect_tab.png" alt="" class="section-image-icon" />
+      <img src={meowConnectIcon} alt="" class="section-image-icon" />
     </div>
     <div>
       <h3>MeowConnect</h3>
@@ -22,7 +25,7 @@
     <div class="setting-card toggle-card">
       <div class="setting-header">
         <div class="setting-icon meowconnect-icon">
-          <img src="/images/meowconnect_tab.png" alt="" />
+          <img src={meowConnectIcon} alt="" />
         </div>
         <div class="toggle-content">
           <h4>MeowConnect</h4>
@@ -35,7 +38,7 @@
     <div class="setting-card toggle-card" class:disabled-card={!meowConnectEnabled}>
       <div class="setting-header">
         <div class="setting-icon meowconnect-icon">
-          <img src="/images/meowconnect_tab.png" alt="" />
+          <img src={meowConnectIcon} alt="" />
         </div>
         <div class="toggle-content">
           <h4>Real-time MeowConnect</h4>

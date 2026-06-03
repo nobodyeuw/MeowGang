@@ -1,9 +1,20 @@
 <script lang="ts">
+  import { appAsset } from '$lib/assets';
+
   export let activeTab: string;
   export let switchTab: (tab: string) => void;
   export let isOpen: boolean = false;
   export let discordAuthUser: string = '';
   export let showMeowConnect: boolean = true;
+
+  const navIcons = {
+    dashboard: appAsset('dashboard.png'),
+    todo: appAsset('todo_tab.png'),
+    marketplace: appAsset('marketplace.png'),
+    meowConnect: appAsset('meowconnect_tab.png'),
+    settings: appAsset('settings_tab.png'),
+    updates: appAsset('updates.png')
+  };
 </script>
 
 <nav class="sidebar" class:isOpen={isOpen}>
@@ -14,7 +25,7 @@
       on:click={() => switchTab('dashboard')}
     >
       <span class="nav-icon image-icon">
-        <img src="/images/dashboard.png" alt="" />
+        <img src={navIcons.dashboard} alt="" />
       </span>
       <span class="nav-text">Dashboard</span>
     </button>
@@ -25,7 +36,7 @@
       on:click={() => switchTab('todo')}
     >
       <span class="nav-icon image-icon">
-        <img src="/images/todo_tab.png" alt="" />
+        <img src={navIcons.todo} alt="" />
       </span>
       <span class="nav-text">To Do's</span>
     </button>
@@ -36,7 +47,7 @@
       on:click={() => switchTab('marketplace')}
     >
       <span class="nav-icon image-icon">
-        <img src="/images/marketplace.png" alt="" />
+        <img src={navIcons.marketplace} alt="" />
       </span>
       <span class="nav-text">Marketplace</span>
     </button>
@@ -48,7 +59,7 @@
         on:click={() => switchTab('meow-connect')}
       >
         <span class="nav-icon image-icon">
-          <img src="/images/meowconnect_tab.png" alt="" />
+          <img src={navIcons.meowConnect} alt="" />
         </span>
         <span class="nav-text">MeowConnect</span>
       </button>
@@ -62,7 +73,7 @@
       on:click={() => switchTab('settings')}
     >
       <span class="nav-icon image-icon">
-        <img src="/images/settings_tab.png" alt="" />
+        <img src={navIcons.settings} alt="" />
       </span>
       <span class="nav-text">Settings</span>
     </button>
@@ -76,7 +87,7 @@
       on:click={() => switchTab('updates')}
     >
       <span class="nav-icon image-icon">
-        <img src="/images/updates.png" alt="" />
+        <img src={navIcons.updates} alt="" />
       </span>
       <span class="nav-text">Updates</span>
     </button>

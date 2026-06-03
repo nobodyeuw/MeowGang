@@ -33,6 +33,7 @@ export interface DashboardSnapshot {
   rested_by_character: Record<string, RestedValueEntry[]>;
   completion_by_character: Record<string, CompletionStatusEntry[]>;
   tracking_by_character: Record<string, TrackingStatusEntry[]>;
+  roster_tracking_status?: TrackingStatusEntry[];
   raid_configs_by_character: Record<string, RaidConfigEntry[]>;
 }
 
@@ -49,6 +50,42 @@ export interface DashboardCharacterData {
   completionStatus: CompletionStatusEntry[];
   raidConfigs: RaidConfigEntry[];
   trackingStatus: TrackingStatusEntry[];
+}
+
+export interface DashboardFocusEntry {
+  charId: number;
+  charName: string;
+  rosterId: string;
+  rosterName: string;
+}
+
+export interface DashboardRaidDetail extends DashboardFocusEntry {
+  completed: boolean;
+}
+
+export interface DashboardDailyDetail extends DashboardFocusEntry {
+  openTasks: string[];
+}
+
+export interface DashboardWeeklyTaskDetail {
+  taskId: string;
+  name: string;
+  icon: string;
+  completed: number;
+  total: number;
+  openCharacters: DashboardFocusEntry[];
+}
+
+export interface DashboardRosterEventDetail {
+  taskId: string;
+  name: string;
+  icon: string;
+  rosterId: string;
+  rosterName: string;
+  completedToday: boolean;
+  completedThisWeek: number;
+  weeklyLimit: number;
+  available: boolean;
 }
 
 export type OpenStatusKind = 'empty' | 'idle' | 'done' | 'open';

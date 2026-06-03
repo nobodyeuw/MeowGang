@@ -65,6 +65,14 @@ pub async fn scrape_roster(
         .save_roster_from_scraper(&scraper_data.scraper_data)
         .map_err(|e| format!("Failed to save roster: {}", e))?;
 
+    let scraped_character_count = scraper_data.scraper_data.characters.len();
+    roster_repo
+        .record_completed_roster_scrape(
+            &scraper_data.scraper_data.roster_name,
+            &format!("Initial roster scrape: {} characters", scraped_character_count),
+        )
+        .map_err(|e| format!("Failed to record roster scrape metadata: {}", e))?;
+
     // Return characters
     let characters: Vec<RosterCharacter> = scraper_data
         .scraper_data

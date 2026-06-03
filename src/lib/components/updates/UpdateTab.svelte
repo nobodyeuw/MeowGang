@@ -301,6 +301,10 @@
 
 <style>
   .update-tab {
+    --app-control-accent: var(--app-updates-accent);
+    --app-control-on-accent: var(--md-sys-color-on-primary);
+    --app-control-accent-container: var(--app-color-accent-soft);
+    --app-control-hover-border: var(--app-updates-accent);
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
@@ -509,25 +513,25 @@
     0 4px 14px color-mix(in srgb, var(--md-sys-color-success) 35%, transparent);
 }
 .bug-severity.change-label.type-added {
-  background: linear-gradient(135deg, var(--app-color-tracked) 0%, color-mix(in srgb, var(--app-color-tracked) 70%, black) 100%);
+  background: linear-gradient(135deg, var(--app-updates-tracked-accent) 0%, color-mix(in srgb, var(--app-updates-tracked-accent) 70%, black) 100%);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
     inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 4px 14px color-mix(in srgb, var(--app-color-tracked) 34%, transparent);
+    0 4px 14px color-mix(in srgb, var(--app-updates-tracked-accent) 34%, transparent);
 }
 .bug-severity.change-label.type-improved {
-  background: linear-gradient(135deg, var(--app-color-tracked) 0%, var(--app-color-tracked-alt) 100%);
+  background: linear-gradient(135deg, var(--app-updates-tracked-accent) 0%, var(--app-updates-tracked-accent-alt) 100%);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 4px 14px color-mix(in srgb, var(--app-color-tracked-alt) 30%, transparent);
+    0 4px 14px color-mix(in srgb, var(--app-updates-tracked-accent-alt) 30%, transparent);
 }
 .bug-severity.change-label.type-changed {
-  background: linear-gradient(135deg, var(--app-color-muted-state) 0%, color-mix(in srgb, var(--app-color-muted-state) 62%, black) 100%);
+  background: linear-gradient(135deg, var(--app-updates-muted-accent) 0%, color-mix(in srgb, var(--app-updates-muted-accent) 62%, black) 100%);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.34),
     inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 4px 12px color-mix(in srgb, var(--app-color-muted-state) 28%, transparent);
+    0 4px 12px color-mix(in srgb, var(--app-updates-muted-accent) 28%, transparent);
 }
 .bug-severity.change-label.type-security {
   background: var(--app-color-error-gradient);
@@ -538,7 +542,7 @@
 }
 .bug-severity.change-label.type-removed,
 .bug-severity.change-label.type-deprecated {
-  background: linear-gradient(135deg, var(--app-color-muted-state) 0%, color-mix(in srgb, var(--app-color-muted-state) 56%, black) 100%);
+  background: linear-gradient(135deg, var(--app-updates-muted-accent) 0%, color-mix(in srgb, var(--app-updates-muted-accent) 56%, black) 100%);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1px 0 rgba(0, 0, 0, 0.15),
@@ -649,9 +653,9 @@
   }
 
   .issue-severity.severity-minor {
-    background: color-mix(in srgb, var(--app-color-gold) 16%, transparent);
-    color: var(--app-color-gold);
-    border-color: color-mix(in srgb, var(--app-color-gold) 28%, transparent);
+    background: color-mix(in srgb, var(--app-updates-gold-accent) 16%, transparent);
+    color: var(--app-updates-gold-accent);
+    border-color: color-mix(in srgb, var(--app-updates-gold-accent) 28%, transparent);
   }
 
   .issue-severity.severity-low {
@@ -661,9 +665,9 @@
   }
 
   .issue-severity.severity-info {
-    background: color-mix(in srgb, var(--app-color-tracked) 16%, transparent);
-    color: var(--app-color-tracked);
-    border-color: color-mix(in srgb, var(--app-color-tracked) 28%, transparent);
+    background: color-mix(in srgb, var(--app-updates-tracked-accent) 16%, transparent);
+    color: var(--app-updates-tracked-accent);
+    border-color: color-mix(in srgb, var(--app-updates-tracked-accent) 28%, transparent);
   }
 
   .feature-priority.priority-high-prio {
@@ -679,21 +683,21 @@
   }
 
   .feature-priority.priority-low-prio {
-    background: color-mix(in srgb, var(--app-color-tracked) 15%, transparent);
-    color: var(--app-color-tracked);
-    border-color: color-mix(in srgb, var(--app-color-tracked) 26%, transparent);
+    background: color-mix(in srgb, var(--app-updates-tracked-accent) 15%, transparent);
+    color: var(--app-updates-tracked-accent);
+    border-color: color-mix(in srgb, var(--app-updates-tracked-accent) 26%, transparent);
   }
 
   .feature-priority.priority-long-term {
-    background: color-mix(in srgb, var(--app-color-tracked-alt) 15%, transparent);
-    color: var(--app-color-tracked-alt);
-    border-color: color-mix(in srgb, var(--app-color-tracked-alt) 28%, transparent);
+    background: color-mix(in srgb, var(--app-updates-tracked-accent-alt) 15%, transparent);
+    color: var(--app-updates-tracked-accent-alt);
+    border-color: color-mix(in srgb, var(--app-updates-tracked-accent-alt) 28%, transparent);
   }
 
   .feature-priority.priority-no-prio {
-    background: color-mix(in srgb, var(--app-color-muted-state) 16%, transparent);
-    color: var(--app-color-muted-state);
-    border-color: color-mix(in srgb, var(--app-color-muted-state) 26%, transparent);
+    background: color-mix(in srgb, var(--app-updates-muted-accent) 16%, transparent);
+    color: var(--app-updates-muted-accent);
+    border-color: color-mix(in srgb, var(--app-updates-muted-accent) 26%, transparent);
   }
 
   .bug-description {

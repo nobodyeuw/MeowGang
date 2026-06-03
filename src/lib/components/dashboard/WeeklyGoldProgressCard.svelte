@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { iconAsset } from '$lib/assets';
+
   export let progressPercentage = 0;
   export let earnedGoldPercentage = 0;
   export let actualGoldDisplay = 0;
@@ -7,6 +9,17 @@
   export let actualBoundGoldDisplay = 0;
   export let actualTradableGoldDisplay = 0;
   export let mismatchGoldLost = 0;
+  export let mismatchGoldBonus = 0;
+
+  const goldIcon = iconAsset('gold.png');
+
+  $: cappedEarnedPercentage = Math.min(earnedGoldPercentage, 100);
+  $: lostPercentage = estimatedGoldDisplay > 0
+    ? Math.min((mismatchGoldLost / estimatedGoldDisplay) * 100, cappedEarnedPercentage)
+    : 0;
+  $: bonusPercentage = estimatedGoldDisplay > 0
+    ? Math.min((mismatchGoldBonus / estimatedGoldDisplay) * 100, cappedEarnedPercentage)
+    : 0;
 </script>
 
 <div class="gold-card-modern">
@@ -15,7 +28,7 @@
   <div class="card-content">
     <div class="gold-info-main">
       <div class="title-group">
-        <img src="/images/gold.png" alt="Gold" class="gold-icon-large" />
+        <img src={goldIcon} alt="Gold" class="gold-icon-large" />
         <h3>Weekly Gold Progress</h3>
       </div>
 
@@ -29,11 +42,17 @@
 
     <div class="progress-container-modern">
       <div class="progress-track">
-        <div class="progress-fill-glow" style="width: {Math.min(earnedGoldPercentage, 100)}%"></div>
+        <div class="progress-fill-glow" style="width: {cappedEarnedPercentage}%"></div>
         {#if mismatchGoldLost > 0 && estimatedGoldDisplay > 0}
           <div
             class="progress-fill-lost"
-            style="left: {Math.min(earnedGoldPercentage, 100)}%; width: {Math.min(mismatchGoldLost / estimatedGoldDisplay * 100, 100 - Math.min(earnedGoldPercentage, 100))}%"
+            style="left: {Math.max(cappedEarnedPercentage - lostPercentage, 0)}%; width: {lostPercentage}%"
+          ></div>
+        {/if}
+        {#if mismatchGoldBonus > 0 && estimatedGoldDisplay > 0}
+          <div
+            class="progress-fill-bonus"
+            style="left: {Math.max(cappedEarnedPercentage - bonusPercentage, 0)}%; width: {bonusPercentage}%"
           ></div>
         {/if}
       </div>
@@ -42,6 +61,9 @@
         <span class="remaining-stack">
           {#if mismatchGoldLost > 0}
             <span class="remaining-text mismatch-loss">{mismatchGoldLost.toLocaleString()} lost to difficulty mismatch</span>
+          {/if}
+          {#if mismatchGoldBonus > 0}
+            <span class="remaining-text mismatch-bonus">+{mismatchGoldBonus.toLocaleString()} bonus from difficulty mismatch</span>
           {/if}
           <span class="remaining-text">{remainingGoldDisplay.toLocaleString()} gold remaining</span>
         </span>
@@ -69,7 +91,7 @@
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
     background: var(--md-sys-color-surface);
-    border: 1px solid color-mix(in srgb, var(--app-color-gold) 15%, transparent);
+    border: 1px solid var(--app-dashboard-gold-panel-border);
     border-radius: 14px;
     padding: 0.78rem 0.9rem;
     margin-bottom: 0.5rem;
@@ -83,7 +105,7 @@
     left: -20%;
     width: 140%;
     height: 200%;
-    background: radial-gradient(circle at center, color-mix(in srgb, var(--app-color-gold) 5%, transparent) 0%, transparent 70%);
+    background: var(--app-dashboard-gold-panel-overlay);
     pointer-events: none;
   }
 
@@ -108,7 +130,7 @@
   .gold-icon-large {
     width: 28px;
     height: 28px;
-    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--app-color-gold) 40%, transparent));
+    filter: var(--app-dashboard-gold-icon-glow);
   }
 
   .gold-values {
@@ -118,16 +140,13 @@
   }
 
   .gold-values .current {
-    color: transparent;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--app-color-gold) 62%, black) 0%, var(--app-color-gold) var(--gold-progress), color-mix(in srgb, var(--app-color-gold) 64%, white) 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    text-shadow: 0 0 15px color-mix(in srgb, var(--app-color-gold) 25%, transparent);
+    color: var(--app-dashboard-gold-number-color);
+    text-shadow: var(--app-dashboard-gold-number-shadow);
   }
 
   .gold-values .divider { color: var(--md-sys-color-outline); margin: 0 0.25rem; }
   .gold-values .target { color: var(--md-sys-color-on-surface-variant); }
-  .gold-values .unit { font-size: 0.875rem; color: var(--md-sys-color-outline-variant); margin-left: 0.5rem; text-transform: uppercase; }
+  .gold-values .unit { font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant); margin-left: 0.5rem; text-transform: uppercase; }
 
   .progress-container-modern {
     margin-bottom: 0.42rem;
@@ -144,10 +163,10 @@
 
   .progress-fill-glow {
     height: 100%;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--app-color-gold) 62%, black), var(--app-color-gold), color-mix(in srgb, var(--app-color-gold) 64%, white));
+    background: var(--app-dashboard-gold-progress-gradient);
     border-radius: 5px;
     position: relative;
-    box-shadow: 0 0 15px color-mix(in srgb, var(--app-color-gold) 40%, transparent);
+    box-shadow: var(--app-dashboard-gold-progress-shadow);
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -161,9 +180,10 @@
     letter-spacing: 0.05em;
   }
 
-  .pct-text { color: var(--app-color-gold); }
+  .pct-text { color: var(--app-dashboard-gold-percent-color); }
   .remaining-text { color: var(--md-sys-color-on-surface-variant); }
   .remaining-text.mismatch-loss { color: var(--md-sys-color-error); }
+  .remaining-text.mismatch-bonus { color: var(--md-sys-color-success); }
 
   .remaining-stack {
     display: inline-flex;
@@ -188,6 +208,20 @@
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .progress-fill-bonus {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--md-sys-color-success) 18%, transparent),
+      color-mix(in srgb, var(--md-sys-color-success) 70%, transparent)
+    );
+    border-radius: 3px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--md-sys-color-success) 35%, transparent);
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   .gold-details-minimal {
     display: flex;
     gap: 1rem;
@@ -204,7 +238,7 @@
 
   .dot { width: 8px; height: 8px; border-radius: 50%; }
   .dot.bound { background: var(--app-color-hidden); box-shadow: 0 0 6px var(--app-color-hidden); }
-  .dot.tradable { background: var(--app-color-gold); box-shadow: 0 0 6px var(--app-color-gold); }
+  .dot.tradable { background: var(--app-dashboard-gold-tradable-dot); box-shadow: var(--app-dashboard-gold-tradable-dot-shadow); }
   .detail-item .label { color: var(--md-sys-color-on-surface-variant); }
   .detail-item .val { color: var(--md-sys-color-on-surface); font-weight: 600; }
 </style>

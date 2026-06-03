@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { appAsset } from '$lib/assets';
   import type {
     MeowConnectFriendConnection,
     MeowConnectLocalSnapshot
@@ -23,12 +24,13 @@
     setRaidDifficultyFilter: { raidId: string; difficulty: string };
     toggleTogetherFriend: MeowConnectFriendConnection;
   }>();
+  const meowConnectIcon = appAsset('meowconnect_tab.png');
 </script>
 
 <section class="together-panel">
   <div class="panel-title together-panel-title">
     <div class="mc-title">
-      <img src="/images/meowconnect_tab.png" alt="" />
+      <img src={meowConnectIcon} alt="" />
       <h2>MeowConnect</h2>
     </div>
 

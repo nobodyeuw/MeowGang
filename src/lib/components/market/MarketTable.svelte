@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { iconAsset } from '$lib/assets';
   import {
     buildMarketIconUrl,
     formatGold,
@@ -23,6 +24,8 @@
   export let onStartEdit: (item: MarketItem) => void;
   export let onSaveManualPrice: (item: MarketItem) => void;
   export let onHandleEditKeydown: (event: KeyboardEvent, item: MarketItem) => void;
+
+  const goldIcon = iconAsset('gold.png');
   export let onRemoveOverride: (itemSlug: string) => void;
 </script>
 
@@ -100,7 +103,7 @@
                 />
               {:else}
                 <span class="gold-value">{formatGold(item.price)}</span>
-                <img src="/images/gold.png" alt="" class="gold-coin-icon" />
+                <img src={goldIcon} alt="" class="gold-coin-icon" />
                 {#if item.is_manual_override && activeMarketCategory !== 'gems'}
                   <span class="override-badge" title="Manual override">M</span>
                 {/if}
@@ -302,7 +305,7 @@
 
   .chart-icon {
     font-size: 0.875rem;
-    color: var(--md-sys-color-primary);
+    color: var(--app-market-accent);
     flex-shrink: 0;
   }
 
@@ -312,7 +315,7 @@
 
   .gold-value {
     font-size: 0.875rem;
-    color: var(--md-sys-color-on-surface);
+    color: var(--app-market-value-accent);
   }
 
   .gold-coin-icon {

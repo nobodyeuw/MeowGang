@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { classAsset, iconAsset } from '$lib/assets';
   import type { CharacterRaidConfig } from '$lib/components/settings/raid-settings/types';
 
   export let characters: CharacterRaidConfig[] = [];
@@ -29,11 +30,11 @@
     {#each characters as char}
       <th class="char-header sticky-col">
         <div class="char-info">
-          <img src={`/images/classes/${getClassIcon(char.class_id)}.png`} alt="" class="class-icon" />
+          <img src={classAsset(getClassIcon(char.class_id))} alt="" class="class-icon" />
           <div class="char-name-section">
             <span class="char-name">{char.char_name}</span>
             {#if char.earns_gold}
-              <img src="/images/gold.png" alt="Gold Earner" class="gold-earner-icon" />
+              <img src={iconAsset('gold.png')} alt="Gold Earner" class="gold-earner-icon" />
             {/if}
           </div>
           <div class="matrix-character-stats">

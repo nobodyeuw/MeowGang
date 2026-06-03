@@ -17,7 +17,7 @@
 
 <div class="characters-grid">
   {#each Object.entries(charactersByRoster) as [rosterId, rosterCharacters]}
-    <div class="roster-section roster-{rosterId}">
+    <div class="roster-section roster-{rosterId}" data-dashboard-roster-id={rosterId}>
       <h3 class="roster-title">
         <span class="roster-title-text">
           {getRosterName(rosterId)}

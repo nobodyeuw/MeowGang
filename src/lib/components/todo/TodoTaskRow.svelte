@@ -73,7 +73,7 @@
 
   .task-name-cell {
     padding: 0.75rem;
-    border-bottom: 2px solid var(--app-color-accent-divider);
+    border-bottom: 2px solid var(--app-todo-accent-divider);
   }
 
   .task-info {
@@ -94,7 +94,7 @@
   .toggle-cell {
     padding: 0.5rem;
     text-align: center;
-    border-bottom: 2px solid var(--app-color-accent-divider);
+    border-bottom: 2px solid var(--app-todo-accent-divider);
   }
 
   .task-toggle-container {

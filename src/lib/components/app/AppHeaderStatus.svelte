@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appAsset } from '$lib/assets';
   import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
   import type { MeowConnectHeaderState } from '$lib/types/app-shell';
 
@@ -16,6 +17,9 @@
   export let openMeowConnectRequests: () => void;
   export let startSetupGuide: () => void;
 
+  const headerLogo = appAsset('LOAtracker_header.png');
+  const meowConnectIcon = appAsset('meowconnect_tab.png');
+
   function getInitials(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     return (parts[0]?.[0] || '?').toUpperCase() + (parts[1]?.[0] || '').toUpperCase();
@@ -29,7 +33,7 @@
     on:click={() => activeTab !== 'dashboard' && switchTab('dashboard')}
     aria-label="Go to dashboard"
   >
-    <img src="/images/LOAtracker_header.png" alt="LOA Tracker" class="app-title-logo" />
+    <img src={headerLogo} alt="LOA Tracker" class="app-title-logo" />
   </button>
 
   {#if showHeaderCountdown && resetCountdown}
@@ -45,7 +49,7 @@
       class:offline={meowConnectHeaderState === 'offline' || meowConnectHeaderState === 'login_required'}
       title={meowConnectHeaderMessage}
     >
-      <img src="/images/meowconnect_tab.png" alt="" />
+      <img src={meowConnectIcon} alt="" />
       <span>{meowConnectHeaderLabel}</span>
     </div>
   {/if}
@@ -78,7 +82,7 @@
             {/if}
           {/each}
         {:else}
-          <img src="/images/meowconnect_tab.png" alt="" style="--request-avatar-index: 0" />
+          <img src={meowConnectIcon} alt="" style="--request-avatar-index: 0" />
         {/if}
         {#if pendingMeowConnectRequests > 3}
           <span class="request-avatar-overflow">+{pendingMeowConnectRequests - 3}</span>

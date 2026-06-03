@@ -15,7 +15,11 @@
   } from '$lib/services/dashboard-preferences';
   import { buildDashboardStats } from '$lib/services/dashboard';
   import type {
-    DashboardCharacterData
+    DashboardCharacterData,
+    DashboardDailyDetail,
+    DashboardRaidDetail,
+    DashboardRosterEventDetail,
+    DashboardWeeklyTaskDetail
   } from '$lib/components/dashboard/types';
 
   // Props for header communication
@@ -25,9 +29,11 @@
   let visibleCharacters: Character[] = [];
   let loading = true;
   let totalRaidsCompleted = 0;
+  let totalAdditionalRaidsCompleted = 0;
   let totalDailiesCompleted = 0;
   let totalWeekliesCompleted = 0;
   let totalRaidsPossible = 0;
+  let totalAdditionalRaidsPossible = 0;
   let totalDailiesTracked = 0;
   let totalDailiesPossible = 0;
   let totalWeekliesPossible = 0;
@@ -47,6 +53,19 @@
   let dashboardView: DashboardViewMode = 'compact';
   let showDashboardStaticBadges = true;
   let mismatchGoldLost = 0;
+  let mismatchGoldBonus = 0;
+  let raidDetails: DashboardRaidDetail[] = [];
+  let additionalRaidDetails: DashboardRaidDetail[] = [];
+  let dailyDetails: DashboardDailyDetail[] = [];
+  let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
+  let calendarEventDetails: DashboardRosterEventDetail[] = [];
+  let argeosDetails: DashboardRosterEventDetail[] = [];
+  $: argeosStatusKind = resolveArgeosStatusKind(
+    totalArgeosTracked,
+    totalArgeosAvailableToday,
+    totalArgeosDoneToday,
+    totalArgeosFullyDone
+  );
 
   // Load characters for ALL rosters
   async function loadAllCharacters() {
@@ -67,9 +86,11 @@
     try {
       const stats = await buildDashboardStats($rosters, characters, visibleCharacters);
       totalRaidsCompleted = stats.totalRaidsCompleted;
+      totalAdditionalRaidsCompleted = stats.totalAdditionalRaidsCompleted;
       totalDailiesCompleted = stats.totalDailiesCompleted;
       totalWeekliesCompleted = stats.totalWeekliesCompleted;
       totalRaidsPossible = stats.totalRaidsPossible;
+      totalAdditionalRaidsPossible = stats.totalAdditionalRaidsPossible;
       totalDailiesTracked = stats.totalDailiesTracked;
       totalDailiesPossible = stats.totalDailiesPossible;
       totalWeekliesPossible = stats.totalWeekliesPossible;
@@ -87,7 +108,14 @@
       estimatedGoldDisplay = stats.estimatedGoldDisplay;
       remainingGoldDisplay = stats.remainingGoldDisplay;
       mismatchGoldLost = stats.mismatchGoldLost;
+      mismatchGoldBonus = stats.mismatchGoldBonus;
       characterDataMap = stats.characterDataMap;
+      raidDetails = stats.raidDetails;
+      additionalRaidDetails = stats.additionalRaidDetails;
+      dailyDetails = stats.dailyDetails;
+      weeklyTaskDetails = stats.weeklyTaskDetails;
+      calendarEventDetails = stats.calendarEventDetails;
+      argeosDetails = stats.argeosDetails;
     } catch (error) {
       console.error('Failed to calculate global stats:', error);
     }
@@ -186,10 +214,6 @@
   // Create reactive data map for character cards
   let characterDataMap: Record<string, DashboardCharacterData> = {};
 
-  function getArgeosStatusKind(): 'empty' | 'done' | 'today' | 'open' {
-    return resolveArgeosStatusKind(totalArgeosTracked, totalArgeosAvailableToday, totalArgeosDoneToday, totalArgeosFullyDone);
-  }
-
 </script>
 
 <div class="dashboard-container" data-guide="dashboard">
@@ -208,11 +232,14 @@
       {actualBoundGoldDisplay}
       {actualTradableGoldDisplay}
       {mismatchGoldLost}
+      {mismatchGoldBonus}
     />
 
     <DashboardStatsBar
       {totalRaidsCompleted}
       {totalRaidsPossible}
+      {totalAdditionalRaidsCompleted}
+      {totalAdditionalRaidsPossible}
       {totalDailiesCompleted}
       {totalDailiesPossible}
       {totalDailiesTracked}
@@ -222,7 +249,15 @@
       {totalCalendarEventsPossible}
       {totalArgeosTracked}
       {totalArgeosAvailableToday}
-      argeosStatusKind={getArgeosStatusKind()}
+      {totalArgeosDoneToday}
+      {totalArgeosFullyDone}
+      {argeosStatusKind}
+      {raidDetails}
+      {additionalRaidDetails}
+      {dailyDetails}
+      {weeklyTaskDetails}
+      {calendarEventDetails}
+      {argeosDetails}
       goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
       visibleCharacterCount={visibleCharacters.length}
     />
@@ -239,6 +274,10 @@
 
 <style>
   .dashboard-container {
+    --app-control-accent: var(--app-dashboard-accent);
+    --app-control-on-accent: var(--md-sys-color-on-primary);
+    --app-control-accent-container: var(--app-dashboard-accent-soft);
+    --app-control-hover-border: var(--app-dashboard-accent);
     box-sizing: border-box;
     padding: 0.65rem;
     width: min(100%, 1920px);

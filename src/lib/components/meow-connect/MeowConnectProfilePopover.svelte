@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { classAsset, iconAsset } from '$lib/assets';
   import { getGameClassDisplayName, getGameClassIconId } from '$lib/data/classes';
   import { RAIDS } from '$lib/data/raids';
   import type {
@@ -25,6 +26,7 @@
     close: void;
     changeGroupAssignment: { row: MeowConnectAvailabilityRow; groupId: string };
   }>();
+  const goldIcon = iconAsset('gold.png');
 
   function formatCharacterItemLevel(value: number): string {
     return String(Math.round(value || 0));
@@ -147,14 +149,14 @@
     <div class="availability-stack">
       {#each profileGroup.rows.filter(isAvailableRow) as row}
         <article class:shared-static={hasSharedGroupAssignment(row)} class="availability-card">
-          <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
+          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
 
           <div class="character-copy">
             <div class="character-title-line">
               <strong>{row.character.charName}</strong>
               <span class="class-name">{getClassName(row.character.classId)}</span>
               <img
-                src="/images/gold.png"
+                src={goldIcon}
                 alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
                 class:inactive={!row.character.earnsGold}
                 class="gold-earner-icon"
@@ -194,14 +196,14 @@
 
       {#each profileGroup.rows.filter((row) => row.status === 'open' && row.reservedForStatic && row.ownerId !== 'local' && !hasSharedGroupAssignment(row)) as row}
         <article class="availability-card reserved">
-          <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
+          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
 
           <div class="character-copy">
             <div class="character-title-line">
               <strong>{row.character.charName}</strong>
               <span class="class-name">{getClassName(row.character.classId)}</span>
               <img
-                src="/images/gold.png"
+                src={goldIcon}
                 alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
                 class:inactive={!row.character.earnsGold}
                 class="gold-earner-icon"
@@ -241,14 +243,14 @@
 
       {#each profileGroup.rows.filter((row) => row.status === 'cleared') as row}
         <article class="availability-card cleared">
-          <img src={`/images/classes/${getClassIcon(row.character.classId)}.png`} alt="" class="class-icon" />
+          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
 
           <div class="character-copy">
             <div class="character-title-line">
               <strong>{row.character.charName}</strong>
               <span class="class-name">{getClassName(row.character.classId)}</span>
               <img
-                src="/images/gold.png"
+                src={goldIcon}
                 alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
                 class:inactive={!row.character.earnsGold}
                 class="gold-earner-icon"
