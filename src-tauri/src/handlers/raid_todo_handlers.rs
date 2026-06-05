@@ -5,6 +5,7 @@ use tauri::State;
 pub struct RaidConfigResponse {
     char_id: i64,
     content_id: String,
+    gate: String,
     difficulty: String,
 }
 
@@ -31,7 +32,7 @@ pub async fn get_raid_configs_for_roster(
     let mut configs = Vec::new();
     for char_id in char_ids {
         let mut raid_stmt = conn
-            .prepare("SELECT content_id, difficulty FROM conf_raid WHERE char_id = ?1")
+            .prepare("SELECT content_id, gate, difficulty FROM conf_raid WHERE char_id = ?1")
             .map_err(|e: rusqlite::Error| e.to_string())?;
 
         let raid_iter = raid_stmt
@@ -39,7 +40,8 @@ pub async fn get_raid_configs_for_roster(
                 Ok(RaidConfigResponse {
                     char_id,
                     content_id: row.get::<_, String>(0)?,
-                    difficulty: row.get::<_, String>(1)?,
+                    gate: row.get::<_, String>(1)?,
+                    difficulty: row.get::<_, String>(2)?,
                 })
             })
             .map_err(|e: rusqlite::Error| e.to_string())?;

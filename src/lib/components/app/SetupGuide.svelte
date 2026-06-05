@@ -31,7 +31,7 @@
   const allSteps: GuideStep[] = [
     {
       title: 'Set-Up Guide',
-      body: 'This guide walks through the main app areas, first roster setup, tracking, raid gold, MeowConnect, system options, updates, and the hidden progression workspace. Skip it any time if you already know the flow.',
+      body: 'This guide walks through the main app areas, first roster setup, tracking, raid gold, MeowConnect, system options, and updates. Skip it any time if you already know the flow.',
       tab: 'dashboard'
     },
     {
@@ -200,13 +200,6 @@
       body: 'The Updates tab shows app changelogs, known issues, planned features, and available updater actions.',
       tab: 'updates',
       target: '[data-guide="updates"]',
-      align: 'right'
-    },
-    {
-      title: 'Progression',
-      body: 'Progression is still a hidden development workspace for future planning tools. It is separated so it can be improved without affecting the main tracker flow.',
-      tab: 'progression',
-      target: '[data-guide="progression"]',
       align: 'right'
     },
     {

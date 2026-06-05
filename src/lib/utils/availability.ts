@@ -59,6 +59,21 @@ export function getNextAvailableTime(taskId: string): Date | null {
   return null;
 }
 
+export function getSoonCalendarEventIds(now = new Date()): string[] {
+  const soonIds: string[] = [];
+  const nextReset = new Date(getGameDayStart(now));
+  nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+
+  for (const taskId of ['gate', 'boss']) {
+    const nextAvailable = getNextAvailableTime(taskId);
+    if (nextAvailable && nextAvailable.getTime() <= nextReset.getTime()) {
+      soonIds.push(taskId);
+    }
+  }
+
+  return soonIds;
+}
+
 export function getTimeUntilAvailable(taskId: string): string {
   const nextAvailable = getNextAvailableTime(taskId);
   if (!nextAvailable) return '';

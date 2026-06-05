@@ -8,7 +8,7 @@
     getOpenCount,
     getOpenStatusKind
   } from '$lib/components/dashboard/helpers';
-  import { getCurrentAvailabilityStatus, getTimeUntilAvailable } from '$lib/utils/availability';
+  import { getCurrentAvailabilityStatus, getSoonCalendarEventIds, getTimeUntilAvailable } from '$lib/utils/availability';
   import { activeFilterCharId, activeRosterId } from '$lib/store';
   import { updateTodoRosterEventStatus } from '$lib/services/todo';
   import type {
@@ -48,6 +48,7 @@
   export let argeosDetails: DashboardRosterEventDetail[] = [];
 
   let activePopover: PopoverKind | null = null;
+  let popoverTop = 0;
   let goldEarnerArmed = false;
   const statIcons = {
     raid: iconAsset('kazeros-raid.webp'),
@@ -60,12 +61,20 @@
   };
 
   $: calendarAvailability = getCurrentAvailabilityStatus();
+  $: soonCalendarEventIds = !calendarAvailability.gate && !calendarAvailability.boss
+    ? getSoonCalendarEventIds()
+    : [];
+  $: soonCalendarEventNames = soonCalendarEventIds
+    .map((taskId) => taskId === 'gate' ? 'Chaos Gate' : 'Field Boss')
+    .join(' | ');
   $: currentCalendarEventIcons = calendarAvailability.gate || calendarAvailability.boss
     ? getCurrentCalendarEventIcons()
-    : [statIcons.gate, statIcons.boss];
+    : soonCalendarEventIds.length > 0
+      ? soonCalendarEventIds.map((taskId) => taskId === 'gate' ? statIcons.gate : statIcons.boss)
+      : [statIcons.gate, statIcons.boss];
   $: currentCalendarEventLabel = calendarAvailability.gate || calendarAvailability.boss
     ? getCurrentCalendarEventLabel()
-    : 'Chaos Gate | Field Boss';
+    : soonCalendarEventNames || 'Chaos Gate | Field Boss';
   $: resolvedArgeosStatusKind =
     totalArgeosTracked > 0 && totalArgeosFullyDone >= totalArgeosTracked
       ? 'done'
@@ -101,6 +110,12 @@
 
   function togglePopover(kind: PopoverKind, event: MouseEvent | KeyboardEvent) {
     event.stopPropagation();
+    const target = event.currentTarget as HTMLElement | null;
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      popoverTop = rect.bottom + 6;
+    }
+
     if (kind === 'gold-earners' && activePopover === 'gold-earners' && goldEarnerArmed) {
       hideToTray();
       activePopover = null;
@@ -153,6 +168,38 @@
     return [...raidDetails, ...additionalRaidDetails].filter((detail) => !detail.completed);
   }
 
+  function uniqueFocusEntries(entries: DashboardFocusEntry[]) {
+    const seen = new Set<string>();
+    return entries.filter((entry) => {
+      const key = `${entry.rosterId}:${entry.charId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function openRaidCharacters() {
+    const grouped = new Map<string, DashboardFocusEntry & { openCount: number }>();
+
+    for (const entry of openRaidEntries()) {
+      const key = `${entry.rosterId}:${entry.charId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.openCount += 1;
+      } else {
+        grouped.set(key, { ...entry, openCount: 1 });
+      }
+    }
+
+    return Array.from(grouped.values());
+  }
+
+  function openWeeklyCharacters() {
+    return uniqueFocusEntries(
+      weeklyTaskDetails.flatMap((task) => task.openCharacters)
+    );
+  }
+
   function formatOpenDailyTasks(tasks: string[]) {
     return tasks.map((task) => task === 'chaos' ? 'Chaos' : task === 'guardian' ? 'Guardian' : task).join(' + ');
   }
@@ -179,17 +226,17 @@
         </div>
         <div class="stat-label">Raids</div>
         {#if activePopover === 'raids'}
-          <div class="stat-popover">
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
             <strong>You cleared {totalRaidsCompleted} out of {totalRaidsPossible} gold raids.</strong>
             {#if totalAdditionalRaidsPossible > 0}
               <p>+ an additional {totalAdditionalRaidsCompleted} out of {totalAdditionalRaidsPossible} raids.</p>
             {/if}
-            {#if openRaidEntries().length > 0}
+            {#if openRaidCharacters().length > 0}
               <div class="popover-list">
-                {#each openRaidEntries().slice(0, 8) as entry}
+                {#each openRaidCharacters() as entry}
                   <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
                     <span>{entry.charName}</span>
-                    <small>{entry.rosterName}</small>
+                    <small>{entry.openCount} open | {entry.rosterName}</small>
                   </button>
                 {/each}
               </div>
@@ -224,12 +271,12 @@
         </div>
         <div class="stat-label">Dailies</div>
         {#if activePopover === 'dailies'}
-          <div class="stat-popover">
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
             <strong>You cleared {totalDailiesCompleted} out of {totalDailiesPossible} available dailies.</strong>
             <p>Resting lazy dailies are treated as not available today.</p>
             {#if dailyDetails.length > 0}
               <div class="popover-list">
-                {#each dailyDetails.slice(0, 8) as entry}
+                {#each dailyDetails as entry}
                   <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
                     <span>{entry.charName}</span>
                     <small>{formatOpenDailyTasks(entry.openTasks)}</small>
@@ -259,7 +306,7 @@
         </div>
         <div class="stat-label">Weeklies</div>
         {#if activePopover === 'weeklies'}
-          <div class="stat-popover">
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
             <strong>You cleared {totalWeekliesCompleted} out of {totalWeekliesPossible} tracked weeklies.</strong>
             <div class="task-summary">
               {#each weeklyTaskDetails as task}
@@ -270,16 +317,16 @@
                 </div>
               {/each}
             </div>
-            {#each weeklyTaskDetails.filter((task) => task.openCharacters.length > 0) as task}
+            {#if openWeeklyCharacters().length > 0}
               <div class="popover-list">
-                {#each task.openCharacters.slice(0, 4) as entry}
+                {#each openWeeklyCharacters() as entry}
                   <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
                     <span>{entry.charName}</span>
-                    <small>{task.name}</small>
+                    <small>{entry.rosterName}</small>
                   </button>
                 {/each}
               </div>
-            {/each}
+            {/if}
           </div>
         {/if}
       </div>
@@ -299,7 +346,7 @@
             class:empty={getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
           >
             {#if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'empty'}
-              <span class="stat-status-text">Not today</span>
+              <span class="stat-status-text">{soonCalendarEventIds.length > 0 ? 'Soon' : 'Not today'}</span>
             {:else if getOpenStatusKind(totalCalendarEventsCompleted, totalCalendarEventsPossible) === 'done'}
               <span class="stat-status-text">All done</span>
             {:else}
@@ -311,9 +358,9 @@
       </div>
       <div class="stat-label event-name">{currentCalendarEventLabel}</div>
       {#if activePopover === 'calendar'}
-        <div class="stat-popover">
+        <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
           {#if totalCalendarEventsPossible <= 0}
-            <strong>Not today.</strong>
+            <strong>{soonCalendarEventIds.length > 0 ? 'Soon.' : 'Not today.'}</strong>
             <div class="popover-list">
               <div class="popover-row static-row calendar-event-row">
                 <img src={statIcons.gate} alt="Chaos Gate" class="popover-task-icon" />
@@ -370,7 +417,7 @@
         </div>
         <div class="stat-label event-name">Stoopid Argeos</div>
         {#if activePopover === 'argeos'}
-          <div class="stat-popover">
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
             <strong>{totalArgeosFullyDone} out of {totalArgeosTracked} rosters fully done.</strong>
             <div class="popover-list">
               {#each argeosDetails as detail}
@@ -402,7 +449,7 @@
         </div>
         <div class="stat-label">Gold Earners</div>
         {#if activePopover === 'gold-earners'}
-          <div class="stat-popover">
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
             <strong>if you click me again LOA Tracker will uninstall itself</strong>
           </div>
         {/if}
@@ -576,12 +623,12 @@
   }
 
   .stat-popover {
-    position: absolute;
+    position: fixed;
     z-index: 20;
-    top: calc(100% + 0.35rem);
-    left: 50%;
+    top: var(--popover-top, 9rem);
+    left: 50vw;
     transform: translateX(-50%);
-    width: min(19rem, 82vw);
+    width: min(19rem, calc(100vw - 1rem));
     max-height: 22rem;
     overflow-x: hidden;
     overflow-y: auto;

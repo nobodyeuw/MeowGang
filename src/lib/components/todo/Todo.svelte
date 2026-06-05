@@ -20,6 +20,7 @@
   import type {
     CharacterTaskState,
     RaidConfigEntry,
+    RaidGateDifficultyMap,
     RosterEventProgress,
     TodoCharacter,
     TodoMatrixResponse,
@@ -42,7 +43,7 @@
   let matrixData: TodoMatrixResponse | null = null;
   let rosterTaskStates: Record<string, boolean> = {};
   let rosterEventProgress: Record<string, RosterEventProgress> = {};
-  let raidConfigMap: Map<string, Map<number, string>> = new Map();
+  let raidConfigMap: RaidGateDifficultyMap = new Map();
   let loading = true;
   let error = '';
   let selectedTodoRosterId = '';
@@ -112,10 +113,13 @@
 
       const gateCompletionResponses = await loadRaidGateCompletionsBulk(gateCompletionRequests);
 
-      const gateCompletionMap = new Map<string, boolean>();
+      const gateCompletionMap = new Map<string, { completed: boolean; actualDifficulty?: string | null }>();
       gateCompletionResponses.forEach((response) => {
         const completionKey = `${response.character_id}_${response.raid_id}_${response.gate_id}`;
-        gateCompletionMap.set(completionKey, response.completed);
+        gateCompletionMap.set(completionKey, {
+          completed: response.completed,
+          actualDifficulty: response.actual_difficulty
+        });
       });
 
       const trackedRaids = buildTrackedTodoRaids(candidateRaids, baseMatrix, raidConfigMap, gateCompletionMap);

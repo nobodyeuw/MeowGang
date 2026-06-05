@@ -6,11 +6,12 @@ export function marketNeedsRefresh(): Promise<boolean> {
 }
 
 export async function loadMarketPrices(): Promise<MarketItem[]> {
-  const [priceItems, gemItems] = await Promise.all([
+  const [priceItems, gemItems, accessoryItems] = await Promise.all([
     invoke<MarketItem[]>('get_all_market_prices'),
-    invoke<MarketItem[]>('get_gem_prices')
+    invoke<MarketItem[]>('get_gem_prices'),
+    invoke<MarketItem[]>('get_accessory_prices')
   ]);
-  return [...priceItems, ...gemItems];
+  return [...priceItems, ...gemItems, ...accessoryItems];
 }
 
 export function refreshMarketPrices(): Promise<RefreshResult> {
@@ -39,6 +40,10 @@ export function setManualMarketPrice(item: MarketItem, price: number) {
 
 export function removeManualMarketPrice(itemSlug: string) {
   return invoke('remove_manual_market_price', { itemSlug });
+}
+
+export function resetManualMarketPriceToEstimate(itemSlug: string) {
+  return invoke('reset_manual_market_price_to_estimate', { itemSlug });
 }
 
 export function loadPriceHistory(itemSlug: string, days: number): Promise<HistoricalPriceEntry[]> {

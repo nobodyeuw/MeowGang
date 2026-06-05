@@ -6,18 +6,24 @@
   import {
     buildHistoryChartData,
     buildHistoryChartOptions,
+    compareMarketItems,
+    doesAccessoryRoleMatchFilter,
     doesHoningTierMatchFilter,
+    doesTradeSkillCategoryMatchFilter,
     getLastRefreshedLabel,
     getNextSortState
   } from '$lib/components/market/helpers';
   import type {
+    AccessoryFilter,
+    AccessoryRoleFilter,
     GemFilter,
     HistoricalPriceEntry,
     HistoryDays,
     HoningFilter,
     MarketCategory,
     MarketItem,
-    MarketSortKey
+    MarketSortKey,
+    TradeFilter
   } from '$lib/components/market/types';
   import {
     loadMarketPrices,
@@ -25,13 +31,17 @@
     marketNeedsRefresh,
     refreshMarketPrices,
     removeManualMarketPrice,
+    resetManualMarketPriceToEstimate,
     setManualMarketPrice,
     setMarketFavorite
   } from '$lib/services/market-prices';
 
   let activeMarketCategory: MarketCategory = 'engraving';
   let gemFilter: GemFilter = 'all';
+  let accessoryFilter: AccessoryFilter = 'all';
+  let accessoryRoleFilter: AccessoryRoleFilter = 'all';
   let honingFilter: HoningFilter = 'all';
+  let tradeFilter: TradeFilter = 'all';
   let showFavoritesOnly = false;
   let marketItems: MarketItem[] = [];
   let loading = false;
@@ -62,23 +72,23 @@
         if (gemFilter === 'all') return true;
         return item.item_slug.startsWith(`gem-${gemFilter}`);
       }
+      if (activeMarketCategory === 'accessories') {
+        const roleMatches = doesAccessoryRoleMatchFilter(item.item_slug, accessoryRoleFilter);
+        if (!roleMatches) return false;
+        if (accessoryFilter === 'all') return true;
+        return item.item_slug.includes(`accessory-${accessoryFilter}-`);
+      }
       if (activeMarketCategory === 'honing' || activeMarketCategory === 'additional_honing') {
         return doesHoningTierMatchFilter(item.item_slug, honingFilter);
+      }
+      if (activeMarketCategory === 'trade') {
+        return doesTradeSkillCategoryMatchFilter(item.item_slug, tradeFilter);
       }
       return true;
     })
     .filter(item => !showFavoritesOnly || item.favorite)
     .filter(item => !searchQuery || item.item_name.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => {
-      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
-      const mul = sortAsc ? 1 : -1;
-      if (sortKey === 'name') return mul * a.item_name.localeCompare(b.item_name);
-      return mul * (a.price - b.price);
-    });
-
-  $: if (activeMarketCategory === 'gems') {
-    activeMarketCategory = 'engraving';
-  }
+    .sort((a, b) => compareMarketItems(a, b, sortKey, sortAsc));
 
   onMount(async () => {
     await checkRefreshStatus();
@@ -179,6 +189,15 @@
     }
   }
 
+  async function resetEstimatedPrice(itemSlug: string) {
+    try {
+      await resetManualMarketPriceToEstimate(itemSlug);
+      await loadPrices();
+    } catch (error) {
+      console.error('Failed to reset estimated price:', error);
+    }
+  }
+
   async function openPriceHistory(item: MarketItem) {
     if (item.category === 'gems') return;
     historyItemName = item.item_name;
@@ -227,7 +246,10 @@
     <MarketToolbar
       bind:activeMarketCategory
       bind:gemFilter
+      bind:accessoryFilter
+      bind:accessoryRoleFilter
       bind:honingFilter
+      bind:tradeFilter
       bind:showFavoritesOnly
       bind:searchQuery
       {lastRefreshed}
@@ -245,7 +267,6 @@
       {sortAsc}
       bind:editingSlug
       bind:editPrice
-      {activeMarketCategory}
       onRefresh={refreshPrices}
       onToggleSort={toggleSort}
       onOpenPriceHistory={openPriceHistory}
@@ -254,6 +275,7 @@
       onSaveManualPrice={saveManualPrice}
       onHandleEditKeydown={handleEditKeydown}
       onRemoveOverride={removeOverride}
+      onResetEstimatedPrice={resetEstimatedPrice}
     />
   </div>
 </div>

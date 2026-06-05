@@ -79,6 +79,11 @@ pub struct RaidGateState {
     pub clear_time: Option<String>,
 }
 
+pub struct RaidGateCompletionDetails {
+    pub completed: bool,
+    pub actual_difficulty: Option<String>,
+}
+
 pub struct TodoRepository {
     pub(crate) pool: Arc<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>,
 }
@@ -452,6 +457,35 @@ impl TodoRepository {
         }) {
             Ok(completed) => Ok(Some(completed == 1)),
             Err(_) => Ok(Some(false)),
+        }
+    }
+
+    /// Reads one raid gate clear state and the stored clear difficulty.
+    pub fn get_raid_gate_completion_details(
+        &self,
+        char_id: i64,
+        raid_id: &str,
+        gate_id: &str,
+    ) -> Result<RaidGateCompletionDetails> {
+        let conn = self.pool.get()?;
+        let base_session_id = format!("{}_{}", raid_id, gate_id);
+
+        let mut stmt = conn.prepare(
+            "SELECT is_completed, details FROM completion_status \
+             WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3 LIMIT 1",
+        )?;
+
+        match stmt.query_row(params![char_id, raid_id, &base_session_id], |row| {
+            Ok(RaidGateCompletionDetails {
+                completed: row.get::<_, i64>(0)? == 1,
+                actual_difficulty: row.get::<_, Option<String>>(1)?,
+            })
+        }) {
+            Ok(details) => Ok(details),
+            Err(_) => Ok(RaidGateCompletionDetails {
+                completed: false,
+                actual_difficulty: None,
+            }),
         }
     }
 

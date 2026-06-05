@@ -3,9 +3,11 @@
   import {
     buildMarketIconUrl,
     formatGold,
+    getAccessoryMarketDisplay,
+    getMarketDisplayName,
     handleMarketIconError
   } from '$lib/components/market/helpers';
-  import type { MarketCategory, MarketItem, MarketSortKey } from './types';
+  import type { MarketItem, MarketSortKey } from './types';
 
   export let loading = false;
   export let refreshing = false;
@@ -16,7 +18,6 @@
   export let sortAsc = true;
   export let editingSlug: string | null = null;
   export let editPrice = '';
-  export let activeMarketCategory: MarketCategory = 'engraving';
   export let onRefresh: () => void;
   export let onToggleSort: (key: MarketSortKey) => void;
   export let onOpenPriceHistory: (item: MarketItem) => void;
@@ -24,6 +25,7 @@
   export let onStartEdit: (item: MarketItem) => void;
   export let onSaveManualPrice: (item: MarketItem) => void;
   export let onHandleEditKeydown: (event: KeyboardEvent, item: MarketItem) => void;
+  export let onResetEstimatedPrice: (itemSlug: string) => void;
 
   const goldIcon = iconAsset('gold.png');
   export let onRemoveOverride: (itemSlug: string) => void;
@@ -65,8 +67,9 @@
       </thead>
       <tbody>
         {#each filteredItems as item (item.item_slug)}
+          {@const accessoryDisplay = getAccessoryMarketDisplay(item)}
           <tr class:manual-override={item.is_manual_override}>
-            <td class="item-name" class:clickable={item.category !== 'gems'} on:click={() => onOpenPriceHistory(item)}>
+            <td class="item-name" class:clickable={!item.is_manual_only} on:click={() => !item.is_manual_only && onOpenPriceHistory(item)}>
               <div class="item-name-row">
                 <img
                   src={buildMarketIconUrl(item.item_slug, item.category)}
@@ -75,7 +78,25 @@
                   on:error={handleMarketIconError}
                 />
                 <div class="item-name-text">
-                  <span>{item.item_name}</span>
+                  {#if accessoryDisplay}
+                    <div class="accessory-stat-row" title={item.item_name}>
+                      <img
+                        src={accessoryDisplay.roleIcon}
+                        alt={accessoryDisplay.roleLabel}
+                        class="accessory-role-icon"
+                        title={accessoryDisplay.roleLabel}
+                      />
+                      {#each accessoryDisplay.stats as stat, statIndex}
+                        <span class={`accessory-stat grade-${stat.color}`}>{stat.text}</span>
+                        {#if statIndex < accessoryDisplay.stats.length - 1}
+                          <span class="accessory-stat-separator">|</span>
+                        {/if}
+                      {/each}
+                    </div>
+                    <small>{accessoryDisplay.summaryText}</small>
+                  {:else}
+                    <span>{getMarketDisplayName(item)}</span>
+                  {/if}
                 </div>
                 <button
                   type="button"
@@ -86,7 +107,7 @@
                 >
                   {#if item.favorite}&#9733;{:else}&#9734;{/if}
                 </button>
-                {#if item.category !== 'gems'}
+                {#if !item.is_manual_only}
                   <span class="chart-icon" title="View price history">&#128202;</span>
                 {/if}
               </div>
@@ -104,8 +125,11 @@
               {:else}
                 <span class="gold-value">{formatGold(item.price)}</span>
                 <img src={goldIcon} alt="" class="gold-coin-icon" />
-                {#if item.is_manual_override && activeMarketCategory !== 'gems'}
+                {#if item.is_manual_override && !item.is_manual_only}
                   <span class="override-badge" title="Manual override">M</span>
+                {/if}
+                {#if item.is_manual_only && item.estimated_price}
+                  <span class="override-badge estimate" title={`Estimated default: ${formatGold(item.estimated_price)} gold`}>E</span>
                 {/if}
               {/if}
             </td>
@@ -121,7 +145,12 @@
                 <button class="ui-button icon" on:click={() => onStartEdit(item)} title="Set manual price">
                   &#9998;
                 </button>
-                {#if item.is_manual_override && activeMarketCategory !== 'gems'}
+                {#if item.is_manual_only && item.estimated_price}
+                  <button class="ui-button icon warning" on:click={() => onResetEstimatedPrice(item.item_slug)} title="Reset to estimated price">
+                    &#8635;
+                  </button>
+                {/if}
+                {#if item.is_manual_override && !item.is_manual_only}
                   <button class="ui-button icon warning" on:click={() => onRemoveOverride(item.item_slug)} title="Remove override">
                     &#8634;
                   </button>
@@ -287,6 +316,58 @@
     display: block;
   }
 
+  .item-name-text small {
+    display: block;
+    margin-top: 0.15rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .accessory-stat-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 0.35rem;
+    row-gap: 0.12rem;
+    min-width: 0;
+  }
+
+  .accessory-role-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .accessory-stat {
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .accessory-stat-separator {
+    color: var(--md-sys-color-outline-variant);
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
+  .accessory-stat.grade-blue {
+    color: #60a5fa;
+  }
+
+  .accessory-stat.grade-purple {
+    color: #c084fc;
+  }
+
+  .accessory-stat.grade-gold {
+    color: #fbbf24;
+  }
+
   .favorite-star {
     background: none;
     border: none;
@@ -334,6 +415,11 @@
     font-weight: 600;
     border-radius: 4px;
     margin-left: 0.5rem;
+  }
+
+  .override-badge.estimate {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+    color: var(--md-sys-color-primary);
   }
 
   .item-actions {

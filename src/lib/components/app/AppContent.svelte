@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Dashboard, Marketplace, MeowConnect, ProgressionPlanner, Settings, Todo, UpdateTab } from '$lib/components/features';
+  import { Dashboard, Marketplace, MeowConnect, Settings, Todo, UpdateTab } from '$lib/components/features';
   import type { AppTab, MeowConnectSection } from '$lib/types/app-shell';
 
   export let activeTab: AppTab = 'dashboard';
@@ -20,8 +20,6 @@
     <Settings activeSettingsTab={activeSettingsTab} on:tabChange={(e: CustomEvent<string>) => activeSettingsTab = e.detail} />
   {:else if activeTab === 'marketplace'}
     <Marketplace />
-  {:else if activeTab === 'progression'}
-    <ProgressionPlanner />
   {:else if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
     <MeowConnect
       activeSection={activeMeowConnectTab}

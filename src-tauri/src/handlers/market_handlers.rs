@@ -13,7 +13,7 @@ pub struct ManualPriceInput {
     pub price: i64,
 }
 
-/// Fetch all market prices (engravings + honing) from the API and store them.
+/// Fetch all market prices from the API and store them.
 #[tauri::command]
 pub async fn refresh_market_prices(market_db: State<'_, MarketDatabase>) -> Result<RefreshResult, String> {
     crate::log_info!("Handler: refresh_market_prices called");
@@ -39,7 +39,14 @@ pub fn get_market_prices_by_category(
     category: String,
     market_db: State<'_, MarketDatabase>,
 ) -> Result<Vec<MarketItem>, String> {
-    let valid_categories = ["engraving", "honing", "additional_honing", "gems"];
+    let valid_categories = [
+        "engraving",
+        "honing",
+        "additional_honing",
+        "trade",
+        "gems",
+        "accessories",
+    ];
     if !valid_categories.contains(&category.as_str()) {
         return Err(format!(
             "Invalid category: {}. Must be one of: {:?}",
@@ -91,6 +98,21 @@ pub fn remove_manual_market_price(item_slug: String, market_db: State<'_, Market
         .map_err(|e| format!("Failed to remove manual price: {}", e))
 }
 
+/// Reset a manual-only estimate row back to its seeded price.
+#[tauri::command]
+pub fn reset_manual_market_price_to_estimate(
+    item_slug: String,
+    market_db: State<'_, MarketDatabase>,
+) -> Result<bool, String> {
+    if item_slug.is_empty() {
+        return Err("Item slug cannot be empty".to_string());
+    }
+
+    market_db
+        .reset_manual_price_to_estimate(&item_slug)
+        .map_err(|e| format!("Failed to reset estimated price: {}", e))
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FavoriteToggleInput {
     pub item_slug: String,
@@ -123,6 +145,14 @@ pub fn get_gem_prices(market_db: State<'_, MarketDatabase>) -> Result<Vec<Market
     market_db
         .get_gem_prices()
         .map_err(|e| format!("Failed to get gem prices: {}", e))
+}
+
+/// Get all accessory estimate prices (manual-only entries).
+#[tauri::command]
+pub fn get_accessory_prices(market_db: State<'_, MarketDatabase>) -> Result<Vec<MarketItem>, String> {
+    market_db
+        .get_accessory_prices()
+        .map_err(|e| format!("Failed to get accessory prices: {}", e))
 }
 
 /// Get historical price data for an item (fetched live from API).

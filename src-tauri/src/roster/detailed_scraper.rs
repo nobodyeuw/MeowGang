@@ -240,7 +240,10 @@ impl DetailedCharacterScraper {
                                 se.get("id").and_then(|i| i.as_i64()),
                                 se.get("nodes").and_then(|n| n.as_i64()),
                             ) {
-                                stone_bonus_map.insert(Self::normalize_engraving_id(id), nodes);
+                                stone_bonus_map.insert(
+                                    Self::normalize_engraving_id(id),
+                                    Self::ability_stone_nodes_to_level(nodes),
+                                );
                             }
                         }
                     }
@@ -259,20 +262,27 @@ impl DetailedCharacterScraper {
                     continue;
                 }
 
-                let books_read = Self::extract_numeric_i64(
+                let raw_progress = Self::extract_numeric_i64(
                     engraving,
                     &["progress", "booksRead", "readCount", "bookCount", "points"],
-                )
-                .unwrap_or_else(|| {
+                );
+                let books_read = raw_progress.unwrap_or_else(|| {
                     if engraving.get("max").and_then(|m| m.as_bool()) == Some(true)
                         || engraving.get("complete").and_then(|m| m.as_bool()) == Some(true)
                         || engraving.get("completed").and_then(|m| m.as_bool()) == Some(true)
+                        || engraving.get("grade").and_then(|g| g.as_str()) == Some("engrave_grade05")
                     {
                         20
                     } else {
                         0
                     }
                 });
+                let books_read =
+                    if books_read == 0 && engraving.get("grade").and_then(|g| g.as_str()) == Some("engrave_grade05") {
+                        20
+                    } else {
+                        books_read
+                    };
                 let normalized_id = Self::normalize_engraving_id(id);
                 let stone_bonus = *stone_bonus_map.get(&normalized_id).unwrap_or(&0);
                 let engraving_name = get_engraving_name(id)
@@ -299,6 +309,16 @@ impl DetailedCharacterScraper {
             id - 1000
         } else {
             id
+        }
+    }
+
+    fn ability_stone_nodes_to_level(nodes: i64) -> i64 {
+        match nodes {
+            n if n >= 10 => 4,
+            n if n >= 9 => 3,
+            n if n >= 7 => 2,
+            n if n >= 6 => 1,
+            _ => 0,
         }
     }
 
@@ -346,6 +366,91 @@ impl DetailedCharacterScraper {
         }
     }
 
+    fn accessory_effect_value(stat: &serde_json::Value) -> Option<(String, serde_json::Value)> {
+        let stat_type = stat.get("type").and_then(|v| v.as_i64());
+        let index = stat.get("index").and_then(|v| v.as_i64());
+        let value = stat
+            .get("value")
+            .or_else(|| stat.get("amount"))
+            .or_else(|| stat.get("v"))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        if value.is_null() {
+            return None;
+        }
+
+        let numeric = value
+            .as_f64()
+            .or_else(|| value.as_i64().map(|n| n as f64))
+            .or_else(|| value.as_str().and_then(|s| s.parse::<f64>().ok()));
+        let percent_value = |raw: f64| serde_json::Value::String(format!("+{}%", Self::trim_decimal(raw / 100.0)));
+
+        match (stat_type, index) {
+            // Base accessory lines.
+            (Some(2), Some(6)) => Some(("Vitality".to_string(), value)),
+            (Some(2), Some(3 | 4 | 5)) => Some(("Base Stat".to_string(), value)),
+
+            // T4 accessory option lines observed in lostark.bible payloads.
+            (Some(2), Some(151)) => Some(("Weapon Power".to_string(), value)),
+            (Some(2), Some(152)) => numeric.map(|n| ("Weapon Power %".to_string(), percent_value(n))),
+            (Some(2), Some(49)) | (Some(50), Some(0)) => {
+                numeric.map(|n| ("Attack Power %".to_string(), percent_value(n)))
+            }
+            (Some(2), Some(74)) => numeric.map(|n| ("Crit Rate".to_string(), percent_value(n))),
+            (Some(2), Some(76)) => numeric.map(|n| ("Crit Damage".to_string(), percent_value(n))),
+            (Some(2), Some(27)) => Some(("Max HP".to_string(), value)),
+            (Some(4), Some(621000002)) => Some((
+                "Outgoing Damage".to_string(),
+                serde_json::Value::String("+2%".to_string()),
+            )),
+            _ => None,
+        }
+    }
+
+    fn trim_decimal(value: f64) -> String {
+        let text = format!("{:.2}", value);
+        text.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+
+    fn accessory_effect_grade(label: &str, value: &serde_json::Value) -> Option<String> {
+        let normalized = value
+            .as_f64()
+            .or_else(|| value.as_i64().map(|n| n as f64))
+            .or_else(|| {
+                value
+                    .as_str()
+                    .map(|s| s.trim_start_matches('+').trim_end_matches('%'))
+                    .and_then(|s| s.parse::<f64>().ok())
+            })?;
+
+        let grade = match label {
+            "Additional Damage" => Self::grade_by_table(normalized, &[0.7, 1.6, 2.6]),
+            "Outgoing Damage" => Self::grade_by_table(normalized, &[0.55, 1.2, 2.0]),
+            "Attack Power %" => Self::grade_by_table(normalized, &[0.4, 0.95, 1.55]),
+            "Weapon Power %" => Self::grade_by_table(normalized, &[0.8, 1.8, 3.0]),
+            "Crit Rate" => Self::grade_by_table(normalized, &[0.4, 0.95, 1.55]),
+            "Crit Damage" => Self::grade_by_table(normalized, &[1.1, 2.4, 4.0]),
+            "Weapon Power" => Self::grade_by_table(normalized, &[195.0, 480.0, 960.0]),
+            "Attack Power" => Self::grade_by_table(normalized, &[80.0, 195.0, 390.0]),
+            _ => None,
+        }?;
+
+        Some(grade.to_string())
+    }
+
+    fn grade_by_table(value: f64, low_mid_high: &[f64; 3]) -> Option<&'static str> {
+        let epsilon = 0.01;
+        if (value - low_mid_high[0]).abs() <= epsilon {
+            Some("blue")
+        } else if (value - low_mid_high[1]).abs() <= epsilon {
+            Some("purple")
+        } else if (value - low_mid_high[2]).abs() <= epsilon {
+            Some("orange")
+        } else {
+            None
+        }
+    }
+
     fn item_effect_grade(stat: &serde_json::Value) -> Option<String> {
         for key in ["grade", "rank", "quality", "tier"] {
             if let Some(value) = stat.get(key).and_then(|v| v.as_str()) {
@@ -357,25 +462,42 @@ impl DetailedCharacterScraper {
         None
     }
 
-    fn extract_item_effects_json(data: Option<&serde_json::Value>, is_armor: bool) -> Option<String> {
+    fn extract_item_effects_json(
+        data: Option<&serde_json::Value>,
+        is_armor: bool,
+        is_accessory: bool,
+    ) -> Option<String> {
         let stats = data.and_then(|d| d.get("stats")).and_then(|s| s.as_array())?;
 
         let mut effects = Vec::new();
+        let mut base_stat_value: Option<serde_json::Value> = None;
         for stat in stats {
-            let label = match Self::item_effect_label(stat, is_armor) {
-                Some(label) => label,
-                None => continue,
+            let (label, value) = if is_accessory {
+                let label_and_value = match Self::accessory_effect_value(stat) {
+                    Some(label_and_value) => label_and_value,
+                    None => continue,
+                };
+                if label_and_value.0 == "Base Stat" {
+                    base_stat_value = Some(label_and_value.1);
+                    continue;
+                }
+                label_and_value
+            } else {
+                let label = match Self::item_effect_label(stat, is_armor) {
+                    Some(label) => label,
+                    None => continue,
+                };
+                if is_armor && label == "Quality" {
+                    continue;
+                }
+                let value = stat
+                    .get("value")
+                    .or_else(|| stat.get("amount"))
+                    .or_else(|| stat.get("v"))
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                (label, value)
             };
-            if is_armor && label == "Quality" {
-                continue;
-            }
-
-            let value = stat
-                .get("value")
-                .or_else(|| stat.get("amount"))
-                .or_else(|| stat.get("v"))
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
             if value.is_null() {
                 continue;
             }
@@ -383,16 +505,70 @@ impl DetailedCharacterScraper {
             let mut effect = serde_json::Map::new();
             effect.insert("label".to_string(), serde_json::Value::String(label));
             effect.insert("value".to_string(), value);
-            if let Some(grade) = Self::item_effect_grade(stat) {
+            if let Some(grade) = if is_accessory {
+                effect.get("label").and_then(|label| label.as_str()).and_then(|label| {
+                    effect
+                        .get("value")
+                        .and_then(|value| Self::accessory_effect_grade(label, value))
+                })
+            } else {
+                Self::item_effect_grade(stat)
+            } {
                 effect.insert("grade".to_string(), serde_json::Value::String(grade));
             }
             effects.push(serde_json::Value::Object(effect));
+        }
+
+        if let Some(value) = base_stat_value {
+            let mut effect = serde_json::Map::new();
+            effect.insert("label".to_string(), serde_json::Value::String("Base Stat".to_string()));
+            effect.insert("value".to_string(), value);
+            effects.insert(1.min(effects.len()), serde_json::Value::Object(effect));
         }
 
         if effects.is_empty() {
             None
         } else {
             serde_json::to_string(&effects).ok()
+        }
+    }
+
+    fn infer_armor_quality(data: Option<&serde_json::Value>, raw_slot: &str) -> Option<i64> {
+        let stats = data.and_then(|d| d.get("stats")).and_then(|s| s.as_array())?;
+        let stat = stats.iter().find(|s| {
+            s.get("type").and_then(|t| t.as_i64()) == Some(2)
+                && matches!(s.get("index").and_then(|i| i.as_i64()), Some(50) | Some(137))
+        })?;
+        let value = stat.get("value").and_then(|v| v.as_i64())?;
+
+        if raw_slot == "weapon" {
+            if value >= 3_000 {
+                return Some(100);
+            }
+            return None;
+        }
+
+        // T4 armor quality is not exposed directly in the current payload. The
+        // derived armor stat follows the observed 90-100 quality range closely:
+        // 1134 => 90, 1160 => 91, 1238 => 94, 1400 => 100.
+        let inferred = 90.0 + ((value as f64 - 1134.0) / (1400.0 - 1134.0) * 10.0);
+        Some(inferred.round().clamp(0.0, 100.0) as i64)
+    }
+
+    fn infer_armor_item_level(data: Option<&serde_json::Value>, enhancement_level: Option<i64>) -> Option<f64> {
+        let honing = enhancement_level?;
+        let advanced_honing = data
+            .and_then(|d| d.get("advancedHoning"))
+            .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)))
+            .unwrap_or(0);
+
+        // Lostark.bible does not expose a direct per-piece itemLevel for the
+        // current T4.5 gear payload. With advanced honing at 40, the observed
+        // mapping is +13 => 1740, +14 => 1745, +15 => 1750, +19 => 1770.
+        if advanced_honing >= 40 {
+            Some(1675.0 + honing as f64 * 5.0)
+        } else {
+            None
         }
     }
 
@@ -427,6 +603,7 @@ impl DetailedCharacterScraper {
             "bracelet",
             "ability_stone",
         ];
+        let ark_passive_accessory_slots = ["neck", "ear1", "ear2", "finger1", "finger2"];
 
         if let Some(items_data) = loadout.get("items").and_then(|e| e.as_array()) {
             for item in items_data {
@@ -453,6 +630,7 @@ impl DetailedCharacterScraper {
                             })
                         })
                         .and_then(|s| s.get("value").and_then(|v| v.as_i64()))
+                        .or_else(|| Self::infer_armor_quality(data, raw_slot))
                 } else {
                     None
                 };
@@ -460,8 +638,8 @@ impl DetailedCharacterScraper {
                     .and_then(|d| d.get("itemLevel"))
                     .and_then(|v| v.as_f64().or_else(|| v.as_i64().map(|n| n as f64)))
                     .or_else(|| {
-                        if armor_slots.contains(&raw_slot) {
-                            loadout.get("itemLevel").and_then(|v| v.as_f64())
+                        if is_armor {
+                            Self::infer_armor_item_level(data, enhancement_level)
                         } else {
                             None
                         }
@@ -498,7 +676,8 @@ impl DetailedCharacterScraper {
                             None
                         }
                     });
-                let effects_json = Self::extract_item_effects_json(data, is_armor);
+                let effects_json =
+                    Self::extract_item_effects_json(data, is_armor, ark_passive_accessory_slots.contains(&raw_slot));
 
                 equipment.push(CharacterEquipment {
                     slot,

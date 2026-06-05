@@ -1,14 +1,23 @@
 <script lang="ts">
-  import type { GemFilter, HoningFilter, MarketCategory } from './types';
+  import { assetUrl } from '$lib/assets';
+  import type { AccessoryFilter, AccessoryRoleFilter, GemFilter, HoningFilter, MarketCategory, TradeFilter } from './types';
 
   export let activeMarketCategory: MarketCategory = 'engraving';
   export let gemFilter: GemFilter = 'all';
+  export let accessoryFilter: AccessoryFilter = 'all';
+  export let accessoryRoleFilter: AccessoryRoleFilter = 'all';
   export let honingFilter: HoningFilter = 'all';
+  export let tradeFilter: TradeFilter = 'all';
   export let showFavoritesOnly = false;
   export let searchQuery = '';
   export let lastRefreshed = 'Never';
   export let refreshing = false;
   export let onRefresh: () => void;
+
+  $: isManualOnlyTab = activeMarketCategory === 'gems' || activeMarketCategory === 'accessories';
+
+  const combatIcon = assetUrl('equipment/combat.webp');
+  const supporterIcon = assetUrl('equipment/supporter.webp');
 </script>
 
 <div class="market-toolbar">
@@ -35,6 +44,27 @@
       >
         Additional Honing
       </button>
+      <button
+        class="sub-tab-btn"
+        class:active={activeMarketCategory === 'trade'}
+        on:click={() => activeMarketCategory = 'trade'}
+      >
+        Trade Items
+      </button>
+      <button
+        class="sub-tab-btn"
+        class:active={activeMarketCategory === 'gems'}
+        on:click={() => activeMarketCategory = 'gems'}
+      >
+        Gems
+      </button>
+      <button
+        class="sub-tab-btn"
+        class:active={activeMarketCategory === 'accessories'}
+        on:click={() => activeMarketCategory = 'accessories'}
+      >
+        Accessories
+      </button>
     </div>
 
     <div class="filter-spacer"></div>
@@ -49,12 +79,46 @@
       </div>
     {/if}
 
+    {#if activeMarketCategory === 'accessories'}
+      <div class="accessory-filter-stack">
+        <div class="gem-filter-tabs">
+          <button class="gem-filter-btn" class:active={accessoryFilter === 'all'} on:click={() => accessoryFilter = 'all'}>All</button>
+          <button class="gem-filter-btn" class:active={accessoryFilter === 'necklace'} on:click={() => accessoryFilter = 'necklace'}>Necklace</button>
+          <button class="gem-filter-btn" class:active={accessoryFilter === 'earring'} on:click={() => accessoryFilter = 'earring'}>Earring</button>
+          <button class="gem-filter-btn" class:active={accessoryFilter === 'ring'} on:click={() => accessoryFilter = 'ring'}>Ring</button>
+        </div>
+        <div class="accessory-role-tabs">
+          <button class="gem-filter-btn role-filter-btn" class:active={accessoryRoleFilter === 'all'} on:click={() => accessoryRoleFilter = 'all'}>All</button>
+          <button class="gem-filter-btn role-filter-btn" class:active={accessoryRoleFilter === 'dps'} on:click={() => accessoryRoleFilter = 'dps'} title="DPS accessories">
+            <img src={combatIcon} alt="" />
+            DPS
+          </button>
+          <button class="gem-filter-btn role-filter-btn" class:active={accessoryRoleFilter === 'support'} on:click={() => accessoryRoleFilter = 'support'} title="Support accessories">
+            <img src={supporterIcon} alt="" />
+            Support
+          </button>
+        </div>
+      </div>
+    {/if}
+
     {#if activeMarketCategory === 'honing' || activeMarketCategory === 'additional_honing'}
       <div class="honing-filter-tabs">
         <button class="gem-filter-btn" class:active={honingFilter === 'all'} on:click={() => honingFilter = 'all'}>All</button>
         <button class="gem-filter-btn" class:active={honingFilter === 't3'} on:click={() => honingFilter = 't3'}>T3</button>
         <button class="gem-filter-btn" class:active={honingFilter === 't4'} on:click={() => honingFilter = 't4'}>T4</button>
         <button class="gem-filter-btn" class:active={honingFilter === 't4.5'} on:click={() => honingFilter = 't4.5'}>T4.5</button>
+      </div>
+    {/if}
+
+    {#if activeMarketCategory === 'trade'}
+      <div class="honing-filter-tabs">
+        <button class="gem-filter-btn" class:active={tradeFilter === 'all'} on:click={() => tradeFilter = 'all'}>All</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'foraging'} on:click={() => tradeFilter = 'foraging'}>Foraging</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'logging'} on:click={() => tradeFilter = 'logging'}>Logging</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'mining'} on:click={() => tradeFilter = 'mining'}>Mining</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'hunting'} on:click={() => tradeFilter = 'hunting'}>Hunting</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'fishing'} on:click={() => tradeFilter = 'fishing'}>Fishing</button>
+        <button class="gem-filter-btn" class:active={tradeFilter === 'excavation'} on:click={() => tradeFilter = 'excavation'}>Excavation</button>
       </div>
     {/if}
   </div>
@@ -75,21 +139,23 @@
         bind:value={searchQuery}
       />
     </div>
-    <div class="refresh-info">
-      <span class="refresh-time">Updated: {lastRefreshed}</span>
-      <button
-        class="refresh-btn"
-        on:click={onRefresh}
-        disabled={refreshing}
-      >
-        {#if refreshing}
-          <span class="spinner"></span>
-        {:else}
-          &#8635;
-        {/if}
-        Refresh
-      </button>
-    </div>
+    {#if !isManualOnlyTab}
+      <div class="refresh-info">
+        <span class="refresh-time">Updated: {lastRefreshed}</span>
+        <button
+          class="refresh-btn"
+          on:click={onRefresh}
+          disabled={refreshing}
+        >
+          {#if refreshing}
+            <span class="spinner"></span>
+          {:else}
+            &#8635;
+          {/if}
+          Refresh
+        </button>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -245,6 +311,31 @@
     gap: 0.25rem;
     flex-wrap: wrap;
     align-items: center;
+  }
+
+  .accessory-filter-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .accessory-role-tabs {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .role-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .role-filter-btn img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
   }
 
   .spinner {

@@ -1,9 +1,20 @@
 <script lang="ts">
+  import { getRaidGateDifficulty } from '$lib/components/todo/helpers';
+  import type { RaidGateDifficultyMap } from '$lib/components/todo/types';
+
   export let raid: any;
   export let characters: any[] = [];
-  export let raidConfigMap: Map<string, Map<number, string>> = new Map();
+  export let raidConfigMap: RaidGateDifficultyMap = new Map();
   export let getTaskIcon: (taskId: string) => string;
   export let onRaidGateToggle: (characterId: number, raidId: string, gateId: string) => void;
+
+  function formatGateTitle(plannedDifficulty: string, actualDifficulty?: string | null): string {
+    if (!actualDifficulty || actualDifficulty === plannedDifficulty) {
+      return `Planned: ${plannedDifficulty}`;
+    }
+
+    return `Planned: ${plannedDifficulty} | Cleared: ${actualDifficulty}`;
+  }
 </script>
 
 <tr>
@@ -15,22 +26,23 @@
   </td>
   {#each characters as character, charIndex}
     {@const state = raid.character_states[charIndex]}
-    {@const difficulty = raidConfigMap.get(raid.id)?.get(character.id) || 'Normal'}
     {@const raidIlvlTooLow = raid.gates.some((gate: any) => gate.min_ilvl && character.ilvl && character.ilvl < gate.min_ilvl)}
     <td class="toggle-cell">
       <div class="cell-content">
         {#if state?.tracked && !raidIlvlTooLow}
           <div class="raid-gates">
             {#each raid.gates as gate}
+              {@const difficulty = getRaidGateDifficulty(raidConfigMap, raid.id, character.id, gate.gate)}
               {@const gateIlvlTooLow = gate.min_ilvl && character.ilvl && character.ilvl < gate.min_ilvl}
               {@const gateNumber = parseInt(gate.gate.split(' ')[1]) || 0}
               {@const gateIndex = gateNumber - 1}
               {@const gateState = state.gate_states[gateIndex]}
+              {@const actualDifficulty = gateState ? state.gate_actual_difficulties?.[gateIndex] : null}
               <button
                 class="gate-toggle"
                 class:completed={gateState}
                 on:click={() => onRaidGateToggle(character.id, raid.id, gate.gate)}
-                title={difficulty}
+                title={formatGateTitle(difficulty, actualDifficulty)}
                 disabled={gateIlvlTooLow ? true : undefined}
               >
                 <div class="gate-button">

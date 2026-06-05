@@ -2,7 +2,7 @@
 
 **A lightweight desktop companion for Lost Ark roster, raid, gold, and friend availability tracking.**
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
@@ -29,19 +29,14 @@ MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It t
 
 ## MeowConnect
 
-MeowConnect replaces the old Party Planner flow. Instead of Google Sheets and Apps Script groups, it uses Discord login plus Supabase row-level security to share availability only between accepted friends.
-
 Users can:
 
 - opt in or disable MeowConnect locally
 - choose which characters are shared
 - sync selected character data and raid completions
 - add friends by whitelist name/Discord identity
-- mark favorites locally
 - mark characters as reserved for static or friend runs per raid and difficulty
 - view recent clear logs from LOA Logs and manual completion tracking
-
-The old Party Planner code and Apps Script template have been removed. Existing `party_plans.json` files are ignored as legacy data.
 
 ---
 

@@ -62,10 +62,24 @@ static SKILLS: LazyLock<HashMap<i64, GemSkillLabel>> = LazyLock::new(|| {
         },
     );
     m.insert(
+        30060,
+        GemSkillLabel {
+            name: "Pressurized Heatbomb",
+            icon: "bs_skill_01_5.png",
+        },
+    );
+    m.insert(
+        30110,
+        GemSkillLabel {
+            name: "Air Raid",
+            icon: "bs_skill_01_15.png",
+        },
+    );
+    m.insert(
         30120,
         GemSkillLabel {
-            name: "Multiple Rocket Launcher",
-            icon: "bs_skill_01_2.png",
+            name: "Flamethrower",
+            icon: "bs_skill_01_9.png",
         },
     );
     m.insert(
@@ -76,10 +90,24 @@ static SKILLS: LazyLock<HashMap<i64, GemSkillLabel>> = LazyLock::new(|| {
         },
     );
     m.insert(
+        30180,
+        GemSkillLabel {
+            name: "Napalm Shot",
+            icon: "bs_skill_01_11.png",
+        },
+    );
+    m.insert(
         30200,
         GemSkillLabel {
             name: "Gravity Explosion",
             icon: "bs_skill_01_12.png",
+        },
+    );
+    m.insert(
+        30220,
+        GemSkillLabel {
+            name: "Homing Barrage",
+            icon: "bs_skill_01_8.png",
         },
     );
     m.insert(

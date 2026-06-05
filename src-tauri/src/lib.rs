@@ -221,9 +221,11 @@ pub fn run() {
             handlers::market_handlers::get_market_price,
             handlers::market_handlers::set_manual_market_price,
             handlers::market_handlers::remove_manual_market_price,
+            handlers::market_handlers::reset_manual_market_price_to_estimate,
             handlers::market_handlers::set_market_favorite,
             handlers::market_handlers::market_needs_refresh,
             handlers::market_handlers::get_gem_prices,
+            handlers::market_handlers::get_accessory_prices,
             handlers::market_handlers::get_price_history,
             // Progression planner (character detail storage; scraper fills via save_scraped_character_progression)
             handlers::progression_handlers::get_character_progression_snapshot,
@@ -423,10 +425,17 @@ fn initialize_startup_resources(
         )
     })?;
 
-    // Gem prices are manual-only rows used by the hidden progression planner.
+    // Manual-only estimate rows support progression planning inputs that the market API cannot fetch.
     market_db.seed_gem_entries().map_err(|e| {
         crate::log_error!("Failed to seed gem entries: {}", e);
         std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to seed gem entries: {}", e))
+    })?;
+    market_db.seed_accessory_entries().map_err(|e| {
+        crate::log_error!("Failed to seed accessory entries: {}", e);
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to seed accessory entries: {}", e),
+        )
     })?;
 
     let db_path_str = db_path.to_str().ok_or_else(|| {

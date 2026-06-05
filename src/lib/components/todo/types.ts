@@ -37,6 +37,7 @@ export interface TodoRaid {
 export interface TodoRaidCharacterState {
   tracked: boolean;
   gate_states: boolean[];
+  gate_actual_difficulties?: Array<string | null>;
   ilvl_too_low: boolean;
   difficulty?: string;
 }
@@ -64,13 +65,17 @@ export interface RaidGateCompletionResponse {
   raid_id: string;
   gate_id: string;
   completed: boolean;
+  actual_difficulty?: string | null;
 }
 
 export interface RaidConfigEntry {
   char_id: number;
   content_id: string;
+  gate?: string;
   difficulty: string;
 }
+
+export type RaidGateDifficultyMap = Map<string, Map<number, Map<string, string>>>;
 
 export interface RosterEventProgress {
   task_id: string;

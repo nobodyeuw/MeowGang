@@ -1,5 +1,8 @@
-import { marketAsset } from '$lib/assets';
-import type { HistoricalPriceEntry, HoningFilter, MarketCategory, MarketItem, MarketSortKey } from './types';
+import { marketAsset, assetUrl } from '$lib/assets';
+import { getAccessoryCombinationSummary } from '$lib/data/accessories';
+import { getTradeSkillCategoryForSlug } from '$lib/data/stronghold-crafting';
+import type { AccessoryRoleFilter, HistoricalPriceEntry, HoningFilter, MarketCategory, MarketItem, MarketSortKey, TradeFilter } from './types';
+import type { AccessoryRollColor, AccessoryRollGrade } from '$lib/data/accessories';
 
 const HONING_T3_SLUGS = new Set<string>([
   'guardian-stone-fragment',
@@ -93,6 +96,17 @@ export function doesHoningTierMatchFilter(slug: string, filter: HoningFilter) {
   return true;
 }
 
+export function doesTradeSkillCategoryMatchFilter(slug: string, filter: TradeFilter) {
+  if (filter === 'all') return true;
+  return getTradeSkillCategoryForSlug(slug) === filter;
+}
+
+export function doesAccessoryRoleMatchFilter(slug: string, filter: AccessoryRoleFilter) {
+  if (filter === 'all') return true;
+  const summary = getAccessoryCombinationSummary(slug);
+  return summary?.role === filter;
+}
+
 export function getLastRefreshedLabel(items: MarketItem[]): string {
   if (items.length === 0) return 'Never';
   const maxTs = Math.max(...items.map((item) => item.fetched_at));
@@ -111,6 +125,81 @@ export function getNextSortState(currentKey: MarketSortKey, currentAscending: bo
     return { sortKey: currentKey, sortAsc: !currentAscending };
   }
   return { sortKey: nextKey, sortAsc: true };
+}
+
+function getGemSortParts(item: MarketItem): { tier: number; kind: number; level: number } | undefined {
+  if (item.category !== 'gems') return undefined;
+  const match = item.item_slug.match(/^gem-t([34])-(damage|cooldown)-lv(\d+)$/);
+  if (!match) return undefined;
+
+  return {
+    tier: Number(match[1]),
+    kind: match[2] === 'damage' ? 0 : 1,
+    level: Number(match[3])
+  };
+}
+
+const ACCESSORY_ROLE_SORT_ORDER = { dps: 0, support: 1 } as const;
+const ACCESSORY_SLOT_SORT_ORDER = { necklace: 0, earring: 1, ring: 2 } as const;
+const ACCESSORY_GRADE_SORT_ORDER = { low: 0, mid: 1, high: 2 } as const;
+
+function getAccessorySortParts(item: MarketItem): { role: number; slot: number; comboRank: number; primary: number; secondary: number } | undefined {
+  if (item.category !== 'accessories') return undefined;
+
+  const summary = getAccessoryCombinationSummary(item.item_slug);
+  if (!summary) return undefined;
+
+  const primaryGrade = summary.stats[0]?.grade as AccessoryRollGrade | undefined;
+  const secondaryGrade = summary.stats[1]?.grade as AccessoryRollGrade | undefined;
+  const primary = primaryGrade ? ACCESSORY_GRADE_SORT_ORDER[primaryGrade] : 99;
+  const secondary = secondaryGrade ? ACCESSORY_GRADE_SORT_ORDER[secondaryGrade] : 99;
+  const isSingleStat = summary.stats.length < 2;
+  const normalizedLow = Math.min(primary, secondary);
+  const normalizedHigh = Math.max(primary, secondary);
+
+  // Two-stat accessories come first in value order:
+  // low+low, low+mid, low+high, mid+mid, mid+high, high+high.
+  // Single-stat budget references are grouped after the two-stat rows.
+  return {
+    role: ACCESSORY_ROLE_SORT_ORDER[summary.role],
+    slot: ACCESSORY_SLOT_SORT_ORDER[summary.slot],
+    comboRank: isSingleStat ? 100 + Math.min(primary, secondary) : normalizedLow * 3 + normalizedHigh,
+    primary,
+    secondary
+  };
+}
+
+export function compareMarketItems(a: MarketItem, b: MarketItem, sortKey: MarketSortKey, ascending: boolean): number {
+  if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+
+  const direction = ascending ? 1 : -1;
+  if (sortKey === 'price') {
+    return direction * (a.price - b.price);
+  }
+
+  const aGem = getGemSortParts(a);
+  const bGem = getGemSortParts(b);
+  if (aGem && bGem) {
+    const gemCompare =
+      aGem.tier - bGem.tier ||
+      aGem.kind - bGem.kind ||
+      aGem.level - bGem.level;
+    if (gemCompare !== 0) return direction * gemCompare;
+  }
+
+  const aAccessory = getAccessorySortParts(a);
+  const bAccessory = getAccessorySortParts(b);
+  if (aAccessory && bAccessory) {
+    const accessoryCompare =
+      aAccessory.role - bAccessory.role ||
+      aAccessory.slot - bAccessory.slot ||
+      aAccessory.comboRank - bAccessory.comboRank ||
+      aAccessory.primary - bAccessory.primary ||
+      aAccessory.secondary - bAccessory.secondary;
+    if (accessoryCompare !== 0) return direction * accessoryCompare;
+  }
+
+  return direction * a.item_name.localeCompare(b.item_name, undefined, { numeric: true });
 }
 
 export function handleMarketIconError(event: Event) {
@@ -162,7 +251,14 @@ export function buildMarketIconUrl(itemSlug: string, category: MarketCategory): 
     const match = itemSlug.match(/^gem-(t[34])-(damage|cooldown)-lv(\d+)$/);
     if (match) {
       const [, tier, type, level] = match;
-      return marketAsset(`${tier}_${type}_gem_${level}.png`);
+      return marketAsset(`gem/${tier}_${type}_gem_${level}.png`);
+    }
+  }
+
+  if (category === 'accessories') {
+    const summary = getAccessoryCombinationSummary(itemSlug);
+    if (summary) {
+      return marketAsset(`accessories/ancient_${summary.slot}.png`);
     }
   }
 
@@ -176,7 +272,41 @@ export function buildMarketIconUrl(itemSlug: string, category: MarketCategory): 
     return marketAsset(`honing/${base}.${extension}`);
   }
 
+  if (category === 'trade') {
+    return marketAsset(`trading/${slugToMarketIconBase(itemSlug)}.webp`);
+  }
+
   return MARKET_ICON_FALLBACK;
+}
+
+export function getAccessoryMarketDisplay(item: MarketItem) {
+  if (item.category !== 'accessories') return undefined;
+
+  const summary = getAccessoryCombinationSummary(item.item_slug);
+  if (!summary || summary.stats.length === 0) return undefined;
+
+  return {
+    role: summary.role,
+    roleIcon: assetUrl(`equipment/${summary.role === 'support' ? 'supporter.webp' : 'combat.webp'}`),
+    roleLabel: summary.role === 'support' ? 'Support' : 'DPS',
+    slot: summary.slot,
+    combinedDamagePercent: summary.combinedDamagePercent,
+    summaryText: summary.stats.every((stat) => stat.damagePercent === 0)
+      ? 'Base stat contribution'
+      : `${summary.combinedDamagePercent.toFixed(2)}% damage`,
+    stats: summary.stats.map((stat) => ({
+      text: `${stat.label}: ${stat.value}${stat.statId === 'support-flat-weapon-power' ? '' : '%'}`,
+      grade: stat.grade,
+      color: stat.color as AccessoryRollColor
+    }))
+  };
+}
+
+export function getMarketDisplayName(item: MarketItem): string {
+  if (item.category === 'engraving') {
+    return item.item_name.replace(/\s+Engraving Recipe$/i, '');
+  }
+  return item.item_name;
 }
 
 export function formatGold(amount: number): string {

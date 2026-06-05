@@ -1,79 +1,38 @@
 {
   "versions": [
     {
-      "version": "1.3.1",
-      "date": "2026-06-03",
+      "version": "1.3.2",
+      "date": "2026-06-05",
       "changes": [
         {
           "type": "Improved",
-          "description": "Dashboard labels now show more useful details.",
-          "details": "Raid, daily, weekly, calendar event, Argeos, and gold labels now open compact popups with clearer progress, availability, and focus behavior."
+          "description": "Marketplace now has better gem and accessory support.",
+          "details": "Gem and accessory estimate rows now use bundled icons, clearer names, slot filters, and DPS/Support accessory filters."
         },
         {
           "type": "Improved",
-          "description": "Weekly gold progress handles difficulty mismatches better.",
-          "details": "Planned and cleared difficulty mismatches now show both lost gold and bonus gold. Extra bonus gold no longer hides still-open planned gold."
+          "description": "Accessory estimates are easier to read.",
+          "details": "Accessory rows now show compact colored stat values by roll grade, with support-specific values for Brand Power, Identity Gain, Ally Attack Power, Ally Damage, and Weapon Power estimates."
         },
         {
           "type": "Improved",
-          "description": "Icons and images now load from bundled app assets.",
-          "details": "The app now uses the new bundled assets folder for icons and images instead of the old static images folder."
+          "description": "Dashboard and To Do details are clearer.",
+          "details": "Dashboard label popups and To Do raid tooltips better explain available characters, additional non-gold raids, and planned versus cleared raid difficulties."
         },
         {
           "type": "Fixed",
-          "description": "Dashboard daily and raid summaries are more accurate.",
-          "details": "Completed lazy dailies now count correctly for the current reset, and non-gold tracked raids are included as additional raid progress."
+          "description": "Marketplace item labels are cleaner.",
+          "details": "Engraving rows now show only the engraving name, and accessory rows no longer repeat long generated necklace, earring, or ring names."
         },
         {
           "type": "Fixed",
-          "description": "Welcome screen polish.",
-          "details": "The welcome screen now uses the current app icon and can be dragged with the custom title bar."
-        }
-      ]
-    },
-    {
-      "version": "1.3.0",
-      "date": "2026-06-01",
-      "changes": [
-        {
-          "type": "Added",
-          "description": "Theme options are now available.",
-          "details": "General settings now include app themes. Outlaw remains the default, with Alchemist, Void Space, Sidereal Gold, and Powi available as alternate styles."
-        },
-        {
-          "type": "Added",
-          "description": "The app now uses a custom header.",
-          "details": "The native title bar was replaced with a tighter in-app header that includes drag support and window controls for minimize, maximize, and close."
-        },
-        {
-          "type": "Added",
-          "description": "Set-Up Guide now covers more features.",
-          "details": "The Set-Up Guide now walks through Dashboard, Roster, Tracking, Raid settings, To Do, Marketplace, MeowConnect, System options, Updates, and the hidden Progression workspace. Guide highlights now use a distinct color and move away from the controls they explain."
-        },
-        {
-          "type": "Added",
-          "description": "Haal's Hourglass reminder added.",
-          "details": "General settings now include an optional Tuesday reminder for 1730+ characters that have Cube tracked but unfinished before weekly reset."
-        },
-        {
-          "type": "Improved",
-          "description": "Settings pages are easier to scan.",
-          "details": "Raid, Tracking, Roster, and System settings received tighter layouts, shared controls, clearer row actions, and more consistent character header details."
-        },
-        {
-          "type": "Improved",
-          "description": "MeowConnect guidance is clearer.",
-          "details": "The guide now explains Sync now, first uploads, friend requests, groups and tags, Raid Together, and expanded profile details."
-        },
-        {
-          "type": "Improved",
-          "description": "Dashboard and To Do labels are more consistent.",
-          "details": "Mixed raid difficulties, character details, gold markers, and shared matrix headers now use more consistent styling and behavior across Dashboard, To Do, Tracking, and Raid settings."
+          "description": "Dashboard label popups stay inside the app window.",
+          "details": "Dashboard label popups are now centered so they no longer glitch or render partly outside the app on narrower window sizes."
         },
         {
           "type": "Fixed",
-          "description": "Several cleanup fixes were included.",
-          "details": "The update changelog date display now uses day.month.year, custom window controls have the required Tauri permissions, and the app startup/logging path is quieter while keeping useful diagnostics."
+          "description": "Mixed raid difficulty tooltips are clearer.",
+          "details": "Dashboard and To Do raid tooltips now correctly explain planned versus cleared difficulty when a raid was completed in mixed mode."
         }
       ]
     }

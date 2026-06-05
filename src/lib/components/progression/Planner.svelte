@@ -9,11 +9,13 @@
     engravingNodes,
     equipmentEffects,
     formatEffectValue,
+    gemSocketRows,
     gemLevelColor,
+    hoverEquipmentEffects,
     lastScrapedLabel,
     qualityColor,
     sortedEngravings,
-    sortedGems
+    visibleEquipmentEffects
   } from '$lib/components/progression/helpers';
 
   // ── Types ──────────────────────────────────────────────────────────────────
@@ -215,10 +217,20 @@
                       <span class="equip-name">{SLOT_LABELS[item.slot] ?? item.slot}</span>
                       {#if item.tier}<span class="tier-inline">{item.tier}</span>{/if}
                     </div>
-                    {#if equipmentEffects(item).length > 0}
+                    {#if visibleEquipmentEffects(item).length > 0}
                       <div class="effect-list">
-                        {#each equipmentEffects(item) as effect}
+                        {#each visibleEquipmentEffects(item) as effect}
                           <div class="effect-line" class:grade-blue={effect.grade === 'blue'} class:grade-purple={effect.grade === 'purple'} class:grade-orange={effect.grade === 'orange' || effect.grade === 'legendary'}>
+                            <span>{effect.label}</span>
+                            <strong>{formatEffectValue(effect.value)}</strong>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                    {#if hoverEquipmentEffects(item).length > 0}
+                      <div class="accessory-hover-details">
+                        {#each hoverEquipmentEffects(item) as effect}
+                          <div class="effect-line muted">
                             <span>{effect.label}</span>
                             <strong>{formatEffectValue(effect.value)}</strong>
                           </div>
@@ -292,14 +304,18 @@
       <!-- Gems panel -->
       <section class="panel gems-panel">
         <h3 class="panel-title">💎 Gems</h3>
-        <div class="gems-grid">
-          {#each sortedGems(snapshot?.gems ?? []) as gem}
-            {@const info = gemTypeLabel(gem.gemType, gem.isBound)}
-            <div class="gem-card" title={gem.gemName}>
-              <div class="gem-level-badge" style="color:{gemLevelColor(gem.gemLevel)}">Lv.{gem.gemLevel}</div>
-              <div class="gem-type-icon" title={info.label}>{info.icon}</div>
-              <div class="gem-skill">{gem.skillName}</div>
-              {#if info.bound}<div class="gem-bound">Bound</div>{/if}
+        <div class="gem-socket-board">
+          {#each gemSocketRows(snapshot?.gems ?? []) as row, rowIndex}
+            <div class="gem-socket-row" class:center-row={rowIndex === 1}>
+              {#each row as gem}
+                {@const info = gemTypeLabel(gem.gemType, gem.isBound)}
+                <div class="gem-card" title={`${gem.gemName} | Slot ${gem.slotIndex + 1}`}>
+                  <div class="gem-level-badge" style="color:{gemLevelColor(gem.gemLevel)}">Lv.{gem.gemLevel}</div>
+                  <div class="gem-type-icon" title={info.label}>{info.icon}</div>
+                  <div class="gem-skill">{gem.skillName}</div>
+                  {#if info.bound}<div class="gem-bound">Bound</div>{/if}
+                </div>
+              {/each}
             </div>
           {/each}
           {#if (snapshot?.gems ?? []).length === 0}
@@ -527,6 +543,7 @@
 
   .equip-card,
   .bracelet-card {
+    position: relative;
     background: var(--md-sys-color-surface-container-low, var(--md-sys-color-surface-variant));
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: 8px;
@@ -606,16 +623,50 @@
     white-space: nowrap;
   }
 
+  .effect-line[class*="grade-"] {
+    color: var(--effect-grade-color);
+    border-left-color: var(--effect-grade-color);
+  }
+
+  .effect-line[class*="grade-"] strong {
+    color: var(--effect-grade-color);
+  }
+
+  .effect-line.muted {
+    border-left-color: var(--md-sys-color-outline-variant);
+    opacity: 0.85;
+  }
+
+  .accessory-hover-details {
+    position: absolute;
+    left: 0.65rem;
+    right: 0.65rem;
+    top: calc(100% - 0.25rem);
+    z-index: 5;
+    display: none;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem;
+    background: var(--md-sys-color-surface-container-high, var(--md-sys-color-surface));
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 7px;
+    box-shadow: var(--app-shadow-md);
+  }
+
+  .accessory-card:hover .accessory-hover-details {
+    display: flex;
+  }
+
   .effect-line.grade-blue {
-    border-left-color: #3b82f6;
+    --effect-grade-color: #3b82f6;
   }
 
   .effect-line.grade-purple {
-    border-left-color: #a855f7;
+    --effect-grade-color: #a855f7;
   }
 
   .effect-line.grade-orange {
-    border-left-color: #f59e0b;
+    --effect-grade-color: #f59e0b;
   }
 
   /* ── Engravings ── */
@@ -700,10 +751,23 @@
   }
 
   /* ── Gems ── */
-  .gems-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  .gem-socket-board {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 0.6rem;
+  }
+
+  .gem-socket-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(92px, 118px));
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+  }
+
+  .gem-socket-row.center-row {
+    grid-template-columns: repeat(3, minmax(92px, 118px));
   }
 
   .gem-card {

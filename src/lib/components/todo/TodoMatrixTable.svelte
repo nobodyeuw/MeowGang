@@ -7,6 +7,7 @@
   import TodoTaskRow from '$lib/components/todo/TodoTaskRow.svelte';
   import { iconAsset } from '$lib/assets';
   import { RAIDS } from '$lib/data/raids';
+  import type { RaidGateDifficultyMap } from '$lib/components/todo/types';
 
   export let matrixData: any;
   export let effectiveTodoRosterId = '';
@@ -16,7 +17,7 @@
   export let virtualRatRosterId = '';
   export let rosterTaskStates: Record<string, boolean> = {};
   export let rosterEventProgress: Record<string, any> = {};
-  export let raidConfigMap: Map<string, Map<number, string>> = new Map();
+  export let raidConfigMap: RaidGateDifficultyMap = new Map();
 
   export let onSelectTodoRoster: (event: CustomEvent<string>) => void;
   export let getCharacterTaskState: (task: any, character: any) => any;

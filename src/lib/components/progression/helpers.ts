@@ -27,9 +27,10 @@ export const ACCESSORY_ORDER = ['neck', 'earring1', 'earring2', 'ring1', 'ring2'
 
 export function qualityColor(quality: number | null): string {
   if (quality === null) return 'var(--md-sys-color-outline-variant)';
-  if (quality >= 90) return '#f59e0b';
-  if (quality >= 70) return '#10b981';
-  if (quality >= 30) return '#3b82f6';
+  if (quality >= 100) return '#f59e0b';
+  if (quality >= 90) return '#a855f7';
+  if (quality >= 70) return '#3b82f6';
+  if (quality >= 30) return '#10b981';
   return 'var(--md-sys-color-on-surface-variant)';
 }
 
@@ -71,6 +72,14 @@ export function equipmentEffects(item: EquipmentRow | null): EquipmentEffect[] {
   }
 }
 
+export function visibleEquipmentEffects(item: EquipmentRow | null): EquipmentEffect[] {
+  return equipmentEffects(item).filter((effect) => effect.label !== 'Vitality' && effect.label !== 'Base Stat');
+}
+
+export function hoverEquipmentEffects(item: EquipmentRow | null): EquipmentEffect[] {
+  return equipmentEffects(item).filter((effect) => effect.label === 'Vitality' || effect.label === 'Base Stat');
+}
+
 export function formatEffectValue(value: string | number): string {
   if (typeof value === 'number') {
     return value > 0 ? `+${value}` : `${value}`;
@@ -84,4 +93,9 @@ export function sortedEngravings(engravings: EngravingRow[]): EngravingRow[] {
 
 export function sortedGems(gems: GemRow[]): GemRow[] {
   return [...gems].sort((a, b) => a.slotIndex - b.slotIndex);
+}
+
+export function gemSocketRows(gems: GemRow[]): GemRow[][] {
+  const sorted = sortedGems(gems);
+  return [sorted.slice(0, 4), sorted.slice(4, 7), sorted.slice(7, 11)].filter((row) => row.length > 0);
 }

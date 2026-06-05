@@ -17,6 +17,7 @@ pub struct RaidGateCompletionResponse {
     pub raid_id: String,
     pub gate_id: String,
     pub completed: bool,
+    pub actual_difficulty: Option<String>,
 }
 
 #[tauri::command]
@@ -161,21 +162,16 @@ pub async fn get_raid_gate_completions_bulk(
     let mut responses = Vec::with_capacity(requests.len());
 
     for request in requests {
-        let completed = todo_repo
-            .get_raid_gate_completed(
-                request.character_id,
-                &request.raid_id,
-                &request.gate_id,
-                &request.difficulty,
-            )
-            .map_err(|e| e.to_string())?
-            .unwrap_or(false);
+        let details = todo_repo
+            .get_raid_gate_completion_details(request.character_id, &request.raid_id, &request.gate_id)
+            .map_err(|e| e.to_string())?;
 
         responses.push(RaidGateCompletionResponse {
             character_id: request.character_id,
             raid_id: request.raid_id,
             gate_id: request.gate_id,
-            completed,
+            completed: details.completed,
+            actual_difficulty: details.actual_difficulty,
         });
     }
 

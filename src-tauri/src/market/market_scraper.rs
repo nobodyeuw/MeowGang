@@ -124,6 +124,43 @@ const ADDITIONAL_HONING_SLUGS: &[&str] = &[
     "tailoring-hellfire-19-20",
 ];
 
+/// Marketplace API allowlist for life-skill trade materials.
+///
+/// These slugs were verified against the same LOA Buddy price endpoint as the
+/// honing/engraving items. Trade goods are useful for progression-cost planning
+/// because fusion material prices are often tied to raw material prices.
+const TRADE_SLUGS: &[&str] = &[
+    "wild-flower",
+    "shy-wild-flower",
+    "bright-wild-flower",
+    "abidos-wild-flower",
+    "timber",
+    "tender-timber",
+    "sturdy-timber",
+    "abidos-timber",
+    "iron-ore",
+    "heavy-iron-ore",
+    "strong-iron-ore",
+    "abidos-iron-ore",
+    "treated-meat",
+    "thick-raw-meat",
+    "oreha-thick-meat",
+    "abidos-thick-raw-meat",
+    "exotic-leather",
+    "crystallized-hunting-bauble",
+    "fish",
+    "redflesh-fish",
+    "oreha-solar-carp",
+    "abidos-solar-carp",
+    "crystallized-fishing-bauble",
+    "ancient-relic",
+    "rare-relic",
+    "oreha-relic",
+    "abidos-relic",
+    "crystallized-excavating-bauble",
+    "exotic-relic",
+];
+
 /// API request body.
 #[derive(Serialize)]
 struct PriceRequest {
@@ -154,6 +191,7 @@ pub struct RefreshResult {
     pub engravings_updated: usize,
     pub honing_updated: usize,
     pub additional_honing_updated: usize,
+    pub trade_updated: usize,
     pub timestamp: i64,
 }
 
@@ -255,6 +293,17 @@ impl MarketScraper {
             .collect();
         let additional_honing_updated = db.upsert_prices(&additional_items, now)?;
 
+        // Fetch trade materials
+        let trade_entries = self.fetch_prices(TRADE_SLUGS).await?;
+        let trade_items: Vec<(String, String, String, i64)> = trade_entries
+            .iter()
+            .map(|e| {
+                let display_name = Self::slug_to_display_name(&e.item_slug);
+                (e.item_slug.clone(), display_name, "trade".to_string(), e.price)
+            })
+            .collect();
+        let trade_updated = db.upsert_prices(&trade_items, now)?;
+
         // Update last refresh timestamp
         db.set_setting("last_full_refresh", &now.to_string())?;
 
@@ -262,14 +311,16 @@ impl MarketScraper {
             engravings_updated,
             honing_updated,
             additional_honing_updated,
+            trade_updated,
             timestamp: now,
         };
 
         crate::log_info!(
-            "Market refresh complete: {} engravings, {} honing, {} additional honing",
+            "Market refresh complete: {} engravings, {} honing, {} additional honing, {} trade",
             engravings_updated,
             honing_updated,
-            additional_honing_updated
+            additional_honing_updated,
+            trade_updated
         );
 
         Ok(result)

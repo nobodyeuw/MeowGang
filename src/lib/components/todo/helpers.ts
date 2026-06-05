@@ -2,6 +2,7 @@ import { GAME_TASKS } from '$lib/data/tasks';
 import { RAIDS, type Raid } from '$lib/data/raids';
 import type {
   RaidConfigEntry,
+  RaidGateDifficultyMap,
   RaidGateCompletionRequest,
   TodoMatrixResponse,
   TodoRaid,
@@ -34,17 +35,38 @@ export function buildRosterTaskStates(baseMatrix: TodoMatrixResponse): Record<st
   return states;
 }
 
-export function buildRaidConfigMap(raidConfigs: RaidConfigEntry[]): Map<string, Map<number, string>> {
-  const raidConfigMap = new Map<string, Map<number, string>>();
+export function buildRaidConfigMap(raidConfigs: RaidConfigEntry[]): RaidGateDifficultyMap {
+  const raidConfigMap: RaidGateDifficultyMap = new Map();
 
   raidConfigs.forEach((config) => {
     if (!raidConfigMap.has(config.content_id)) {
       raidConfigMap.set(config.content_id, new Map());
     }
-    raidConfigMap.get(config.content_id)!.set(config.char_id, config.difficulty);
+    const characterMap = raidConfigMap.get(config.content_id)!;
+    if (!characterMap.has(config.char_id)) {
+      characterMap.set(config.char_id, new Map());
+    }
+    const gateMap = characterMap.get(config.char_id)!;
+    if (config.gate) {
+      gateMap.set(config.gate, config.difficulty);
+    }
+    if (!gateMap.has('__default')) {
+      gateMap.set('__default', config.difficulty);
+    }
   });
 
   return raidConfigMap;
+}
+
+export function getRaidGateDifficulty(
+  raidConfigMap: RaidGateDifficultyMap,
+  raidId: string,
+  characterId: number,
+  gateId?: string
+): string {
+  const gateMap = raidConfigMap.get(raidId)?.get(characterId);
+  if (!gateMap) return 'Normal';
+  return (gateId ? gateMap.get(gateId) : undefined) || gateMap.get('__default') || 'Normal';
 }
 
 export function filterTodoMatrixCharacters(matrix: TodoMatrixResponse, characterIds: Set<number>): TodoMatrixResponse {
@@ -131,19 +153,18 @@ export function getTrackedTodoRaidCandidates(baseMatrix: TodoMatrixResponse): Ra
 export function buildRaidGateCompletionRequests(
   raids: Raid[],
   baseMatrix: TodoMatrixResponse,
-  raidConfigMap: Map<string, Map<number, string>>
+  raidConfigMap: RaidGateDifficultyMap
 ): RaidGateCompletionRequest[] {
   const requests: RaidGateCompletionRequest[] = [];
 
   raids.forEach((raid) => {
     baseMatrix.characters.forEach((char: any) => {
-      const difficulty = raidConfigMap.get(raid.id)?.get(char.id) || 'Normal';
       raid.gates.forEach((gate: any) => {
         requests.push({
           character_id: char.id,
           raid_id: raid.id,
           gate_id: gate.gate,
-          difficulty
+          difficulty: getRaidGateDifficulty(raidConfigMap, raid.id, char.id, gate.gate)
         });
       });
     });
@@ -155,23 +176,28 @@ export function buildRaidGateCompletionRequests(
 export function buildTrackedTodoRaids(
   raids: Raid[],
   baseMatrix: TodoMatrixResponse,
-  raidConfigMap: Map<string, Map<number, string>>,
-  gateCompletionMap: Map<string, boolean>
+  raidConfigMap: RaidGateDifficultyMap,
+  gateCompletionMap: Map<string, { completed: boolean; actualDifficulty?: string | null }>
 ): TodoRaid[] {
   return raids.map((raid) => {
     const characterStates = baseMatrix.characters.map((char: any) => {
       const key = `${char.id}_${raid.id}`;
       const backendState = baseMatrix.character_states?.[key];
-      const difficulty = raidConfigMap.get(raid.id)?.get(char.id) || 'Normal';
+      const difficulty = getRaidGateDifficulty(raidConfigMap, raid.id, char.id);
 
       const gateStates = raid.gates.map((gate: any) => {
         const completionKey = `${char.id}_${raid.id}_${gate.gate}`;
-        return gateCompletionMap.get(completionKey) || false;
+        return gateCompletionMap.get(completionKey)?.completed || false;
+      });
+      const gateActualDifficulties = raid.gates.map((gate: any) => {
+        const completionKey = `${char.id}_${raid.id}_${gate.gate}`;
+        return gateCompletionMap.get(completionKey)?.actualDifficulty ?? null;
       });
 
       return {
         tracked: backendState?.tracked || false,
         gate_states: gateStates,
+        gate_actual_difficulties: gateActualDifficulties,
         ilvl_too_low: false,
         difficulty
       };

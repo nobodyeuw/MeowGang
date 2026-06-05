@@ -140,10 +140,14 @@ export function getCompletedRaidDetails(
   completionStatus: CharacterCardCompletionEntry[],
   contentId: string
 ): string | undefined {
-  const entry = [...completionStatus].reverse().find((candidate) =>
-    candidate.content_id === contentId && candidate.is_completed === 1 && candidate.details
-  );
-  return entry?.details ? normalizeDifficulty(entry.details) : undefined;
+  const completedDifficulties = completionStatus
+    .filter((candidate) => candidate.content_id === contentId && candidate.is_completed === 1 && candidate.details)
+    .map((entry) => normalizeDifficulty(entry.details || ''))
+    .filter(Boolean);
+  const uniqueDifficulties = [...new Set(completedDifficulties)];
+
+  if (uniqueDifficulties.length > 1) return 'Mixed';
+  return uniqueDifficulties[0];
 }
 
 export function getRaidMaxIlvl(contentId: string, difficulty: string): number {
