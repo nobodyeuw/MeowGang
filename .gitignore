@@ -41,3 +41,12 @@ src-tauri/gen/
 /.github
 /supabase
 CLEANUP_PLAN.md
+
+# Private scraper implementations kept local to avoid unnecessary traffic to third-party services.
+src-tauri/private/
+src-tauri/src/market/market_scraper.rs
+src-tauri/src/roster/bible_loadout.rs
+src-tauri/src/roster/detailed_scraper.rs
+src-tauri/src/roster/item_mapping.rs
+src-tauri/src/roster/scraper.rs
+src-tauri/src/roster/skill_mapping.rs
