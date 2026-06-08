@@ -4,8 +4,10 @@
 
   export let meowConnectEnabled = true;
   export let meowConnectRealtimeEnabled = true;
+  export let meowConnectFriendClearHintsEnabled = false;
   export let onToggleMeowConnectEnabled: () => void;
   export let onToggleMeowConnectRealtime: () => void;
+  export let onToggleMeowConnectFriendClearHints: () => void;
 
   const meowConnectIcon = appAsset('meowconnect_tab.png');
 </script>
@@ -49,6 +51,27 @@
           disabled={!meowConnectEnabled}
           ariaLabel="Enable real-time MeowConnect"
           on:change={onToggleMeowConnectRealtime}
+        />
+      </div>
+    </div>
+
+    <div class="setting-card toggle-card" class:disabled-card={!meowConnectEnabled}>
+      <div class="setting-header">
+        <div class="setting-icon meowconnect-icon">
+          <img src={meowConnectIcon} alt="" />
+        </div>
+        <div class="toggle-content">
+          <h4>Friend clear hints</h4>
+          <p>
+            Let future MeowConnect logic use friends' LOA Logs as completion hints.
+            This stays off by default and will not override manual or local LOA Logs clears.
+          </p>
+        </div>
+        <ToggleSwitch
+          checked={meowConnectFriendClearHintsEnabled}
+          disabled={!meowConnectEnabled}
+          ariaLabel="Enable MeowConnect friend clear hints"
+          on:change={onToggleMeowConnectFriendClearHints}
         />
       </div>
     </div>

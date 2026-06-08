@@ -15,8 +15,10 @@ export interface EncounterPreview {
   local_player: string;
   difficulty: string;
   fight_start: number;
+  duration?: number;
   cleared: boolean;
   players: string[];
+  bible_logs?: Array<{ upstream_id: string }>;
 }
 
 export interface EncounterMappingResult {

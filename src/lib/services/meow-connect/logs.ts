@@ -17,6 +17,8 @@ export function buildMeowConnectLogEntries(
   localProfile?: MeowConnectProfile | null
 ): MeowConnectLogEntry[] {
   const allowedRaidIds = new Set(raidIds);
+  const participantIndex = buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile);
+  const temporaryPlayerIndex = buildTemporaryPlayerIndex(localSnapshot, remoteSnapshots, localProfile);
   const localEntries = localSnapshot
     ? buildSnapshotLogEntries({
         profile: {
@@ -33,14 +35,22 @@ export function buildMeowConnectLogEntries(
       }, allowedRaidIds)
     : [];
 
-  return combineEncounterGateLogEntries(
-    combineSharedEncounterLogEntries(
-      enrichEncounterLogParticipants(
-        localEntries.concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds))),
-        buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile)
+  return suppressCoveredEncounterLogEntries(combineEncounterGateLogEntries(
+    suppressManualLogsCoveredByEncounterLogs(
+      combineSharedEncounterLogEntries(
+        normalizeEncounterLogParticipantLabels(
+          enrichEncounterLogParticipants(
+            localEntries.concat(remoteSnapshots.flatMap((snapshot) => buildSnapshotLogEntries(snapshot, allowedRaidIds))),
+            participantIndex
+          ),
+          buildLogOwnerNameSet(localSnapshot, remoteSnapshots, localProfile),
+          buildLogCharacterNameSet(localSnapshot, remoteSnapshots),
+          participantIndex,
+          temporaryPlayerIndex
+        )
       )
     )
-  ).sort((a, b) => getLogDisplayTimestamp(b) - getLogDisplayTimestamp(a));
+  )).sort((a, b) => getLogDisplayTimestamp(b) - getLogDisplayTimestamp(a));
 }
 
 function buildSnapshotLogEntries(
@@ -53,18 +63,18 @@ function buildSnapshotLogEntries(
     .filter((encounter) => encounter.cleared && allowedRaidIds.has(encounter.contentId))
     .map((encounter) => {
       const matchingCompletionTime = findMatchingEncounterCompletionTime(encounter, snapshot.completionSnapshots, characterById);
+      const localPlayer = resolveEncounterLocalPlayer(encounter, characterById);
+      const participants = buildEncounterOwnerParticipants(encounter, snapshot.profile, ownerId, characterById, localPlayer);
+      const temporaryPlayers = buildTemporaryEncounterPlayers(encounter, snapshot.profile, characterById, participants);
       return {
         ...encounter,
+        localPlayer,
         clearedAt: encounter.clearedAt || matchingCompletionTime,
         ownerId,
         ownerName: snapshot.profile.displayName,
         ownerAvatarUrl: snapshot.profile.avatarUrl,
-        participants: [{
-          ownerId,
-          ownerName: snapshot.profile.displayName,
-          ownerAvatarUrl: snapshot.profile.avatarUrl,
-          localPlayer: encounter.localPlayer
-        }],
+        participants,
+        temporaryPlayers,
         source: 'LOA Logs' as const
       };
     });
@@ -149,7 +159,9 @@ function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowC
       combined.set(key, {
         ...entry,
         players: dedupeStrings(entry.players),
-        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)])
+        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)]),
+        temporaryPlayers: dedupeTemporaryPlayers(entry.temporaryPlayers || []),
+        bibleLogs: dedupeBibleLogs(entry.bibleLogs || [])
       });
       continue;
     }
@@ -157,6 +169,14 @@ function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowC
     const participants = dedupeLogParticipants([
       ...(existing.participants || [entryAsParticipant(existing)]),
       ...(entry.participants || [entryAsParticipant(entry)])
+    ]);
+    const temporaryPlayers = dedupeTemporaryPlayers([
+      ...(existing.temporaryPlayers || []),
+      ...(entry.temporaryPlayers || [])
+    ]);
+    const bibleLogs = dedupeBibleLogs([
+      ...(existing.bibleLogs || []),
+      ...(entry.bibleLogs || [])
     ]);
     const players = dedupeStrings([...existing.players, ...entry.players]);
 
@@ -176,7 +196,9 @@ function combineSharedEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowC
       localPlayer: participants.map((participant) => participant.localPlayer).join(', '),
       players,
       matchedCharacterIds: dedupeNumbers([...existing.matchedCharacterIds, ...entry.matchedCharacterIds]),
-      participants
+      participants,
+      temporaryPlayers,
+      bibleLogs
     });
   }
 
@@ -207,7 +229,9 @@ function combineEncounterGateLogEntries(entries: MeowConnectLogEntry[]): MeowCon
       combined.set(key, {
         ...entry,
         players: dedupeStrings(entry.players),
-        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)])
+        participants: dedupeLogParticipants(entry.participants || [entryAsParticipant(entry)]),
+        temporaryPlayers: dedupeTemporaryPlayers(entry.temporaryPlayers || []),
+        bibleLogs: dedupeBibleLogs(entry.bibleLogs || [])
       });
       continue;
     }
@@ -215,6 +239,14 @@ function combineEncounterGateLogEntries(entries: MeowConnectLogEntry[]): MeowCon
     const participants = dedupeLogParticipants([
       ...(existing.participants || [entryAsParticipant(existing)]),
       ...(entry.participants || [entryAsParticipant(entry)])
+    ]);
+    const temporaryPlayers = dedupeTemporaryPlayers([
+      ...(existing.temporaryPlayers || []),
+      ...(entry.temporaryPlayers || [])
+    ]);
+    const bibleLogs = dedupeBibleLogs([
+      ...(existing.bibleLogs || []),
+      ...(entry.bibleLogs || [])
     ]);
     const players = dedupeStrings([...existing.players, ...entry.players]);
     const gate = formatCombinedGateLabel([existing.gate, entry.gate]);
@@ -235,17 +267,97 @@ function combineEncounterGateLogEntries(entries: MeowConnectLogEntry[]): MeowCon
       localPlayer: participants.map((participant) => participant.localPlayer).join(', '),
       players,
       matchedCharacterIds: dedupeNumbers([...existing.matchedCharacterIds, ...entry.matchedCharacterIds]),
-      participants
+      participants,
+      temporaryPlayers,
+      bibleLogs
     });
   }
 
   return [...passthrough, ...Array.from(combined.values())];
 }
 
+function suppressManualLogsCoveredByEncounterLogs(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
+  const encounterEntries = entries.filter((entry) => entry.source === 'LOA Logs');
+
+  return entries.filter((entry) => {
+    if (entry.source !== 'Manual') return true;
+    return !encounterEntries.some((encounterEntry) => coversManualLogEntry(encounterEntry, entry));
+  });
+}
+
+function suppressCoveredEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
+  return entries.filter((entry) => {
+    if (entry.source !== 'LOA Logs') return true;
+    return !entries.some((candidate) => candidate !== entry && coversEncounterLogEntry(candidate, entry));
+  });
+}
+
+function coversEncounterLogEntry(candidate: MeowConnectLogEntry, covered: MeowConnectLogEntry): boolean {
+  if (candidate.source !== 'LOA Logs' || covered.source !== 'LOA Logs') return false;
+  if (candidate.contentId !== covered.contentId) return false;
+  if (!sameDifficulty(candidate.difficulty, covered.difficulty)) return false;
+  if (candidate.resetCycle && covered.resetCycle && candidate.resetCycle !== covered.resetCycle) return false;
+  if (!isGateSuperset(candidate.gate, covered.gate)) return false;
+  if (!isParticipantSuperset(candidate, covered)) return false;
+  return logTimesOverlap(candidate, covered);
+}
+
+function coversManualLogEntry(encounterEntry: MeowConnectLogEntry, manualEntry: MeowConnectLogEntry): boolean {
+  if (encounterEntry.contentId !== manualEntry.contentId) return false;
+  if (!sameDifficulty(encounterEntry.difficulty, manualEntry.difficulty)) return false;
+  if (encounterEntry.resetCycle && manualEntry.resetCycle && encounterEntry.resetCycle !== manualEntry.resetCycle) return false;
+  if (!sameOrUnknownGate(encounterEntry.gate, manualEntry.gate)) return false;
+
+  const encounterPlayers = new Set(
+    (encounterEntry.participants || [entryAsParticipant(encounterEntry)])
+      .flatMap((participant) => splitLogPlayers(participant.localPlayer))
+      .map(normalizeSingleLogPlayer)
+      .filter(Boolean)
+  );
+
+  return (manualEntry.participants || [entryAsParticipant(manualEntry)])
+    .flatMap((participant) => splitLogPlayers(participant.localPlayer))
+    .map(normalizeSingleLogPlayer)
+    .some((player) => encounterPlayers.has(player));
+}
+
+function isGateSuperset(candidateGate?: string, coveredGate?: string): boolean {
+  const candidateGateNumbers = getGateNumbers(candidateGate);
+  const coveredGateNumbers = getGateNumbers(coveredGate);
+  if (candidateGateNumbers.length === 0 || coveredGateNumbers.length === 0) return false;
+  if (candidateGateNumbers.length < coveredGateNumbers.length) return false;
+  return coveredGateNumbers.every((gateNumber) => candidateGateNumbers.includes(gateNumber));
+}
+
+function isParticipantSuperset(candidate: MeowConnectLogEntry, covered: MeowConnectLogEntry): boolean {
+  const candidateParticipants = getNormalizedLogParticipantPlayers(candidate);
+  const coveredParticipants = getNormalizedLogParticipantPlayers(covered);
+  if (candidateParticipants.size === 0 || coveredParticipants.size === 0) return false;
+  if (candidateParticipants.size < coveredParticipants.size) return false;
+  return Array.from(coveredParticipants).every((participant) => candidateParticipants.has(participant));
+}
+
+function getNormalizedLogParticipantPlayers(entry: MeowConnectLogEntry): Set<string> {
+  return new Set(
+    (entry.participants || [entryAsParticipant(entry)])
+      .flatMap((participant) => splitLogPlayers(participant.localPlayer))
+      .map(normalizeSingleLogPlayer)
+      .filter(Boolean)
+  );
+}
+
+function logTimesOverlap(a: MeowConnectLogEntry, b: MeowConnectLogEntry): boolean {
+  const aStart = a.fightStart || 0;
+  const bStart = b.fightStart || 0;
+  const aEnd = getLogEndTimestamp(a);
+  const bEnd = getLogEndTimestamp(b);
+  if (!aStart || !bStart || !aEnd || !bEnd) return true;
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
 function canCombineGateLogEntry(entry: MeowConnectLogEntry): boolean {
-  const gateNumber = normalizeGateLabel(entry.gate)?.match(/\d+/)?.[0];
   return Boolean(
-    gateNumber &&
+    getGateNumbers(entry.gate).length > 0 &&
     (entry.source === 'LOA Logs' || entry.source === 'Manual') &&
     entry.contentId &&
     normalizeLogDifficulty(entry.difficulty) &&
@@ -294,6 +406,115 @@ function buildLogParticipantIndex(
   return participantsByCharacter;
 }
 
+function buildLogOwnerNameSet(
+  localSnapshot: MeowConnectLocalSnapshot | null,
+  remoteSnapshots: MeowConnectRemoteSnapshot[],
+  localProfile?: MeowConnectProfile | null
+): Set<string> {
+  return new Set([
+    localProfile?.displayName,
+    'You',
+    ...remoteSnapshots.map((snapshot) => snapshot.profile.displayName)
+  ].map((name) => normalizeSingleLogPlayer(name || '')).filter(Boolean));
+}
+
+function buildLogCharacterNameSet(
+  localSnapshot: MeowConnectLocalSnapshot | null,
+  remoteSnapshots: MeowConnectRemoteSnapshot[]
+): Set<string> {
+  return new Set([
+    ...(localSnapshot?.characters || []),
+    ...remoteSnapshots.flatMap((snapshot) => snapshot.characters)
+  ].map((character) => normalizeSingleLogPlayer(character.charName)).filter(Boolean));
+}
+
+function buildTemporaryPlayerIndex(
+  localSnapshot: MeowConnectLocalSnapshot | null,
+  remoteSnapshots: MeowConnectRemoteSnapshot[],
+  localProfile?: MeowConnectProfile | null
+): Map<string, { name: string; playedBy: string }> {
+  const temporaryPlayers = new Map<string, { name: string; playedBy: string }>();
+  const snapshots: MeowConnectRemoteSnapshot[] = [
+    ...(localSnapshot
+      ? [{
+          profile: {
+            userId: 'local',
+            discordId: 'local',
+            displayName: 'You',
+            avatarUrl: localProfile?.avatarUrl
+          },
+          characters: localSnapshot.characters,
+          completionSnapshots: localSnapshot.completionSnapshots,
+          raidReservations: localSnapshot.raidReservations,
+          encounterSnapshots: localSnapshot.encounterSnapshots,
+          updatedAt: new Date(localSnapshot.generatedAt).toISOString()
+        }]
+      : []),
+    ...remoteSnapshots
+  ];
+
+  for (const snapshot of snapshots) {
+    const rosterCharacterNames = new Set(snapshot.characters.map((character) => normalizeSingleLogPlayer(character.charName)));
+
+    for (const encounter of snapshot.encounterSnapshots || []) {
+      const localPlayer = encounter.localPlayer.trim();
+      const normalizedLocalPlayer = normalizeSingleLogPlayer(localPlayer);
+      if (!localPlayer || isGenericLogPlayer(localPlayer) || rosterCharacterNames.has(normalizedLocalPlayer)) continue;
+
+      temporaryPlayers.set(normalizedLocalPlayer, {
+        name: localPlayer,
+        playedBy: snapshot.profile.displayName
+      });
+    }
+  }
+
+  return temporaryPlayers;
+}
+
+function buildEncounterOwnerParticipants(
+  encounter: MeowConnectEncounterSnapshot,
+  profile: MeowConnectProfile,
+  ownerId: string,
+  characterById: Map<number, MeowConnectCharacterSnapshot>,
+  resolvedLocalPlayer: string
+): MeowConnectLogParticipant[] {
+  const ownerCharacters = Array.from(characterById.values());
+  const matchedCharacters = (encounter.matchedCharacterIds || [])
+    .map((charId) => characterById.get(charId))
+    .filter((character): character is MeowConnectCharacterSnapshot => Boolean(character));
+  const namedCharacters = [resolvedLocalPlayer, encounter.localPlayer, ...(encounter.players || [])]
+    .flatMap(splitLogPlayers)
+    .map((name) => ownerCharacters.find((character) => sameCharacterName(name, character.charName)))
+    .filter((character): character is MeowConnectCharacterSnapshot => Boolean(character));
+  const characters = dedupeCharacters([...matchedCharacters, ...namedCharacters]);
+
+  return characters.map((character) => ({
+    ownerId,
+    ownerName: profile.displayName,
+    ownerAvatarUrl: profile.avatarUrl,
+    localPlayer: character.charName
+  }));
+}
+
+function buildTemporaryEncounterPlayers(
+  encounter: MeowConnectEncounterSnapshot,
+  profile: MeowConnectProfile,
+  characterById: Map<number, MeowConnectCharacterSnapshot>,
+  participants: MeowConnectLogParticipant[]
+): Array<{ name: string; playedBy: string }> | undefined {
+  const localPlayer = encounter.localPlayer.trim();
+  if (!localPlayer || isGenericLogPlayer(localPlayer)) return undefined;
+
+  const isRosterCharacter = Array.from(characterById.values())
+    .some((character) => sameCharacterName(character.charName, localPlayer));
+  if (isRosterCharacter) return undefined;
+
+  const alreadyRepresented = participants.some((participant) => sameCharacterName(participant.localPlayer, localPlayer));
+  if (alreadyRepresented) return undefined;
+
+  return [{ name: localPlayer, playedBy: profile.displayName }];
+}
+
 function enrichEncounterLogParticipants(
   entries: MeowConnectLogEntry[],
   participantsByCharacter: Map<string, MeowConnectLogParticipant>
@@ -301,7 +522,7 @@ function enrichEncounterLogParticipants(
   return entries.map((entry) => {
     if (entry.source !== 'LOA Logs' || entry.players.length === 0) return entry;
 
-    const inferredParticipants = entry.players
+    const inferredParticipants = [entry.localPlayer, ...entry.players]
       .map((player) => participantsByCharacter.get(player.trim().toLowerCase()))
       .filter((participant): participant is MeowConnectLogParticipant => Boolean(participant));
     const participants = dedupeLogParticipants([
@@ -322,6 +543,72 @@ function enrichEncounterLogParticipants(
   });
 }
 
+function normalizeEncounterLogParticipantLabels(
+  entries: MeowConnectLogEntry[],
+  ownerNames: Set<string>,
+  characterNames: Set<string>,
+  participantsByCharacter: Map<string, MeowConnectLogParticipant>,
+  temporaryPlayersByName: Map<string, { name: string; playedBy: string }>
+): MeowConnectLogEntry[] {
+  return entries.map((entry) => {
+    if (entry.source !== 'LOA Logs') return entry;
+
+    const playerCharacters = dedupeStrings(
+      (entry.players || []).filter((player) => {
+        const normalized = normalizeSingleLogPlayer(player);
+        return characterNames.has(normalized);
+      })
+    );
+    const temporaryPlayers = dedupeTemporaryPlayers([
+      ...(entry.temporaryPlayers || []),
+      ...(entry.players || [])
+        .map((player) => temporaryPlayersByName.get(normalizeSingleLogPlayer(player)))
+        .filter((player): player is { name: string; playedBy: string } => Boolean(player))
+    ]);
+    const cleanedParticipants = (entry.participants || [entryAsParticipant(entry)])
+      .map((participant) => {
+        const playerNames = splitLogPlayers(participant.localPlayer);
+        const characterPlayerNames = playerNames.filter((name) => {
+          const normalized = normalizeSingleLogPlayer(name);
+          return characterNames.has(normalized);
+        });
+
+        return {
+          ...participant,
+          localPlayer: characterPlayerNames.length > 0 ? characterPlayerNames.join(', ') : participant.localPlayer
+        };
+      })
+      .filter((participant) => {
+        const normalizedPlayer = normalizeSingleLogPlayer(participant.localPlayer);
+        return characterNames.has(normalizedPlayer) || !ownerNames.has(normalizedPlayer);
+      });
+
+    const participants = dedupeLogParticipants([
+      ...cleanedParticipants,
+      ...playerCharacters
+        .map((player) => participantsByCharacter.get(normalizeSingleLogPlayer(player)))
+        .filter((participant): participant is MeowConnectLogParticipant => Boolean(participant))
+    ]);
+    if (participants.length === 0) {
+      return undefined;
+    }
+
+    const participantPlayers = participants.flatMap((participant) => splitLogPlayers(participant.localPlayer));
+    const players = dedupeStrings([...playerCharacters, ...participantPlayers]);
+
+    return {
+      ...entry,
+      players,
+      participants,
+      temporaryPlayers,
+      bibleLogs: dedupeBibleLogs(entry.bibleLogs || []),
+      ownerId: participants.map((participant) => participant.ownerId).join('+'),
+      ownerName: formatParticipantNames(participants),
+      localPlayer: participants.map((participant) => participant.localPlayer).join(', ')
+    };
+  }).filter((entry): entry is MeowConnectLogEntry => Boolean(entry));
+}
+
 function entryAsParticipant(entry: MeowConnectLogEntry): MeowConnectLogParticipant {
   return {
     ownerId: entry.ownerId,
@@ -335,11 +622,17 @@ function dedupeLogParticipants(participants: MeowConnectLogParticipant[]): MeowC
   const byOwner = new Map<string, MeowConnectLogParticipant>();
   for (const participant of participants) {
     const key = participant.ownerId || participant.ownerName;
-    if (!byOwner.has(key)) {
+    const existing = byOwner.get(key);
+
+    if (!existing || shouldReplaceParticipantLabel(existing.localPlayer, participant.localPlayer)) {
       byOwner.set(key, participant);
     }
   }
   return Array.from(byOwner.values()).sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+}
+
+function shouldReplaceParticipantLabel(currentValue: string, nextValue: string): boolean {
+  return isGenericLogPlayer(currentValue) && !isGenericLogPlayer(nextValue);
 }
 
 function formatParticipantNames(participants: MeowConnectLogParticipant[]): string {
@@ -365,13 +658,29 @@ function normalizeLogPlayer(value: string): string {
     .join('|');
 }
 
+function normalizeSingleLogPlayer(value: string): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function splitLogPlayers(value: string): string[] {
+  return String(value || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function sameOrUnknownGate(a?: string | null, b?: string | null): boolean {
+  const gateNumbersA = getGateNumbers(a);
+  const gateNumbersB = getGateNumbers(b);
+  return gateNumbersA.length === 0 ||
+    gateNumbersB.length === 0 ||
+    gateNumbersA.some((gateNumber) => gateNumbersB.includes(gateNumber));
+}
+
 function formatCombinedGateLabel(values: Array<string | undefined>): string | undefined {
   const gateNumbers = Array.from(new Set(
     values
-      .map((value) => normalizeGateLabel(value))
-      .map((value) => value?.match(/\d+/)?.[0])
-      .filter((value): value is string => Boolean(value))
-      .map(Number)
+      .flatMap((value) => getGateNumbers(value))
   )).sort((a, b) => a - b);
 
   if (gateNumbers.length === 0) return values.find(Boolean);
@@ -403,6 +712,24 @@ function findMatchingEncounterCompletionTime(
   });
 
   return Math.max(...candidates.map((completion) => completion.completedAt || 0), 0) || undefined;
+}
+
+function resolveEncounterLocalPlayer(
+  encounter: MeowConnectEncounterSnapshot,
+  characterById: Map<number, MeowConnectCharacterSnapshot>
+): string {
+  if (!isGenericLogPlayer(encounter.localPlayer)) return encounter.localPlayer;
+
+  const matchedCharacter = (encounter.matchedCharacterIds || [])
+    .map((charId) => characterById.get(charId))
+    .find((character): character is MeowConnectCharacterSnapshot => Boolean(character));
+
+  if (matchedCharacter) return matchedCharacter.charName;
+
+  const characterByName = Array.from(characterById.values())
+    .find((character) => (encounter.players || []).some((player) => sameCharacterName(player, character.charName)));
+
+  return characterByName?.charName || encounter.localPlayer;
 }
 
 function getLogDisplayTimestamp(entry: MeowConnectLogEntry): number {
@@ -441,14 +768,60 @@ function dedupeNumbers(values: number[]): number[] {
   return Array.from(new Set(values.map((value) => Number(value || 0)).filter(Boolean)));
 }
 
+function dedupeTemporaryPlayers(players: Array<{ name: string; playedBy: string }>): Array<{ name: string; playedBy: string }> {
+  const byKey = new Map<string, { name: string; playedBy: string }>();
+  for (const player of players) {
+    const key = `${normalizeSingleLogPlayer(player.name)}:${normalizeSingleLogPlayer(player.playedBy)}`;
+    if (!byKey.has(key)) byKey.set(key, player);
+  }
+  return Array.from(byKey.values());
+}
+
+function dedupeBibleLogs(logs: Array<{ gate?: string; upstreamId: string }>): Array<{ gate?: string; upstreamId: string }> {
+  const byKey = new Map<string, { gate?: string; upstreamId: string }>();
+  for (const log of logs) {
+    if (!log.upstreamId) continue;
+    const gateLabel = normalizeGateLabel(log.gate) || log.gate || 'raid';
+    const key = gateLabel.toLowerCase();
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        gate: gateLabel,
+        upstreamId: log.upstreamId
+      });
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => {
+    const aGate = getGateNumbers(a.gate)[0] || 0;
+    const bGate = getGateNumbers(b.gate)[0] || 0;
+    return aGate - bGate || a.upstreamId.localeCompare(b.upstreamId);
+  });
+}
+
+function dedupeCharacters(characters: MeowConnectCharacterSnapshot[]): MeowConnectCharacterSnapshot[] {
+  const byId = new Map<number, MeowConnectCharacterSnapshot>();
+  for (const character of characters) {
+    byId.set(character.charId, character);
+  }
+  return Array.from(byId.values());
+}
+
 function getRaidName(contentId: string, fallback: string): string {
   return RAIDS.find((raid) => raid.id === contentId)?.name || fallback;
 }
 
 function normalizeGateLabel(value?: string | null): string | undefined {
-  const match = String(value || '').match(/gate\s*(\d+)|g\s*(\d+)/i);
-  const gateNumber = match?.[1] ?? match?.[2];
-  return gateNumber ? `Gate ${gateNumber}` : undefined;
+  const gateNumbers = getGateNumbers(value);
+  if (gateNumbers.length === 0) return undefined;
+  if (gateNumbers.length === 1) return `Gate ${gateNumbers[0]}`;
+  return `Gates ${gateNumbers.join(' + ')}`;
+}
+
+function getGateNumbers(value?: string | null): number[] {
+  return Array.from(new Set(
+    Array.from(String(value || '').matchAll(/(?:gate|gates|g)\s*(\d+)|\b(\d+)\b/gi))
+      .map((match) => Number(match[1] || match[2] || 0))
+      .filter((gateNumber) => gateNumber > 0 && gateNumber <= 8)
+  )).sort((a, b) => a - b);
 }
 
 function normalizeLogSource(source?: string): 'Manual' | 'LOA Logs' | string {
@@ -468,4 +841,13 @@ function normalizeGate(value: string): string {
 
 function sameDifficulty(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function sameCharacterName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function isGenericLogPlayer(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return !normalized || normalized === 'you' || normalized === 'unknown';
 }

@@ -59,6 +59,15 @@
   $: cardTopWeeklyTasks = displayRaids.length > 0
     ? trackedWeeklyTasks
     : displayWeeklyTasks.filter(task => ['shop', 'guild'].includes(task.content_id) || displayWeeklyTasks.length === 1);
+  // Card view keeps weekly icons in fixed slots so dailies stay aligned on the right.
+  $: cardTopWeeklySlotIds = displayRaids.length > 0
+    ? ['cube', 'paradise', 'shop', 'guild']
+    : ['shop', 'guild'];
+  $: cardTopWeeklySlots = cardTopWeeklySlotIds.map((taskId) =>
+    cardTopWeeklyTasks.find((task) => task.content_id === taskId) || null
+  );
+  $: hasFixedCardTopWeeklySlots = cardTopWeeklySlots.some(Boolean);
+  $: looseCardTopWeeklyTasks = hasFixedCardTopWeeklySlots ? [] : cardTopWeeklyTasks;
   $: cardBodyWeeklyTasks = displayRaids.length === 0
     ? displayWeeklyTasks.filter(task => !['shop', 'guild'].includes(task.content_id) && displayWeeklyTasks.length !== 1)
     : displayWeeklyTasks;
@@ -362,8 +371,32 @@
     </div>
 
     <!-- Activity Section (Dailies & Events) -->
-    <div class="activity-section">
-      {#each cardTopWeeklyTasks as weeklyTask}
+    <div class="activity-section" class:fixed-weekly-slots={hasFixedCardTopWeeklySlots}>
+      {#if hasFixedCardTopWeeklySlots}
+        {#each cardTopWeeklySlots as weeklyTask}
+          {#if weeklyTask}
+            <div
+              class="activity-item weekly-inline"
+              class:inactive={weeklyTask.completed}
+              title={`${weeklyTask.name}: ${weeklyTask.completed ? 'done' : 'open'}`}
+              role="button"
+              tabindex="0"
+              on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
+              on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
+              on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(weeklyTask.content_id, weeklyTask.completed)}
+            >
+              <div class="activity-icon">
+                <img src={getTaskIcon(weeklyTask.content_id)} alt={weeklyTask.name} class="task-icon" />
+              </div>
+            </div>
+          {:else}
+            <span class="activity-item weekly-inline placeholder" aria-hidden="true">
+              <span class="activity-icon"></span>
+            </span>
+          {/if}
+        {/each}
+      {/if}
+      {#each looseCardTopWeeklyTasks as weeklyTask}
         <div
           class="activity-item weekly-inline"
           class:inactive={weeklyTask.completed}
@@ -939,6 +972,17 @@
     gap: 0.24rem;
   }
 
+  .character-card.minimal-card:not(.compact) .activity-section.fixed-weekly-slots {
+    top: 0.5rem;
+    right: 0.55rem;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, auto);
+    align-items: center;
+    justify-items: end;
+    gap: 0.22rem 0.3rem;
+  }
+
   .activity-item {
     border: none;
     background: transparent;
@@ -982,6 +1026,11 @@
 
   .activity-item.weekly-inline .activity-icon {
     border: 1px solid color-mix(in srgb, var(--app-color-muted-state) 28%, transparent);
+  }
+
+  .activity-item.placeholder {
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .activity-item.inactive {

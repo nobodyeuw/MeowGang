@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -95,7 +95,7 @@ impl TodoRepository {
 
     /// Tasks whose completion is represented once for the whole roster.
     fn is_roster_wide_task_id(task_id: &str) -> bool {
-        matches!(task_id, "gate" | "boss" | "event_argeos_winter")
+        matches!(task_id, "gate" | "boss" | "event_argeos_winter" | "ship_shop")
     }
 
     /// Roster-wide tasks that can be completed multiple times per weekly window.
@@ -140,7 +140,8 @@ impl TodoRepository {
         }
     }
 
-    /// Canonical character row used to store roster-wide completion records.
+    /// Fallback active character row used when a roster-wide completion needs
+    /// a `char_id` for the current schema but no prior roster row exists.
     fn get_first_character_id_for_roster(conn: &rusqlite::Connection, roster_id: &str) -> Result<i64> {
         let char_id = conn.query_row(
             "SELECT char_id FROM conf_character
@@ -153,6 +154,33 @@ impl TodoRepository {
         )?;
 
         Ok(char_id)
+    }
+
+    /// Finds the existing row used to store a simple roster-wide completion.
+    ///
+    /// Older rows may point at a character that has since been removed from
+    /// the roster, so roster-wide tasks must be located by roster/content
+    /// instead of by the current first visible character.
+    fn get_roster_task_completion_rowid(
+        conn: &rusqlite::Connection,
+        roster_id: &str,
+        task_id: &str,
+    ) -> Result<Option<i64>> {
+        let rowid = conn
+            .query_row(
+                "SELECT rowid
+                 FROM completion_status
+                 WHERE roster_id = ?1
+                   AND content_id = ?2
+                   AND session_id IS NULL
+                 ORDER BY timestamp DESC, rowid DESC
+                 LIMIT 1",
+                params![roster_id, task_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+
+        Ok(rowid)
     }
 
     /// Reads current completion state for a roster-wide task.
@@ -343,6 +371,21 @@ impl TodoRepository {
                         tracked,
                         completed: progress.completed_this_week >= progress.weekly_limit,
                     },
+                );
+            }
+        }
+
+        for task_id in ["ship_shop"] {
+            let tracked = todo_entries
+                .iter()
+                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
+
+            let completed = Self::get_roster_task_completed_with_conn(&conn, roster_id, task_id)?;
+
+            for roster_char in &characters {
+                character_states.insert(
+                    format!("{}_{}", roster_char.id, task_id),
+                    CharacterTaskState { tracked, completed },
                 );
             }
         }
@@ -708,40 +751,15 @@ impl TodoRepository {
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let tx = conn.transaction()?;
-        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
-
-        tx.execute(
-            "DELETE FROM completion_status
-             WHERE roster_id = ?1
-               AND content_id = ?2
-               AND session_id IS NULL
-               AND char_id <> ?3",
-            params![roster_id, task_id, char_id],
-        )?;
-
-        let exists = tx
-            .prepare(
-                "SELECT rowid
-                 FROM completion_status
-                 WHERE roster_id = ?1
-                   AND char_id = ?2
-                   AND content_id = ?3
-                   AND session_id IS NULL
-                 LIMIT 1",
-            )?
-            .exists(params![roster_id, char_id, task_id])?;
-
-        if exists {
+        if let Some(rowid) = Self::get_roster_task_completion_rowid(&tx, roster_id, task_id)? {
             tx.execute(
                 "UPDATE completion_status
                  SET is_completed = ?1, timestamp = ?2, completion_source = 'manual'
-                 WHERE roster_id = ?3
-                   AND char_id = ?4
-                   AND content_id = ?5
-                   AND session_id IS NULL",
-                params![completed_value, timestamp, roster_id, char_id, task_id],
+                 WHERE rowid = ?3",
+                params![completed_value, timestamp, rowid],
             )?;
         } else {
+            let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
             tx.execute(
                 "INSERT INTO completion_status
                     (roster_id, char_id, content_id, is_completed, timestamp, completion_source, session_id)

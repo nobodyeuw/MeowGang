@@ -198,6 +198,7 @@ pub fn run() {
             handlers::encounter_sync_handlers::test_boss_mapping,
             // MeowConnect handlers
             handlers::meow_connect_handlers::get_meow_connect_local_snapshot,
+            handlers::meow_connect_handlers::apply_meow_connect_clear_hints,
             handlers::meow_connect_handlers::replace_meow_connect_group_raid_tags,
             // Entity sync handlers
             handlers::entity_sync_handlers::sync_entity_data,

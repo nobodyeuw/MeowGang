@@ -3,6 +3,7 @@
   import { classAsset, iconAsset } from '$lib/assets';
   import { getGameClassDisplayName, getGameClassIconId } from '$lib/data/classes';
   import { RAIDS } from '$lib/data/raids';
+  import { rosters } from '$lib/store';
   import type {
     MeowConnectAvailabilityRow,
     MeowConnectGroup,
@@ -27,6 +28,19 @@
     changeGroupAssignment: { row: MeowConnectAvailabilityRow; groupId: string };
   }>();
   const goldIcon = iconAsset('gold.png');
+  type AvailabilityRosterGroup = {
+    key: string;
+    rosterName: string;
+    rows: MeowConnectAvailabilityRow[];
+  };
+  type AvailabilityRosterStateGroup = {
+    key: string;
+    rosterName: string;
+    availableRows: MeowConnectAvailabilityRow[];
+    reservedRows: MeowConnectAvailabilityRow[];
+    clearedRows: MeowConnectAvailabilityRow[];
+    totalRows: number;
+  };
 
   function formatCharacterItemLevel(value: number): string {
     return String(Math.round(value || 0));
@@ -114,6 +128,73 @@
     const select = event.currentTarget as HTMLSelectElement;
     dispatch('changeGroupAssignment', { row, groupId: select.value });
   }
+
+  function getRosterSortIndex(row: MeowConnectAvailabilityRow): number {
+    const localRosterIndex = $rosters.findIndex((roster) => roster.id === row.character.rosterId);
+    if (localRosterIndex >= 0) return localRosterIndex;
+    return row.character.displayOrder || Number.MAX_SAFE_INTEGER;
+  }
+
+  function sortAvailabilityRows(rows: MeowConnectAvailabilityRow[]): MeowConnectAvailabilityRow[] {
+    return [...rows].sort((a, b) =>
+      getRosterSortIndex(a) - getRosterSortIndex(b) ||
+      (a.character.displayOrder || 0) - (b.character.displayOrder || 0) ||
+      b.character.itemLevel - a.character.itemLevel ||
+      a.character.charName.localeCompare(b.character.charName)
+    );
+  }
+
+  function groupRowsByRoster(rows: MeowConnectAvailabilityRow[]): AvailabilityRosterGroup[] {
+    const groups = new Map<string, AvailabilityRosterGroup>();
+
+    for (const row of sortAvailabilityRows(rows)) {
+      const key = row.character.rosterId || row.character.rosterName || 'unknown-roster';
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.rows.push(row);
+      } else {
+        groups.set(key, {
+          key,
+          rosterName: row.character.rosterName || 'Unknown roster',
+          rows: [row]
+        });
+      }
+    }
+
+    return Array.from(groups.values());
+  }
+
+  function groupRowsByRosterWithStates(rows: MeowConnectAvailabilityRow[]): AvailabilityRosterStateGroup[] {
+    return groupRowsByRoster(rows).map((group) => {
+      const availableRows = group.rows.filter(getAvailableRows);
+      const reservedRows = group.rows.filter(getReservedRows);
+      const clearedRows = group.rows.filter(getClearedRows);
+
+      return {
+        key: group.key,
+        rosterName: group.rosterName,
+        availableRows,
+        reservedRows,
+        clearedRows,
+        totalRows: availableRows.length + reservedRows.length + clearedRows.length
+      };
+    }).filter((group) => group.totalRows > 0);
+  }
+
+  function getAvailableRows(row: MeowConnectAvailabilityRow): boolean {
+    return isAvailableRow(row);
+  }
+
+  function getReservedRows(row: MeowConnectAvailabilityRow): boolean {
+    return row.status === 'open' && row.reservedForStatic && row.ownerId !== 'local' && !hasSharedGroupAssignment(row);
+  }
+
+  function getClearedRows(row: MeowConnectAvailabilityRow): boolean {
+    return row.status === 'cleared';
+  }
+
+  $: rosterGroups = groupRowsByRosterWithStates(profileGroup.rows);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -147,145 +228,158 @@
     </header>
 
     <div class="availability-stack">
-      {#each profileGroup.rows.filter(isAvailableRow) as row}
-        <article class:shared-static={hasSharedGroupAssignment(row)} class="availability-card">
-          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
-
-          <div class="character-copy">
-            <div class="character-title-line">
-              <strong>{row.character.charName}</strong>
-              <span class="class-name">{getClassName(row.character.classId)}</span>
-              <img
-                src={goldIcon}
-                alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-                class:inactive={!row.character.earnsGold}
-                class="gold-earner-icon"
-                title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-              />
-            </div>
-            <span class="character-stats-line">
-              <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
-              <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
-            </span>
-            <small class="availability-meta">
-              <span>{row.openGates}/{row.totalGates} gates open | {getAvailabilityDifficultyLabel(row)}</span>
+      {#each rosterGroups as rosterGroup (rosterGroup.key)}
+        <section class="availability-roster-group">
+          <div class="roster-divider">
+            <span>{rosterGroup.rosterName}</span>
+            <small>
+              {#if rosterGroup.availableRows.length > 0}{rosterGroup.availableRows.length} available{/if}
+              {#if rosterGroup.reservedRows.length > 0}{rosterGroup.availableRows.length > 0 ? ' | ' : ''}{rosterGroup.reservedRows.length} reserved{/if}
+              {#if rosterGroup.clearedRows.length > 0}{rosterGroup.availableRows.length > 0 || rosterGroup.reservedRows.length > 0 ? ' | ' : ''}{rosterGroup.clearedRows.length} cleared{/if}
             </small>
           </div>
 
-          {#if canAssignRowToGroup(row)}
-            <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
-              <span>Group</span>
-              <select
-                value={getAssignedGroupId(row)}
-                disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
-                on:change={(event) => dispatchGroupChange(row, event)}
-              >
-                <option value="">None</option>
-                {#each assignableGroups as group}
-                  <option value={group.groupId}>{group.groupName}</option>
-                {/each}
-              </select>
-            </label>
-          {:else if hasGroupState(row)}
-            <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
-              {getGroupStateText(row)}
-            </span>
-          {/if}
-        </article>
-      {/each}
+          {#each rosterGroup.availableRows as row}
+            <article class:shared-static={hasSharedGroupAssignment(row)} class="availability-card">
+              <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
 
-      {#each profileGroup.rows.filter((row) => row.status === 'open' && row.reservedForStatic && row.ownerId !== 'local' && !hasSharedGroupAssignment(row)) as row}
-        <article class="availability-card reserved">
-          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
+              <div class="character-copy">
+                <div class="character-title-line">
+                  <strong>{row.character.charName}</strong>
+                  <span class="class-name">{getClassName(row.character.classId)}</span>
+                  <img
+                    src={goldIcon}
+                    alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                    class:inactive={!row.character.earnsGold}
+                    class="gold-earner-icon"
+                    title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                  />
+                </div>
+                <span class="character-stats-line">
+                  <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
+                  <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
+                </span>
+                <small class="availability-meta">
+                  <span>{row.openGates}/{row.totalGates} gates open | {getAvailabilityDifficultyLabel(row)}</span>
+                </small>
+              </div>
 
-          <div class="character-copy">
-            <div class="character-title-line">
-              <strong>{row.character.charName}</strong>
-              <span class="class-name">{getClassName(row.character.classId)}</span>
-              <img
-                src={goldIcon}
-                alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-                class:inactive={!row.character.earnsGold}
-                class="gold-earner-icon"
-                title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-              />
-            </div>
-            <span class="character-stats-line">
-              <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
-              <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
-            </span>
-            <small class="availability-meta">
-              <span>{getAvailabilityDifficultyLabel(row)}</span>
-            </small>
-          </div>
+              {#if canAssignRowToGroup(row)}
+                <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                  <span>Group</span>
+                  <select
+                    value={getAssignedGroupId(row)}
+                    disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                    on:change={(event) => dispatchGroupChange(row, event)}
+                  >
+                    <option value="">None</option>
+                    {#each assignableGroups as group}
+                      <option value={group.groupId}>{group.groupName}</option>
+                    {/each}
+                  </select>
+                </label>
+              {:else if hasGroupState(row)}
+                <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                  {getGroupStateText(row)}
+                </span>
+              {/if}
+            </article>
+          {/each}
 
-          {#if canAssignRowToGroup(row)}
-            <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
-              <span>Group</span>
-              <select
-                value={getAssignedGroupId(row)}
-                disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
-                on:change={(event) => dispatchGroupChange(row, event)}
-              >
-                <option value="">None</option>
-                {#each assignableGroups as group}
-                  <option value={group.groupId}>{group.groupName}</option>
-                {/each}
-              </select>
-            </label>
-          {:else if hasGroupState(row)}
-            <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
-              {getGroupStateText(row)}
-            </span>
-          {/if}
-        </article>
-      {/each}
+          {#each rosterGroup.reservedRows as row}
+            <article class="availability-card reserved">
+              <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
 
-      {#each profileGroup.rows.filter((row) => row.status === 'cleared') as row}
-        <article class="availability-card cleared">
-          <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
+              <div class="character-copy">
+                <div class="character-title-line">
+                  <strong>{row.character.charName}</strong>
+                  <span class="class-name">{getClassName(row.character.classId)}</span>
+                  <img
+                    src={goldIcon}
+                    alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                    class:inactive={!row.character.earnsGold}
+                    class="gold-earner-icon"
+                    title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                  />
+                </div>
+                <span class="character-stats-line">
+                  <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
+                  <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
+                </span>
+                <small class="availability-meta">
+                  <span>{getAvailabilityDifficultyLabel(row)}</span>
+                </small>
+              </div>
 
-          <div class="character-copy">
-            <div class="character-title-line">
-              <strong>{row.character.charName}</strong>
-              <span class="class-name">{getClassName(row.character.classId)}</span>
-              <img
-                src={goldIcon}
-                alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-                class:inactive={!row.character.earnsGold}
-                class="gold-earner-icon"
-                title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
-              />
-            </div>
-            <span class="character-stats-line">
-              <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
-              <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
-            </span>
-            <small class="availability-meta">
-              <span>cleared | {getAvailabilityDifficultyLabel(row)}</span>
-            </small>
-          </div>
+              {#if canAssignRowToGroup(row)}
+                <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                  <span>Group</span>
+                  <select
+                    value={getAssignedGroupId(row)}
+                    disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                    on:change={(event) => dispatchGroupChange(row, event)}
+                  >
+                    <option value="">None</option>
+                    {#each assignableGroups as group}
+                      <option value={group.groupId}>{group.groupName}</option>
+                    {/each}
+                  </select>
+                </label>
+              {:else if hasGroupState(row)}
+                <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                  {getGroupStateText(row)}
+                </span>
+              {/if}
+            </article>
+          {/each}
 
-          {#if canAssignRowToGroup(row)}
-            <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
-              <span>Group</span>
-              <select
-                value={getAssignedGroupId(row)}
-                disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
-                on:change={(event) => dispatchGroupChange(row, event)}
-              >
-                <option value="">None</option>
-                {#each assignableGroups as group}
-                  <option value={group.groupId}>{group.groupName}</option>
-                {/each}
-              </select>
-            </label>
-          {:else if hasGroupState(row)}
-            <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
-              {getGroupStateText(row)}
-            </span>
-          {/if}
-        </article>
+          {#each rosterGroup.clearedRows as row}
+            <article class="availability-card cleared">
+              <img src={classAsset(getClassIcon(row.character.classId))} alt="" class="class-icon" />
+
+              <div class="character-copy">
+                <div class="character-title-line">
+                  <strong>{row.character.charName}</strong>
+                  <span class="class-name">{getClassName(row.character.classId)}</span>
+                  <img
+                    src={goldIcon}
+                    alt={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                    class:inactive={!row.character.earnsGold}
+                    class="gold-earner-icon"
+                    title={row.character.earnsGold ? 'Gold earner' : 'Non-gold earner'}
+                  />
+                </div>
+                <span class="character-stats-line">
+                  <span class="stat-field">iLvl {formatCharacterItemLevel(row.character.itemLevel)}</span>
+                  <span class="stat-field combat-power">{formatCharacterPower(row.character.combatPower)}</span>
+                </span>
+                <small class="availability-meta">
+                  <span>cleared | {getAvailabilityDifficultyLabel(row)}</span>
+                </small>
+              </div>
+
+              {#if canAssignRowToGroup(row)}
+                <label class="group-assignment-control" title={getGroupAssignmentLabel(row)}>
+                  <span>Group</span>
+                  <select
+                    value={getAssignedGroupId(row)}
+                    disabled={groupAssignmentBusyKey === getGroupAssignmentKey(row)}
+                    on:change={(event) => dispatchGroupChange(row, event)}
+                  >
+                    <option value="">None</option>
+                    {#each assignableGroups as group}
+                      <option value={group.groupId}>{group.groupName}</option>
+                    {/each}
+                  </select>
+                </label>
+              {:else if hasGroupState(row)}
+                <span class:reserved={getAssignedGroupNames(row).length === 0 && row.ownerId !== 'local'} class="group-assignment-badge" title={getGroupAssignmentLabel(row)}>
+                  {getGroupStateText(row)}
+                </span>
+              {/if}
+            </article>
+          {/each}
+        </section>
       {/each}
 
       {#if profileGroup.rows.length === 0}
@@ -379,6 +473,46 @@
   .availability-stack {
     overflow-y: auto;
     padding: 0.55rem;
+  }
+
+  .availability-roster-group {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .availability-roster-group + .availability-roster-group {
+    margin-top: 0.55rem;
+  }
+
+  .roster-divider {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.2rem 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 18%, var(--md-sys-color-outline));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--md-sys-color-primary) 7%, var(--md-sys-color-surface-container));
+  }
+
+  .roster-divider span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.68rem;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .roster-divider small {
+    flex: 0 0 auto;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.6rem;
+    font-weight: 650;
+    letter-spacing: 0;
+    text-transform: uppercase;
   }
 
   .icon-button {

@@ -2,6 +2,7 @@ const FAVORITES_STORAGE_KEY = 'meowConnect.favoriteCharacterKeys';
 const CONSENT_STORAGE_KEY = 'meowConnect.consentAccepted';
 const FEATURE_ENABLED_STORAGE_KEY = 'meowConnect.featureEnabled';
 const REALTIME_ENABLED_STORAGE_KEY = 'meowConnect.realtimeEnabled';
+const FRIEND_CLEAR_HINTS_ENABLED_STORAGE_KEY = 'meowConnect.friendClearHintsEnabled';
 const UNSYNCED_CHANGES_STORAGE_KEY = 'meowConnect.unsyncedChanges';
 
 export const LAST_UPLOAD_STORAGE_KEY = 'meowConnect.lastUploadAt';
@@ -48,6 +49,16 @@ export function isStoredMeowConnectRealtimeEnabled(): boolean {
 export function setStoredMeowConnectRealtimeEnabled(enabled: boolean) {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(REALTIME_ENABLED_STORAGE_KEY, enabled ? '1' : '0');
+}
+
+export function isStoredMeowConnectFriendClearHintsEnabled(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(FRIEND_CLEAR_HINTS_ENABLED_STORAGE_KEY) === '1';
+}
+
+export function setStoredMeowConnectFriendClearHintsEnabled(enabled: boolean) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(FRIEND_CLEAR_HINTS_ENABLED_STORAGE_KEY, enabled ? '1' : '0');
 }
 
 export function hasStoredUnsyncedChanges(): boolean {

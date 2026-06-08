@@ -42,6 +42,7 @@
       guardian: iconAsset('guardian.png'),
       gate: iconAsset('chaos_gate.png'),
       boss: iconAsset('boss.png'),
+      ship_shop: iconAsset('ship.png'),
       guild: iconAsset('guild.webp'),
       cube: iconAsset('ebony1720.png'),
       paradise: iconAsset('paradise.webp'),

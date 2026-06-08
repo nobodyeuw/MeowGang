@@ -35,7 +35,8 @@ export function buildMeowConnectAvailabilityRows(
   raidId: string,
   difficulty: string,
   favoriteIds: Set<string>,
-  localProfile?: MeowConnectProfile | null
+  localProfile?: MeowConnectProfile | null,
+  useFriendClearHints = false
 ): MeowConnectAvailabilityRow[] {
   const raids = RAIDS
     .filter((entry) => entry.id === raidId)
@@ -58,7 +59,11 @@ export function buildMeowConnectAvailabilityRows(
       }
     : null;
   const allSnapshots = localRemoteSnapshot ? [localRemoteSnapshot, ...remoteSnapshots] : remoteSnapshots;
-  const encounterEvidenceByCharacterName = buildEncounterEvidenceByCharacterName(allSnapshots, raidId);
+  // Friend clear hints can preview cross-user LOA Logs evidence while the
+  // refresh path applies valid local matches as `meow_connect` completions.
+  const encounterEvidenceByCharacterName = useFriendClearHints
+    ? buildEncounterEvidenceByCharacterName(allSnapshots, raidId)
+    : new Map();
 
   const localRows = localRemoteSnapshot
     ? buildSnapshotRows(localRemoteSnapshot, raids, difficulty, favoriteIds, encounterEvidenceByCharacterName)

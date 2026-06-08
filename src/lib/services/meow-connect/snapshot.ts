@@ -21,12 +21,27 @@ interface EncounterPreview {
   duration?: number;
   cleared: boolean;
   players: string[];
+  bible_logs?: Array<{ upstream_id: string }>;
+}
+
+export interface MeowConnectClearHintInput {
+  charId: number;
+  contentId: string;
+  gate: string;
+  difficulty?: string;
+  completedAt: number;
+  sourceOwnerName?: string;
 }
 
 export async function loadMeowConnectLocalSnapshot(): Promise<MeowConnectLocalSnapshot> {
   const snapshot = await invoke<MeowConnectLocalSnapshot>('get_meow_connect_local_snapshot');
   const encounterSnapshots = await loadLocalEncounterSnapshots(snapshot);
   return { ...snapshot, encounterSnapshots };
+}
+
+export async function applyMeowConnectClearHints(hints: MeowConnectClearHintInput[]): Promise<number> {
+  if (hints.length === 0) return 0;
+  return invoke<number>('apply_meow_connect_clear_hints', { hints });
 }
 
 export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot): Promise<{
@@ -149,24 +164,35 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
   }
 
   if ((syncedSnapshot.encounterSnapshots || []).length > 0) {
-    await throwIfSupabaseError(
-      supabase.from('meow_encounter_snapshots').upsert(
-        (syncedSnapshot.encounterSnapshots || []).map((encounter) => ({
-          user_id: profile.userId,
-          local_player: encounter.localPlayer,
-          content_id: encounter.contentId,
-          raid_name: encounter.raidName,
-          difficulty: encounter.difficulty || '',
-          gate: encounter.gate || 'raid',
-          cleared: encounter.cleared,
-          fight_start: encounter.fightStart,
-          duration: encounter.duration || 0,
-          players_json: encounter.players || [],
-          matched_character_ids_json: encounter.matchedCharacterIds || [],
-          reset_cycle: encounter.resetCycle || resetCycle
-        }))
-      )
-    );
+    const encounterRows = (syncedSnapshot.encounterSnapshots || []).map((encounter) => ({
+      user_id: profile.userId,
+      local_player: encounter.localPlayer,
+      content_id: encounter.contentId,
+      raid_name: encounter.raidName,
+      difficulty: encounter.difficulty || '',
+      gate: encounter.gate || 'raid',
+      cleared: encounter.cleared,
+      fight_start: encounter.fightStart,
+      duration: encounter.duration || 0,
+      players_json: encounter.players || [],
+      matched_character_ids_json: encounter.matchedCharacterIds || [],
+      bible_logs_json: encounter.bibleLogs || [],
+      reset_cycle: encounter.resetCycle || resetCycle
+    }));
+
+    try {
+      await throwIfSupabaseError(supabase.from('meow_encounter_snapshots').upsert(encounterRows));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('bible_logs_json')) throw error;
+
+      writeMeowConnectLog('warn', 'Supabase meow_encounter_snapshots.bible_logs_json is missing; synced encounters without Lost Ark Bible preview links.');
+      await throwIfSupabaseError(
+        supabase.from('meow_encounter_snapshots').upsert(
+          encounterRows.map(({ bible_logs_json, ...row }) => row)
+        )
+      );
+    }
   }
 
   return { syncedSnapshot, duplicateCharacters: blockedDuplicateCharacters };
@@ -229,6 +255,12 @@ async function loadLocalEncounterSnapshots(snapshot: MeowConnectLocalSnapshot): 
         matchedCharacterIds: [encounter.local_player, ...(encounter.players || [])]
           .map((player) => characterIdsByName.get(player.trim().toLowerCase()) || 0)
           .filter(Boolean),
+        bibleLogs: (encounter.bible_logs || [])
+          .map((log) => ({
+            gate: match.gate,
+            upstreamId: log.upstream_id
+          }))
+          .filter((log) => Boolean(log.upstreamId)),
         resetCycle: String(snapshot.weeklyResetMs || 0)
       };
       return [entry];
@@ -491,6 +523,12 @@ function buildRemoteSnapshots(
       clearedAt: getEncounterClearedAt(Number(encounter.fight_start || 0), Number(encounter.duration || 0)) || parseTimestampMs(encounter.updated_at),
       players: parseJsonArray<string>(encounter.players_json),
       matchedCharacterIds: parseJsonArray<number>(encounter.matched_character_ids_json).map((value) => Number(value || 0)).filter(Boolean),
+      bibleLogs: parseJsonArray<{ gate?: string; upstreamId?: string; upstream_id?: string }>(encounter.bible_logs_json)
+        .map((log) => ({
+          gate: log.gate,
+          upstreamId: log.upstreamId || log.upstream_id || ''
+        }))
+        .filter((log) => Boolean(log.upstreamId)),
       resetCycle: encounter.reset_cycle
     });
     if (encounter.updated_at && encounter.updated_at > snapshot.updatedAt) {
@@ -605,6 +643,7 @@ interface MeowEncounterRow {
   duration?: number | null;
   players_json: string[] | string | null;
   matched_character_ids_json: number[] | string | null;
+  bible_logs_json?: Array<{ gate?: string; upstreamId?: string; upstream_id?: string }> | string | null;
   reset_cycle: string;
   updated_at?: string;
 }

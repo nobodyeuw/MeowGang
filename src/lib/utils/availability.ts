@@ -4,7 +4,7 @@ const DAILY_RESET_UTC_HOUR = 10;
 const CALENDAR_EVENT_AVAILABLE_MS = 17 * 60 * 60 * 1000;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function getGameDayStart(now = new Date()): Date {
+export function getGameDayStart(now = new Date()): Date {
   const reset = new Date(now);
   reset.setUTCHours(DAILY_RESET_UTC_HOUR, 0, 0, 0);
   if (now.getTime() < reset.getTime()) {

@@ -554,6 +554,34 @@ impl CharacterRepository {
         Ok(tracking)
     }
 
+    /// Loads completion rows by roster, including roster-wide rows whose
+    /// fallback `char_id` may point at a character removed from the roster.
+    pub fn get_roster_completion_status(&self, roster_id: &str) -> Result<Vec<CompletionStatus>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT char_id, content_id, is_completed, details, session_id, COALESCE(timestamp, 0)
+             FROM completion_status
+             WHERE roster_id = ?1",
+        )?;
+
+        let rows = stmt.query_map([roster_id], |row| {
+            Ok(CompletionStatus {
+                char_id: row.get(0)?,
+                content_id: row.get(1)?,
+                is_completed: row.get(2)?,
+                details: row.get::<_, Option<String>>(3)?,
+                session_id: row.get::<_, Option<String>>(4)?,
+                timestamp: row.get(5)?,
+            })
+        })?;
+
+        let mut completions = Vec::new();
+        for row in rows {
+            completions.push(row?);
+        }
+        Ok(completions)
+    }
+
     /// Load raid configs for all given characters in a single query.
     pub fn get_batch_raid_configs(&self, char_ids: &[i64]) -> Result<HashMap<i64, Vec<CharacterRaidConfig>>> {
         if char_ids.is_empty() {

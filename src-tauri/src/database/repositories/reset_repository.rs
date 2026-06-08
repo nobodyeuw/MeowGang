@@ -4,7 +4,7 @@ use chrono::{Datelike, TimeZone};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct ResetRepository {
@@ -200,8 +200,6 @@ impl ResetRepository {
             }
         };
         let current_reset_ms = current_reset.timestamp_millis();
-        let previous_reset = current_reset - chrono::Duration::days(1);
-
         for char_result in char_iter {
             let char_id = char_result?;
 
@@ -219,15 +217,6 @@ impl ResetRepository {
                 continue;
             }
 
-            // Check if task was completed during the previous reset cycle
-            let was_completed = tx.query_row(
-                "SELECT MAX(is_completed) FROM completion_status WHERE char_id = ?1 AND content_id = ?2 AND timestamp >= ?3 AND timestamp < ?4",
-                (char_id, task_id,
-                 previous_reset.timestamp_millis(),
-                 current_reset_ms),
-                |row| Ok(row.get::<_, Option<i64>>(0)?.unwrap_or(0) == 1)
-            ).unwrap_or(false);
-
             let roster_id: String = tx
                 .query_row(
                     "SELECT roster_id FROM conf_character WHERE char_id = ?1",
@@ -236,29 +225,35 @@ impl ResetRepository {
                 )
                 .unwrap_or_else(|_| "unknown".to_string());
 
-            let new_rested = if was_completed {
-                current_rested
-            } else {
-                // Count how many reset cycles passed since last update
-                let cycles_missed = if last_updated > 0 {
-                    let last_updated_dt = chrono::Utc.timestamp_millis_opt(last_updated).single().unwrap_or(now);
-                    let last_reset_at_update = {
-                        let reset = last_updated_dt.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
-                        if last_updated_dt >= reset {
-                            reset
-                        } else {
-                            reset - chrono::Duration::days(1)
-                        }
-                    };
-                    let days = (current_reset - last_reset_at_update).num_days();
-                    std::cmp::max(days, 1) as i64
-                } else {
-                    1
+            // Count how many reset cycles passed since last update.
+            let cycles_missed = if last_updated > 0 {
+                let last_updated_dt = chrono::Utc.timestamp_millis_opt(last_updated).single().unwrap_or(now);
+                let last_reset_at_update = {
+                    let reset = last_updated_dt.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+                    if last_updated_dt >= reset {
+                        reset
+                    } else {
+                        reset - chrono::Duration::days(1)
+                    }
                 };
-
-                let bonus = cycles_missed * 10;
-                std::cmp::min(current_rested + bonus, 100)
+                let days = (current_reset - last_reset_at_update).num_days();
+                std::cmp::max(days, 1) as i64
+            } else {
+                1
             };
+
+            let first_missed_reset = current_reset - chrono::Duration::days(cycles_missed);
+            let completed_cycles = self.count_completed_rested_cycles(
+                tx,
+                char_id,
+                task_id,
+                first_missed_reset.timestamp_millis(),
+                current_reset_ms,
+            )?;
+            let rested_cycles = (cycles_missed - completed_cycles).max(0);
+
+            let bonus = rested_cycles * 10;
+            let new_rested = std::cmp::min(current_rested + bonus, 100);
 
             // Store last_updated as the current reset boundary (not now()) so
             // subsequent calls within the same cycle are no-ops.
@@ -269,5 +264,53 @@ impl ResetRepository {
         }
 
         Ok(())
+    }
+
+    /// Counts distinct daily reset windows where a rested task was completed.
+    ///
+    /// Rested gain is awarded per missed daily cycle. For multi-day catch-up we
+    /// must not treat all missed days as one boolean; a completion on one day
+    /// should suppress only that day's +10 rested, not every missed day.
+    fn count_completed_rested_cycles(
+        &self,
+        tx: &rusqlite::Transaction,
+        char_id: i64,
+        task_id: &str,
+        from_reset_ms: i64,
+        to_reset_ms: i64,
+    ) -> Result<i64> {
+        let mut stmt = tx.prepare(
+            "SELECT timestamp
+             FROM completion_status
+             WHERE char_id = ?1
+               AND content_id = ?2
+               AND is_completed = 1
+               AND timestamp >= ?3
+               AND timestamp < ?4",
+        )?;
+
+        let timestamps = stmt.query_map(params![char_id, task_id, from_reset_ms, to_reset_ms], |row| {
+            row.get::<_, i64>(0)
+        })?;
+
+        let mut completed_reset_windows = HashSet::new();
+        for timestamp_result in timestamps {
+            let timestamp = timestamp_result?;
+            let timestamp_dt = chrono::Utc
+                .timestamp_millis_opt(timestamp)
+                .single()
+                .unwrap_or_else(chrono::Utc::now);
+            let reset_at_timestamp = {
+                let reset = timestamp_dt.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+                if timestamp_dt >= reset {
+                    reset
+                } else {
+                    reset - chrono::Duration::days(1)
+                }
+            };
+            completed_reset_windows.insert(reset_at_timestamp.timestamp_millis());
+        }
+
+        Ok(completed_reset_windows.len() as i64)
     }
 }

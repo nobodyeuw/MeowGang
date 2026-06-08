@@ -31,6 +31,13 @@ export const GAME_TASKS: Record<string, GameTask> = {
     reset_schedule: "weekly",
     logic_type: "normal"
   },
+  "ship_shop": {
+    id: "ship_shop",
+    name: "Ship Shop",
+    category: "roster",
+    reset_schedule: "weekly",
+    logic_type: "normal"
+  },
   "chaos": {
     id: "chaos",
     name: "Chaos Dungeon",

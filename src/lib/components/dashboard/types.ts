@@ -5,6 +5,7 @@ export interface CompletionStatusEntry {
   is_completed: number;
   details?: string | null;
   session_id?: string | null;
+  timestamp?: number;
 }
 
 export interface RestedValueEntry {
@@ -32,6 +33,7 @@ export interface DashboardSnapshot {
   characters: Character[];
   rested_by_character: Record<string, RestedValueEntry[]>;
   completion_by_character: Record<string, CompletionStatusEntry[]>;
+  roster_completion_status?: CompletionStatusEntry[];
   tracking_by_character: Record<string, TrackingStatusEntry[]>;
   roster_tracking_status?: TrackingStatusEntry[];
   raid_configs_by_character: Record<string, RaidConfigEntry[]>;
@@ -59,6 +61,11 @@ export interface DashboardFocusEntry {
   rosterName: string;
 }
 
+export interface DashboardRosterFocusEntry {
+  rosterId: string;
+  rosterName: string;
+}
+
 export interface DashboardRaidDetail extends DashboardFocusEntry {
   completed: boolean;
 }
@@ -74,6 +81,7 @@ export interface DashboardWeeklyTaskDetail {
   completed: number;
   total: number;
   openCharacters: DashboardFocusEntry[];
+  openRosters?: DashboardRosterFocusEntry[];
 }
 
 export interface DashboardRosterEventDetail {

@@ -16,6 +16,7 @@
     DashboardDailyDetail,
     DashboardFocusEntry,
     DashboardRaidDetail,
+    DashboardRosterFocusEntry,
     DashboardRosterEventDetail,
     DashboardWeeklyTaskDetail
   } from '$lib/components/dashboard/types';
@@ -157,6 +158,18 @@
     }
   }
 
+  function focusRoster(entry: DashboardRosterFocusEntry, event?: MouseEvent) {
+    event?.stopPropagation();
+    activeRosterId.set(entry.rosterId);
+    activePopover = null;
+    const rosterTarget = document.querySelector(`[data-dashboard-roster-id="${entry.rosterId}"]`) as HTMLElement | null;
+    rosterTarget?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    if (rosterTarget) {
+      rosterTarget.classList.add('dashboard-focus-highlight');
+      window.setTimeout(() => rosterTarget.classList.remove('dashboard-focus-highlight'), 2600);
+    }
+  }
+
   async function markRosterEvent(detail: DashboardRosterEventDetail, event: MouseEvent) {
     event.stopPropagation();
     await updateTodoRosterEventStatus(detail.rosterId, detail.taskId, true);
@@ -198,6 +211,18 @@
     return uniqueFocusEntries(
       weeklyTaskDetails.flatMap((task) => task.openCharacters)
     );
+  }
+
+  function openWeeklyRosters() {
+    const seen = new Set<string>();
+    return weeklyTaskDetails
+      .flatMap((task) => (task.openRosters || []).map((roster) => ({ ...roster, taskName: task.name })))
+      .filter((entry) => {
+        const key = `${entry.rosterId}:${entry.taskName}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   function formatOpenDailyTasks(tasks: string[]) {
@@ -323,6 +348,16 @@
                   <button type="button" class="popover-row" on:click={(event) => focusCharacter(entry, event)}>
                     <span>{entry.charName}</span>
                     <small>{entry.rosterName}</small>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+            {#if openWeeklyRosters().length > 0}
+              <div class="popover-list">
+                {#each openWeeklyRosters() as entry}
+                  <button type="button" class="popover-row" on:click={(event) => focusRoster(entry, event)}>
+                    <span>{entry.rosterName}</span>
+                    <small>{entry.taskName}</small>
                   </button>
                 {/each}
               </div>

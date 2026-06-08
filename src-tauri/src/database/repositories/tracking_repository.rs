@@ -14,7 +14,7 @@ impl TrackingRepository {
 
     /// Returns true for tasks whose tracking state is controlled once per roster.
     fn is_roster_wide_task_id(content_id: &str) -> bool {
-        matches!(content_id, "gate" | "boss" | "event_argeos_winter")
+        matches!(content_id, "gate" | "boss" | "event_argeos_winter" | "ship_shop")
     }
 
     /// Loads the Settings > Tracking matrix state.

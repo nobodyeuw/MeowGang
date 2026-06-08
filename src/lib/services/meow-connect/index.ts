@@ -24,11 +24,13 @@ export {
 } from './groups';
 export { buildMeowConnectLogEntries } from './logs';
 import {
+  applyMeowConnectClearHints,
   fetchMeowConnectRemoteSnapshots,
   loadMeowConnectLocalSnapshot,
   syncMeowConnectSnapshot
 } from './snapshot';
 export {
+  applyMeowConnectClearHints,
   fetchMeowConnectRemoteSnapshots,
   loadMeowConnectLocalSnapshot,
   syncMeowConnectSnapshot
@@ -41,11 +43,13 @@ import {
   hasStoredMeowConnectConsent,
   hasStoredMeowConnectFeatureEnabled,
   hasStoredUnsyncedChanges,
+  isStoredMeowConnectFriendClearHintsEnabled,
   isStoredMeowConnectRealtimeEnabled,
   loadFavoritePlayerIds,
   saveFavoritePlayerIds,
   setStoredMeowConnectConsent,
   setStoredMeowConnectFeatureEnabled,
+  setStoredMeowConnectFriendClearHintsEnabled,
   setStoredMeowConnectRealtimeEnabled,
   setStoredTimestamp,
   setStoredUnsyncedChanges,
@@ -505,6 +509,17 @@ export function setMeowConnectRealtimeEnabled(enabled: boolean) {
   setStoredMeowConnectRealtimeEnabled(enabled);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('meow-connect-realtime-changed', { detail: enabled }));
+  }
+}
+
+export function isMeowConnectFriendClearHintsEnabled(): boolean {
+  return isStoredMeowConnectFriendClearHintsEnabled();
+}
+
+export function setMeowConnectFriendClearHintsEnabled(enabled: boolean) {
+  setStoredMeowConnectFriendClearHintsEnabled(enabled);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('meow-connect-friend-clear-hints-changed', { detail: enabled }));
   }
 }
 

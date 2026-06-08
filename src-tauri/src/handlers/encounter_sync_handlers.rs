@@ -25,6 +25,12 @@ pub struct EncounterPreview {
     pub duration: i64,
     pub cleared: bool,
     pub players: Vec<String>,
+    pub bible_logs: Vec<EncounterBibleLogPreview>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EncounterBibleLogPreview {
+    pub upstream_id: String,
 }
 
 /// Syncs cleared LOA Logs encounters into local `completion_status` rows.
@@ -222,6 +228,16 @@ fn get_cleared_encounters(
     } else {
         "0"
     };
+    let has_sync_logs_table = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_logs' LIMIT 1",
+            [],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to inspect sync_logs table: {}", e))?
+        .unwrap_or(false);
+
     let query = format!(
         "SELECT id, current_boss, local_player, difficulty, fight_start, {duration_select}, cleared, COALESCE(players, '')
          FROM encounter_preview
@@ -246,6 +262,7 @@ fn get_cleared_encounters(
                 duration: row.get(5).unwrap_or(0),
                 cleared: row.get::<_, i64>(6).unwrap_or(0) == 1,
                 players: parse_encounter_players(&players_raw),
+                bible_logs: Vec::new(),
             })
         })
         .map_err(|e| format!("Failed to query encounters: {}", e))?;
@@ -255,9 +272,46 @@ fn get_cleared_encounters(
         encounters.push(encounter.map_err(|e| format!("Failed to process encounter: {}", e))?);
     }
 
+    if has_sync_logs_table {
+        for encounter in &mut encounters {
+            encounter.bible_logs = get_bible_logs_for_encounter(&conn, encounter.id).unwrap_or_default();
+        }
+    }
+
     crate::log_debug!("Found {} cleared encounters since last weekly reset", encounters.len());
 
     Ok(encounters)
+}
+
+/// Reads Lost Ark Bible upstream ids linked by LOA Logs sync metadata.
+fn get_bible_logs_for_encounter(
+    conn: &rusqlite::Connection,
+    encounter_id: i64,
+) -> Result<Vec<EncounterBibleLogPreview>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT upstream_id
+             FROM sync_logs
+             WHERE encounter_id = ?1
+               AND COALESCE(failed, 0) = 0
+               AND COALESCE(upstream_id, '') <> ''",
+        )
+        .map_err(|e| format!("Failed to prepare sync_logs query: {}", e))?;
+
+    let rows = stmt
+        .query_map([encounter_id], |row| {
+            Ok(EncounterBibleLogPreview {
+                upstream_id: row.get::<_, String>(0)?,
+            })
+        })
+        .map_err(|e| format!("Failed to query sync_logs: {}", e))?;
+
+    let mut logs = Vec::new();
+    for row in rows {
+        logs.push(row.map_err(|e| format!("Failed to read sync_logs row: {}", e))?);
+    }
+
+    Ok(logs)
 }
 
 /// Parses the comma-separated player field emitted by LOA Logs.

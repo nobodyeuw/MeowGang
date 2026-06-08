@@ -63,6 +63,17 @@ pub struct MeowConnectGroupRaidTagInput {
     pub group_name: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeowConnectClearHintInput {
+    pub char_id: i64,
+    pub content_id: String,
+    pub gate: String,
+    pub difficulty: Option<String>,
+    pub completed_at: i64,
+    pub source_owner_name: Option<String>,
+}
+
 #[tauri::command]
 pub async fn get_meow_connect_local_snapshot(
     db_manager: State<'_, crate::database::DatabaseManager>,
@@ -253,6 +264,126 @@ pub async fn replace_meow_connect_group_raid_tags(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn apply_meow_connect_clear_hints(
+    hints: Vec<MeowConnectClearHintInput>,
+    db_manager: State<'_, crate::database::DatabaseManager>,
+) -> Result<i64, String> {
+    let conn = db_manager
+        .pool
+        .get()
+        .map_err(|e| format!("Database connection failed: {}", e))?;
+
+    let weekly_reset_ms = conn
+        .query_row("SELECT last_weekly_reset FROM app_state LIMIT 1", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap_or(0);
+
+    let mut applied = 0i64;
+    for hint in hints {
+        if hint.char_id <= 0 || hint.content_id.trim().is_empty() || hint.gate.trim().is_empty() {
+            continue;
+        }
+        if hint.completed_at > 0 && hint.completed_at < weekly_reset_ms {
+            continue;
+        }
+
+        let roster_id = match conn.query_row(
+            "SELECT roster_id
+             FROM conf_character
+             WHERE char_id = ?1
+               AND COALESCE(meow_connect_enabled, 0) = 1
+               AND COALESCE(removed_from_roster, 0) = 0",
+            params![hint.char_id],
+            |row| row.get::<_, String>(0),
+        ) {
+            Ok(roster_id) => roster_id,
+            Err(_) => continue,
+        };
+
+        let content_id = hint.content_id.trim().to_string();
+        let gate = normalize_gate_label(&hint.gate);
+        let session_id = format!("{}_{}", content_id, gate);
+        let timestamp = if hint.completed_at > 0 {
+            hint.completed_at
+        } else {
+            chrono::Utc::now().timestamp_millis()
+        };
+        let details = hint
+            .difficulty
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("meow_connect")
+            .to_string();
+
+        let existing = conn
+            .query_row(
+                "SELECT rowid, COALESCE(is_completed, 0), COALESCE(completion_source, 'manual'), COALESCE(timestamp, 0)
+                 FROM completion_status
+                 WHERE char_id = ?1 AND content_id = ?2 AND session_id = ?3
+                 ORDER BY timestamp DESC, rowid DESC
+                 LIMIT 1",
+                params![hint.char_id, &content_id, &session_id],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                },
+            )
+            .ok();
+
+        if let Some((rowid, is_completed, _source, _existing_timestamp)) = existing {
+            if is_completed == 1 {
+                continue;
+            }
+
+            let changed = conn
+                .execute(
+                    "UPDATE completion_status
+                     SET is_completed = 1,
+                         timestamp = ?1,
+                         completion_source = 'meow_connect',
+                         details = ?2
+                     WHERE rowid = ?3",
+                    params![timestamp, details, rowid],
+                )
+                .map_err(|e| e.to_string())?;
+            if changed > 0 {
+                applied += 1;
+            }
+            continue;
+        }
+
+        let changed = conn
+            .execute(
+                "INSERT INTO completion_status
+                    (roster_id, char_id, content_id, is_completed, timestamp, session_id, completion_source, details)
+                 VALUES (?1, ?2, ?3, 1, ?4, ?5, 'meow_connect', ?6)",
+                params![roster_id, hint.char_id, content_id, timestamp, session_id, details],
+            )
+            .map_err(|e| e.to_string())?;
+        if changed > 0 {
+            applied += 1;
+            if let Some(owner_name) = hint.source_owner_name.as_deref() {
+                crate::log_info!(
+                    "Applied MeowConnect clear hint from {} for char_id={}, content_id={}, gate={}",
+                    owner_name,
+                    hint.char_id,
+                    hint.content_id,
+                    gate
+                );
+            }
+        }
+    }
+
+    Ok(applied)
+}
+
 fn infer_gate_from_session(content_id: &str, session_id: Option<&str>) -> Option<String> {
     let session_id = session_id?.trim();
     if session_id.is_empty() {
@@ -274,4 +405,26 @@ fn infer_gate_from_session(content_id: &str, session_id: Option<&str>) -> Option
         .split('_')
         .find(|part| part.to_lowercase().starts_with("gate "))
         .map(|part| part.trim().to_string())
+}
+
+fn normalize_gate_label(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return "Gate 1".to_string();
+    }
+
+    let lower = trimmed.to_lowercase();
+    if lower.starts_with("gate ") {
+        return format!("Gate {}", trimmed[5..].trim());
+    }
+    if let Some(number) = lower.strip_prefix('g') {
+        if number.trim().chars().all(|ch| ch.is_ascii_digit()) {
+            return format!("Gate {}", number.trim());
+        }
+    }
+    if trimmed.chars().all(|ch| ch.is_ascii_digit()) {
+        return format!("Gate {}", trimmed);
+    }
+
+    trimmed.to_string()
 }

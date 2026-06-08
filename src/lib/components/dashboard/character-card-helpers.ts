@@ -308,7 +308,8 @@ export function getTaskIcon(taskId: string): string {
     shop: iconAsset('daily.webp'),
     guild: iconAsset('guild.webp'),
     gate: iconAsset('chaos_gate.png'),
-    boss: iconAsset('boss.png')
+    boss: iconAsset('boss.png'),
+    ship_shop: iconAsset('ship.png')
   };
 
   return iconMap[taskId] || iconAsset('daily.webp');

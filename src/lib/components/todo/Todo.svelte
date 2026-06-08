@@ -50,6 +50,7 @@
   let lastActiveRosterId = '';
   let lastHighlightRequestKey = '';
   let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
+  let showShipShopReminder = false;
 
   $: todoRosterOptions = $splitRatTodoView
     ? [{ id: VIRTUAL_RAT_ROSTER_ID, roster_name: 'RAT' }]
@@ -355,6 +356,10 @@
       rosterTaskStates = { ...rosterTaskStates, [taskId]: newState };
       
       await updateTodoRosterTaskStatus($activeRosterId, taskId, newState);
+
+      if (taskId === 'ship_shop' && newState) {
+        showShipShopReminder = true;
+      }
       
       // Update local state immediately instead of full reload
       // Update matrix data for all characters in roster
@@ -587,6 +592,42 @@
     </div>
   {/if}
 </div>
+
+{#if showShipShopReminder}
+  <div class="ship-shop-reminder-overlay">
+    <button
+      type="button"
+      class="ship-shop-reminder-backdrop"
+      aria-label="Close Ship Shop reminder"
+      on:click={() => (showShipShopReminder = false)}
+    ></button>
+    <div
+      class="ship-shop-reminder-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ship-shop-reminder-title"
+    >
+      <h3 id="ship-shop-reminder-title">Ship Shop Reminder</h3>
+      <p>
+        Just a reminder that the following locations have Gems to buy:
+      </p>
+      <ul class="ship-shop-reminder-list">
+        <li>Rimeria Port</li>
+        <li>South Kurzan Port</li>
+        <li>Voldis Port</li>
+        <li>Punika Port</li>
+      </ul>
+      <p class="ship-shop-reminder-note">
+        Daily stronghold buy-out gives 300 Sea Coins, so plan at least 1-2 Sailing Co-Op events per week
+        in addition to the stronghold buy-out.
+      </p>
+      <button type="button" class="ship-shop-reminder-button" on:click={() => (showShipShopReminder = false)}>
+        Got it
+      </button>
+    </div>
+  </div>
+{/if}
+
 <style>
   .todo-container {
     --app-control-accent: var(--app-todo-accent);
@@ -640,6 +681,75 @@
     color: var(--md-sys-color-on-primary);
     border: none;
     border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .ship-shop-reminder-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: var(--app-color-modal-backdrop, rgba(0, 0, 0, 0.62));
+  }
+
+  .ship-shop-reminder-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+  }
+
+  .ship-shop-reminder-card {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    padding: 1rem;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 8px;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--app-shadow-md);
+  }
+
+  .ship-shop-reminder-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .ship-shop-reminder-card p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.45;
+  }
+
+  .ship-shop-reminder-list {
+    margin: 0.65rem 0 0;
+    padding-left: 1.15rem;
+    color: var(--md-sys-color-on-surface);
+    line-height: 1.5;
+  }
+
+  .ship-shop-reminder-list li::marker {
+    color: var(--md-sys-color-primary);
+  }
+
+  .ship-shop-reminder-note {
+    margin-top: 0.75rem !important;
+  }
+
+  .ship-shop-reminder-button {
+    margin-top: 1rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--md-sys-color-primary);
+    border-radius: 6px;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
   }
 </style>

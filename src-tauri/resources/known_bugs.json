@@ -1,4 +1,9 @@
 {
+  "_notes": {
+    "severityOptions": ["Low", "Medium", "High", "Critical"],
+    "priorityOptions": ["No Prio", "Low", "Medium", "High", "Long Term"],
+    "description": "Metadata only. Keep this file valid JSON because the app and live gist parser read it directly."
+  },
   "knownIssues": [
     {
       "severity": "Low",

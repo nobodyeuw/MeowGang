@@ -1,13 +1,13 @@
 # <img src="src/assets/app/LOAtracker_appicon.png" alt="MeowGang Tracker icon" width="36" align="left" /> MeowGang Tracker
 
-**A lightweight desktop companion for Lost Ark roster, raid, gold, and friend availability tracking.**
+**A lightweight desktop companion for Lost Ark roster, raid, gold, task, and friend availability tracking.**
 
-[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
 
-MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It tracks characters, raid configuration, weekly gold, daily and weekly tasks, LOA Logs completion data, and MeowConnect friend availability in one local-first desktop app.
+MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It tracks characters, raid setup, weekly gold, daily and weekly tasks, LOA Logs completion data, market estimates, and MeowConnect friend availability in one local-first desktop app.
 
 [Download Latest Release](https://github.com/nobodyeuw/MeowGang/releases) | [Report Bug](https://github.com/nobodyeuw/MeowGang/issues)
 
@@ -17,11 +17,16 @@ MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It t
 
 | Feature | Details |
 | :--- | :--- |
-| **Dashboard** | View roster status, tracked raids, weekly gold progress, and MeowConnect status at a glance. |
-| **To Do** | Track daily, weekly, roster, and raid-gate completion states with configurable raid settings. |
-| **MeowConnect** | Share selected character and raid completion data with accepted friends through the MeowGangConnect Supabase backend. |
-| **Raid Together** | See how many matching open runs you and each friend can still run for selected raids. |
-| **LOA Logs Integration** | Encounter clears can update completion status and sync to MeowConnect when enabled. |
+| **Dashboard** | View roster status, tracked raids, weekly gold progress, dailies, weeklies, roster events, and MeowConnect state at a glance. |
+| **To Do** | Track daily, weekly, roster-wide, and raid-gate completion states with stable per-gate difficulty display. |
+| **Raid Settings** | Configure raid gates, planned difficulties, gold earning, bonus boxes, and static/friend reservations per character. |
+| **Tracking Settings** | Choose which daily, weekly, roster, and raid tasks each roster should track. |
+| **MeowConnect** | Share selected character, raid completion, reservation, and availability data with accepted friends through Supabase. |
+| **Raid Together** | Compare open runs with friends, inspect profile details by roster, and see shared available, reserved, and cleared raids. |
+| **MeowConnect Logs** | Review shared clears from manual completions and LOA Logs, with borrowed-character indicators and Lost Ark Bible preview links when available. |
+| **LOA Logs Integration** | Local encounters can auto-complete raid gates, update character data, and optionally help friends through MeowConnect clear hints. |
+| **Ship Shop & Sea Coins** | Track Ship Shop weekly and use the header reminder for daily Stronghold Sea Coin buy-outs. |
+| **Themes** | Switch between bundled visual themes from System Settings. |
 | **Local First** | Core roster, tracking, gold, and settings data are stored locally in SQLite. |
 | **Tauri Desktop App** | Built with Tauri 2, SvelteKit, TypeScript, and Rust for a small native Windows app. |
 
@@ -29,14 +34,33 @@ MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It t
 
 ## MeowConnect
 
-Users can:
+MeowConnect is optional and disabled unless the user opts in. Users can:
 
-- opt in or disable MeowConnect locally
+- enable or disable MeowConnect locally
 - choose which characters are shared
-- sync selected character data and raid completions
-- add friends by whitelist name/Discord identity
-- mark characters as reserved for static or friend runs per raid and difficulty
-- view recent clear logs from LOA Logs and manual completion tracking
+- sync selected character data, raid completions, and reservations
+- add accepted friends and compare raid availability
+- organize static/friend plans through groups and group tags
+- view recent shared clear logs from LOA Logs and manual completion tracking
+- preview Lost Ark Bible logs when an uploaded LOA Logs upstream id exists
+- optionally allow friends' LOA Logs evidence to fill missing local raid gate completions as `meow_connect`
+
+MeowConnect clear hints are opt-in from `System Settings > MeowConnect`. Existing completed manual or local LOA Logs rows keep priority.
+
+---
+
+## Current Release
+
+### v1.3.3
+
+- Added Ship Shop as a weekly roster-wide task.
+- Added a daily Sea Coin header reminder when Ship Shop is tracked.
+- Added Lost Ark Bible preview links to MeowConnect Logs.
+- Added optional MeowConnect friend clear hints for missing local raid gate completions.
+- Fixed rested value catch-up after multiple missed daily reset cycles.
+- Improved roster-wide task completion reliability when characters are removed.
+- Improved dashboard card task icon alignment.
+- Improved MeowConnect shared clear log merging and temporary-character handling.
 
 ---
 
@@ -44,9 +68,9 @@ Users can:
 
 ### Progression Planner
 
-The Progression Planner is still under active development. Parts of the feature may be incomplete, hidden, or change between releases while market price support and character progression data are refined.
+The Progression Planner is still under active development. Parts of the feature may be incomplete, hidden, or change between releases while market price support, character details, accessory values, gem values, and upgrade efficiency calculations are refined.
 
-Stable areas of the app are the dashboard, roster setup, tracking, raid configuration, gold progress, LOA Logs integration, and MeowConnect.
+Stable areas of the app are the dashboard, roster setup, tracking, raid configuration, gold progress, LOA Logs integration, market estimates, updates page, and MeowConnect.
 
 ---
 
@@ -58,6 +82,7 @@ Stable areas of the app are the dashboard, roster setup, tracking, raid configur
 2. Run the installer and launch the app.
 3. Sign in with Discord when prompted so the app can verify whitelist access.
 4. Add a roster character, configure raids, and enable MeowConnect if you want friend availability sharing.
+5. Optional: set your `encounters.db` path from Settings if LOA Logs auto-detection does not find it.
 
 ### Development
 
@@ -91,6 +116,14 @@ cargo check            # Check Rust code from src-tauri
 cargo fmt              # Format Rust code from src-tauri
 ```
 
+Run Rust commands from `src-tauri`:
+
+```bash
+cd src-tauri
+cargo check
+cargo fmt
+```
+
 ### Discord Auth
 
 The desktop app uses Discord OAuth with Authorization Code + PKCE. No Discord client secret is shipped in the app.
@@ -108,10 +141,12 @@ For local development, whitelist access still requires `DISCORD_WHITELIST_URL` t
 
 ## Privacy & Safety
 
-- Local app data: core roster, tracking, gold, and settings data stay on the user's machine.
-- MeowConnect: only explicitly enabled characters and completion/reservation data are uploaded, and only accepted friends can read shared data through Supabase RLS.
+- Local app data: core roster, tracking, gold, completion, and settings data stay on the user's machine.
+- MeowConnect: only explicitly enabled characters and completion/reservation data are uploaded.
+- MeowConnect access: accepted friends can read shared data through Supabase RLS.
 - Discord: login is used for whitelist verification and MeowConnect identity.
-- Secrets: never commit Supabase service-role keys, Discord client secrets, local `.env` files, or local app data files.
+- LOA Logs: encounter data is read locally from `encounters.db` when configured or auto-detected.
+- Secrets: never commit Supabase service-role keys, Discord client secrets, local `.env` files, local app data files, or private signing keys.
 - Third-party notice: this is a fan project and is not affiliated with Smilegate RPG or Amazon Games.
 
 ## License
@@ -120,4 +155,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Credits
 
-Made with ♥ for MeowGang.
+Made with love for MeowGang.

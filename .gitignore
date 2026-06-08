@@ -12,6 +12,12 @@ node_modules
 *.p12
 *.pfx
 *.key
+*.key_private
+*.key_private.txt
+*.key_public
+*.key_public.txt
+updater-key.key_private*
+updater-key.key_public*
 *.secret
 *service-role*
 

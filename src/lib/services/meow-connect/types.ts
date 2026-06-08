@@ -140,7 +140,13 @@ export interface MeowConnectEncounterSnapshot {
   clearedAt?: number;
   players: string[];
   matchedCharacterIds: number[];
+  bibleLogs?: MeowConnectBibleLog[];
   resetCycle?: string;
+}
+
+export interface MeowConnectBibleLog {
+  gate?: string;
+  upstreamId: string;
 }
 
 export interface MeowConnectLogEntry extends MeowConnectEncounterSnapshot {
@@ -148,6 +154,7 @@ export interface MeowConnectLogEntry extends MeowConnectEncounterSnapshot {
   ownerName: string;
   ownerAvatarUrl?: string;
   participants: MeowConnectLogParticipant[];
+  temporaryPlayers?: MeowConnectTemporaryPlayer[];
   source: 'Manual' | 'LOA Logs' | string;
 }
 
@@ -156,6 +163,11 @@ export interface MeowConnectLogParticipant {
   ownerName: string;
   ownerAvatarUrl?: string;
   localPlayer: string;
+}
+
+export interface MeowConnectTemporaryPlayer {
+  name: string;
+  playedBy: string;
 }
 
 export interface MeowConnectSupabaseConfig {

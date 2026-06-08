@@ -9,8 +9,10 @@
   import { clearActiveRosterPreference } from '$lib/services/roster-preferences';
   import {
     isMeowConnectFeatureEnabled,
+    isMeowConnectFriendClearHintsEnabled,
     isMeowConnectRealtimeEnabled,
     setMeowConnectFeatureEnabled,
+    setMeowConnectFriendClearHintsEnabled,
     setMeowConnectRealtimeEnabled
   } from '$lib/services/meow-connect';
   import {
@@ -75,6 +77,7 @@
   let showDashboardStaticBadges = true;
   let meowConnectEnabled = true;
   let meowConnectRealtimeEnabled = true;
+  let meowConnectFriendClearHintsEnabled = false;
   let dashboardView: DashboardViewMode = 'compact';
   let appTheme: AppThemeId = 'outlaw';
   let isClearingUserData = false;
@@ -132,6 +135,7 @@
       showDashboardStaticBadges = getDashboardStaticBadgesPreference();
       meowConnectEnabled = isMeowConnectFeatureEnabled();
       meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
+      meowConnectFriendClearHintsEnabled = isMeowConnectFriendClearHintsEnabled();
       dashboardView = getDashboardViewPreference();
       appTheme = getThemePreference();
 
@@ -347,6 +351,13 @@
     showSuccess(`MeowConnect real-time sync ${newValue ? 'enabled' : 'disabled'}!`);
   }
 
+  function toggleMeowConnectFriendClearHints() {
+    const newValue = !meowConnectFriendClearHintsEnabled;
+    meowConnectFriendClearHintsEnabled = newValue;
+    setMeowConnectFriendClearHintsEnabled(newValue);
+    showSuccess(`MeowConnect clear hints ${newValue ? 'enabled' : 'disabled'}!`);
+  }
+
   function toggleSplitRatTodoView() {
     const newValue = !$splitRatTodoView;
     setSplitRatTodoView(newValue);
@@ -540,8 +551,10 @@
       <SystemMeowConnectSection
         {meowConnectEnabled}
         {meowConnectRealtimeEnabled}
+        {meowConnectFriendClearHintsEnabled}
         onToggleMeowConnectEnabled={toggleMeowConnectEnabled}
         onToggleMeowConnectRealtime={toggleMeowConnectRealtime}
+        onToggleMeowConnectFriendClearHints={toggleMeowConnectFriendClearHints}
       />
 
       <SystemFilePathsSection

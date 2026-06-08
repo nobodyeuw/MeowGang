@@ -38,6 +38,7 @@ export const GAME_CLASSES: Record<string, GameClass> = {
 
 const CLASS_ALIASES: Record<string, string> = {
   gunlancer: 'warlord',
+  berserker_male: 'berserker',
   paladin: 'holyknight',
   slayer: 'berserker_female',
   arcanist: 'arcana',
@@ -61,7 +62,7 @@ const CLASS_ALIASES: Record<string, string> = {
 };
 
 export function normalizeClassId(classId: string): string {
-  return classId.trim().toLowerCase().replace(/\s+/g, '_');
+  return classId.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 export function getGameClassInfo(classId: string): GameClass | undefined {

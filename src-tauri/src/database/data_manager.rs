@@ -307,6 +307,18 @@ impl DataManager {
         );
 
         tasks.insert(
+            "ship_shop".to_string(),
+            GameTask {
+                id: "ship_shop".to_string(),
+                name: "Ship Shop".to_string(),
+                category: "roster".to_string(),
+                reset_schedule: "weekly".to_string(),
+                logic_type: "normal".to_string(),
+                max_rest_value: None,
+            },
+        );
+
+        tasks.insert(
             "chaos".to_string(),
             GameTask {
                 id: "chaos".to_string(),

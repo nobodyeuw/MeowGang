@@ -3,6 +3,7 @@
   import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
   import type { MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
   import AppHeaderAlerts from './AppHeaderAlerts.svelte';
+  import AppHeaderSeaCoinReminder from './AppHeaderSeaCoinReminder.svelte';
   import AppHeaderStatus from './AppHeaderStatus.svelte';
   import AppHeaderSubTabs from './AppHeaderSubTabs.svelte';
   import AppWindowControls from './AppWindowControls.svelte';
@@ -87,6 +88,10 @@
     />
   </div>
 
+  <div class="header-center-tools">
+    <AppHeaderSeaCoinReminder />
+  </div>
+
   <AppHeaderSubTabs
     {activeTab}
     bind:activeSettingsTab
@@ -158,6 +163,21 @@
 
   .header-title {
     flex: 1;
+  }
+
+  .header-center-tools {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .header-center-tools :global(.sea-coin-reminder-wrap) {
+    pointer-events: auto;
   }
 
   .header-info {

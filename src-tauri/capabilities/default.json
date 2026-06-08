@@ -11,6 +11,8 @@
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "opener:default",
+    "shell:allow-open",
+    "shell:default",
     "dialog:allow-open"
   ]
 }

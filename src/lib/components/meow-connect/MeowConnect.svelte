@@ -13,6 +13,7 @@
   import {
     acceptMeowConnectFriendRequest,
     acceptMeowConnectGroupInvite,
+    applyMeowConnectClearHints,
     assignMeowConnectRaidToGroup,
     buildMeowConnectAvailabilityRows,
     buildMeowConnectLogEntries,
@@ -24,6 +25,7 @@
     getMeowConnectRaidOptions,
     hasMeowConnectConsent,
     inviteMeowConnectGroupMember,
+    isMeowConnectFriendClearHintsEnabled,
     isMeowConnectRealtimeEnabled,
     leaveMeowConnectGroup,
     loadMeowConnectFriends,
@@ -95,6 +97,7 @@
   let groupActionBusy = false;
   let groupAssignmentBusyKey = '';
   let currentTime = Date.now();
+  let friendClearHintsEnabled = false;
   let toastMessage = '';
   let toastKind: 'success' | 'error' | 'info' = 'info';
   let unsubscribeRealtime: (() => void) | null = null;
@@ -125,10 +128,26 @@
   }));
   $: raidSections = visibleRaids.map((raid) => ({
     raid,
-    rows: buildMeowConnectAvailabilityRows(localSnapshot, remoteSnapshots, raid.id, getRaidDifficultyFilter(raid.id, raidDifficultyFilters), new Set(), currentProfile),
+    rows: buildMeowConnectAvailabilityRows(
+      localSnapshot,
+      remoteSnapshots,
+      raid.id,
+      getRaidDifficultyFilter(raid.id, raidDifficultyFilters),
+      new Set(),
+      currentProfile,
+      friendClearHintsEnabled
+    ),
     groups: groupRowsByProfile(
       raid.id,
-      buildMeowConnectAvailabilityRows(localSnapshot, remoteSnapshots, raid.id, getRaidDifficultyFilter(raid.id, raidDifficultyFilters), new Set(), currentProfile)
+      buildMeowConnectAvailabilityRows(
+        localSnapshot,
+        remoteSnapshots,
+        raid.id,
+        getRaidDifficultyFilter(raid.id, raidDifficultyFilters),
+        new Set(),
+        currentProfile,
+        friendClearHintsEnabled
+      )
     )
   }));
   $: displayedRaidSections = raidSections;
@@ -177,12 +196,14 @@
 
   onMount(() => {
     document.addEventListener('mousedown', handleDocumentMouseDown);
+    window.addEventListener('meow-connect-friend-clear-hints-changed', handleFriendClearHintsChanged);
     clockTimer = setInterval(() => {
       currentTime = Date.now();
     }, 1000);
 
     void (async () => {
       consentAccepted = hasMeowConnectConsent();
+      friendClearHintsEnabled = isMeowConnectFriendClearHintsEnabled();
       visibleRaidIds = loadVisibleRaidIds();
       raidDifficultyFilters = loadRaidDifficultyFilters();
       if (consentAccepted) {
@@ -198,8 +219,14 @@
       if (clockTimer) clearInterval(clockTimer);
       if (toastTimer) clearTimeout(toastTimer);
       document.removeEventListener('mousedown', handleDocumentMouseDown);
+      window.removeEventListener('meow-connect-friend-clear-hints-changed', handleFriendClearHintsChanged);
     };
   });
+
+  function handleFriendClearHintsChanged(event: Event) {
+    friendClearHintsEnabled = Boolean((event as CustomEvent<boolean>).detail);
+    activeProfileGroup = null;
+  }
 
   async function acceptConsent() {
     setMeowConnectConsent(true);
@@ -233,8 +260,17 @@
       friendConnections = await loadMeowConnectFriends();
       meowGroups = await loadAndMirrorMeowGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(uploadResult.snapshot.weeklyResetMs || 0));
+      const appliedClearHints = friendClearHintsEnabled
+        ? await applyFriendClearHintsToLocalSnapshot(uploadResult.snapshot, remoteSnapshots)
+        : 0;
+      if (appliedClearHints > 0) {
+        localSnapshot = await loadMeowConnectLocalSnapshot();
+        await uploadMeowConnectSnapshotIfNeeded({ force: true });
+        localSnapshot = await loadMeowConnectLocalSnapshot();
+        window.dispatchEvent(new CustomEvent('raid-completed'));
+      }
       logMeowConnectRequest(
-        `Refresh finished (${refreshReason}) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}, uploaded=${uploadResult.uploaded ? 'yes' : 'no'}.`,
+        `Refresh finished (${refreshReason}) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}, uploaded=${uploadResult.uploaded ? 'yes' : 'no'}, clearHints=${appliedClearHints}.`,
         'info'
       );
       if (manual) {
@@ -274,6 +310,57 @@
 
   function setStoredTimestamp(key: string, value: number) {
     localStorage.setItem(key, String(value));
+  }
+
+  async function applyFriendClearHintsToLocalSnapshot(
+    snapshot: MeowConnectLocalSnapshot,
+    snapshots: MeowConnectRemoteSnapshot[]
+  ): Promise<number> {
+    const hints = buildFriendClearHints(snapshot, snapshots);
+    if (hints.length === 0) return 0;
+    return applyMeowConnectClearHints(hints);
+  }
+
+  function buildFriendClearHints(snapshot: MeowConnectLocalSnapshot, snapshots: MeowConnectRemoteSnapshot[]) {
+    const charactersByName = new Map(
+      snapshot.characters.map((character) => [normalizeName(character.charName), character])
+    );
+    const latestByGate = new Map<string, {
+      charId: number;
+      contentId: string;
+      gate: string;
+      difficulty?: string;
+      completedAt: number;
+      sourceOwnerName?: string;
+    }>();
+
+    for (const remoteSnapshot of snapshots) {
+      for (const encounter of remoteSnapshot.encounterSnapshots || []) {
+        if (!encounter.cleared || !encounter.contentId || !encounter.gate) continue;
+        const completedAt = Number(encounter.clearedAt || encounter.fightStart || 0);
+        if (completedAt > 0 && completedAt < snapshot.weeklyResetMs) continue;
+
+        for (const playerName of [encounter.localPlayer, ...(encounter.players || [])]) {
+          const character = charactersByName.get(normalizeName(playerName));
+          if (!character) continue;
+
+          const key = `${character.charId}:${encounter.contentId}:${normalizeName(encounter.gate)}`;
+          const current = latestByGate.get(key);
+          if (current && current.completedAt >= completedAt) continue;
+
+          latestByGate.set(key, {
+            charId: character.charId,
+            contentId: encounter.contentId,
+            gate: encounter.gate,
+            difficulty: encounter.difficulty,
+            completedAt,
+            sourceOwnerName: remoteSnapshot.profile.displayName
+          });
+        }
+      }
+    }
+
+    return Array.from(latestByGate.values());
   }
 
   async function loadAndMirrorMeowGroups(): Promise<MeowConnectGroup[]> {
@@ -367,7 +454,15 @@
     if (selectedConnections.length === 0) return [];
 
     return raids.flatMap((raid) => {
-      const allRows = buildMeowConnectAvailabilityRows(currentLocalSnapshot, currentRemoteSnapshots, raid.id, getRaidDifficultyFilter(raid.id, difficultyFilters), new Set(), profile);
+      const allRows = buildMeowConnectAvailabilityRows(
+        currentLocalSnapshot,
+        currentRemoteSnapshots,
+        raid.id,
+        getRaidDifficultyFilter(raid.id, difficultyFilters),
+        new Set(),
+        profile,
+        friendClearHintsEnabled
+      );
       const rows = allRows.filter(isAvailableRow);
       const myOpenCount = rows.filter((row) => row.ownerId === 'local').length;
       const participantCounts = selectedConnections.map((connection) => ({

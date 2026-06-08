@@ -101,6 +101,10 @@ export async function buildDashboardStats(
     rosterId: character.roster_id,
     rosterName: getRosterName(character.roster_id)
   });
+  const makeRosterFocusEntry = (roster: Roster) => ({
+    rosterId: roster.id,
+    rosterName: roster.roster_name
+  });
   const getWeeklyDetail = (taskId: string): DashboardWeeklyTaskDetail => {
     let detail = weeklyDetailMap.get(taskId);
     if (!detail) {
@@ -110,7 +114,8 @@ export async function buildDashboardStats(
         icon: getTaskIcon(taskId),
         completed: 0,
         total: 0,
-        openCharacters: []
+        openCharacters: [],
+        openRosters: []
       };
       weeklyDetailMap.set(taskId, detail);
     }
@@ -122,7 +127,7 @@ export async function buildDashboardStats(
     rosterDataMap[roster.id] = snapshot;
 
     if (currentCalendarEventIds.length > 0 && snapshot.characters?.length > 0) {
-      const rosterCompletionStatus = Object.values(snapshot.completion_by_character || {}).flat();
+      const rosterCompletionStatus = snapshot.roster_completion_status || Object.values(snapshot.completion_by_character || {}).flat();
 
       for (const eventId of currentCalendarEventIds) {
         const eventProgress = await loadRosterEventProgress(roster.id, eventId);
@@ -166,6 +171,24 @@ export async function buildDashboardStats(
       if (argeosProgress.available) argeosAvailableToday++;
       if (argeosProgress.completed_today) argeosDoneToday++;
       if (argeosProgress.completed_this_week >= argeosProgress.weekly_limit) argeosFullyDone++;
+    }
+
+    if (isRosterTaskTracked(snapshot, 'ship_shop')) {
+      const rosterCompletionStatus = snapshot.roster_completion_status || Object.values(snapshot.completion_by_character || {}).flat();
+      const shipShopDetail = getWeeklyDetail('ship_shop');
+      const shipShopCompleted = rosterCompletionStatus.some(
+        (completion: any) => completion.content_id === 'ship_shop' && Number(completion.is_completed) === 1
+      );
+
+      shipShopDetail.total++;
+      weekliesPossible++;
+
+      if (shipShopCompleted) {
+        shipShopDetail.completed++;
+        weekliesCompleted++;
+      } else {
+        shipShopDetail.openRosters = [...(shipShopDetail.openRosters || []), makeRosterFocusEntry(roster)];
+      }
     }
   }
 

@@ -32,6 +32,7 @@ pub struct DashboardSnapshot {
     pub rested_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::RestedValue>>,
     pub completion_by_character:
         HashMap<i64, Vec<crate::database::repositories::character_repository::CompletionStatus>>,
+    pub roster_completion_status: Vec<crate::database::repositories::character_repository::CompletionStatus>,
     pub tracking_by_character: HashMap<i64, Vec<crate::database::repositories::character_repository::TrackingStatus>>,
     pub roster_tracking_status: Vec<crate::database::repositories::character_repository::TrackingStatus>,
     pub raid_configs_by_character:
@@ -111,6 +112,14 @@ pub async fn get_dashboard_snapshot(
         .get_batch_completion_status(&char_ids)
         .map_err(|e| format!("Failed to load completion status: {}", e))?;
 
+    let roster_completion_status = if let Some(ref id) = roster_id {
+        character_repo
+            .get_roster_completion_status(id)
+            .map_err(|e| format!("Failed to load roster completion status: {}", e))?
+    } else {
+        Vec::new()
+    };
+
     let tracking_by_character = character_repo
         .get_batch_tracking_status(&char_ids)
         .map_err(|e| format!("Failed to load tracking status: {}", e))?;
@@ -131,6 +140,7 @@ pub async fn get_dashboard_snapshot(
         characters,
         rested_by_character,
         completion_by_character,
+        roster_completion_status,
         tracking_by_character,
         roster_tracking_status,
         raid_configs_by_character,
