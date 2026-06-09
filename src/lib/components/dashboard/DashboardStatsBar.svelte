@@ -174,6 +174,13 @@
     event.stopPropagation();
     await updateTodoRosterEventStatus(detail.rosterId, detail.taskId, true);
     window.dispatchEvent(new CustomEvent('roster-event-progress-updated'));
+    window.dispatchEvent(new CustomEvent('todo-task-status-changed', {
+      detail: {
+        taskId: detail.taskId,
+        rosterId: detail.rosterId,
+        source: 'dashboard-label'
+      }
+    }));
     activePopover = null;
   }
 

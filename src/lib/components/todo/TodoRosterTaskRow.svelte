@@ -24,19 +24,25 @@
     <div class="roster-toggle-container">
       {#if isRosterEventTask(task.id)}
         {@const progress = rosterEventProgress[task.id]}
-        <ToggleButton
-          pressed={progress?.completed_today}
-          disabled={!progress?.available && !progress?.completed_today}
-          ariaLabel={`Toggle ${task.name}`}
-          on:change={() => onRosterEventToggle(task.id)}
-        >
-          <span class="roster-label event-label">
-            {progress ? `${progress.completed_this_week}/${progress.weekly_limit}` : '0/3'}
-          </span>
-          <span class="roster-label">
-            {progress?.completed_today ? 'Completed' : progress?.available ? 'Available' : 'Weekly done'}
-          </span>
-        </ToggleButton>
+        {#if (task.id === 'gate' || task.id === 'boss') && progress && !progress.available && !progress.completed_today}
+          <Countdown taskId={task.id} taskName={task.name} />
+        {:else}
+          <ToggleButton
+            pressed={progress?.completed_today}
+            disabled={!progress?.available && !progress?.completed_today}
+            ariaLabel={`Toggle ${task.name}`}
+            on:change={() => onRosterEventToggle(task.id)}
+          >
+            {#if task.id !== 'gate' && task.id !== 'boss'}
+              <span class="roster-label event-label">
+                {progress ? `${progress.completed_this_week}/${progress.weekly_limit}` : '0/3'}
+              </span>
+            {/if}
+            <span class="roster-label">
+              {progress?.completed_today ? 'Completed' : progress?.available ? 'Available' : 'Weekly done'}
+            </span>
+          </ToggleButton>
+        {/if}
       {:else if isTaskAvailable(task.id)}
         <ToggleButton
           pressed={rosterTaskStates[task.id]}

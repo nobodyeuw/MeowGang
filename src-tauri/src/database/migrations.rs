@@ -206,6 +206,14 @@ pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i
         )?;
     }
 
+    if current_version < 17 {
+        migrate_completion_status_nullable_roster_tasks(&tx)?;
+    }
+
+    if current_version < 18 {
+        migrate_conf_tracking_nullable_roster_tasks(&tx)?;
+    }
+
     tx.commit()?;
     crate::database::data_manager::DataManager::set_schema_version(pool, target_version)?;
     crate::log_info!(
@@ -213,6 +221,163 @@ pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i
         current_version,
         target_version
     );
+    Ok(())
+}
+
+/// Moves roster-wide tracking flags away from per-character rows.
+///
+/// Character dailies/weeklies/raids keep `char_id`; roster-wide tasks are keyed
+/// once by `roster_id + content_id` with `char_id = NULL` so character deletes
+/// or newly scraped characters cannot duplicate or lose the setting.
+fn migrate_conf_tracking_nullable_roster_tasks(tx: &rusqlite::Transaction) -> Result<()> {
+    tx.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS conf_tracking_v18 (
+            roster_id TEXT,
+            char_id INTEGER,
+            content_id TEXT,
+            is_tracked INTEGER DEFAULT 1,
+            lazy_daily INTEGER DEFAULT 0,
+            UNIQUE(char_id, content_id)
+        );
+
+        INSERT OR IGNORE INTO conf_tracking_v18
+            (roster_id, char_id, content_id, is_tracked, lazy_daily)
+        SELECT roster_id,
+               char_id,
+               content_id,
+               COALESCE(is_tracked, 1),
+               COALESCE(lazy_daily, 0)
+        FROM conf_tracking
+        WHERE content_id NOT IN ('gate', 'boss', 'event_argeos_winter', 'ship_shop', 'sea_coin');
+
+        INSERT INTO conf_tracking_v18
+            (roster_id, char_id, content_id, is_tracked, lazy_daily)
+        SELECT roster_id,
+               NULL,
+               content_id,
+               MAX(COALESCE(is_tracked, 0)),
+               0
+        FROM conf_tracking
+        WHERE content_id IN ('gate', 'boss', 'event_argeos_winter', 'ship_shop', 'sea_coin')
+        GROUP BY roster_id, content_id;
+
+        DROP TABLE conf_tracking;
+        ALTER TABLE conf_tracking_v18 RENAME TO conf_tracking;
+
+        CREATE INDEX IF NOT EXISTS idx_conf_tracking_roster_char_content
+          ON conf_tracking(roster_id, char_id, content_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_conf_tracking_roster_task_unique
+          ON conf_tracking(roster_id, content_id)
+          WHERE char_id IS NULL
+            AND content_id IN ('gate', 'boss', 'event_argeos_winter', 'ship_shop', 'sea_coin');
+        "#,
+    )?;
+
+    Ok(())
+}
+
+/// Makes `completion_status.char_id` nullable and moves roster-wide task
+/// completions away from character-owned rows.
+///
+/// Roster-wide tasks survive character deletion when they are keyed by
+/// `roster_id + content_id + session_id`; the character id is only meaningful
+/// for character-specific dailies, weeklies, and raid gates.
+fn migrate_completion_status_nullable_roster_tasks(tx: &rusqlite::Transaction) -> Result<()> {
+    tx.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS completion_status_v17 (
+            rowid INTEGER,
+            roster_id TEXT NOT NULL,
+            char_id INTEGER,
+            content_id TEXT NOT NULL,
+            is_completed INTEGER,
+            completion_source TEXT DEFAULT 'manual',
+            timestamp INTEGER,
+            details TEXT,
+            session_id TEXT,
+            PRIMARY KEY(rowid),
+            FOREIGN KEY(char_id) REFERENCES conf_character(char_id)
+        );
+
+        INSERT INTO completion_status_v17
+            (rowid, roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
+        SELECT rowid,
+               roster_id,
+               CASE
+                 WHEN content_id IN ('gate', 'boss', 'event_argeos_winter', 'ship_shop', 'sea_coin') THEN NULL
+                 ELSE char_id
+               END AS char_id,
+               content_id,
+               is_completed,
+               completion_source,
+               timestamp,
+               details,
+               CASE
+                 WHEN content_id IN ('gate', 'boss', 'event_argeos_winter')
+                   THEN COALESCE(session_id, content_id || '_' || COALESCE(timestamp, rowid, 0))
+                 ELSE session_id
+               END AS session_id
+        FROM completion_status;
+
+        DROP TABLE completion_status;
+        ALTER TABLE completion_status_v17 RENAME TO completion_status;
+        "#,
+    )?;
+
+    dedupe_roster_wide_completion_rows(tx)?;
+
+    tx.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_completion_status_char_content ON completion_status(char_id, content_id);
+        CREATE INDEX IF NOT EXISTS idx_completion_status_char_content_session ON completion_status(char_id, content_id, session_id);
+        CREATE INDEX IF NOT EXISTS idx_completion_status_roster_content_session ON completion_status(roster_id, content_id, session_id);
+        CREATE INDEX IF NOT EXISTS idx_completion_status_char_timestamp ON completion_status(char_id, timestamp);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_completion_roster_task_unique
+          ON completion_status(roster_id, content_id)
+          WHERE session_id IS NULL AND content_id IN ('ship_shop', 'sea_coin');
+        "#,
+    )?;
+
+    Ok(())
+}
+
+/// Keeps the newest row for roster-wide task keys after the nullable-char migration.
+fn dedupe_roster_wide_completion_rows(tx: &rusqlite::Transaction) -> Result<()> {
+    tx.execute(
+        r#"
+        DELETE FROM completion_status
+        WHERE content_id IN ('gate', 'boss', 'event_argeos_winter')
+          AND rowid NOT IN (
+            SELECT keep_rowid
+            FROM (
+              SELECT MAX(rowid) AS keep_rowid
+              FROM completion_status
+              WHERE content_id IN ('gate', 'boss', 'event_argeos_winter')
+              GROUP BY roster_id, content_id, session_id
+            )
+          )
+        "#,
+        [],
+    )?;
+
+    tx.execute(
+        r#"
+        DELETE FROM completion_status
+        WHERE content_id IN ('ship_shop', 'sea_coin')
+          AND rowid NOT IN (
+            SELECT keep_rowid
+            FROM (
+              SELECT MAX(rowid) AS keep_rowid
+              FROM completion_status
+              WHERE content_id IN ('ship_shop', 'sea_coin')
+              GROUP BY roster_id, content_id
+            )
+          )
+        "#,
+        [],
+    )?;
+
     Ok(())
 }
 

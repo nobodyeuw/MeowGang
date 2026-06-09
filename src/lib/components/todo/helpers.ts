@@ -12,7 +12,7 @@ import type {
 export const VIRTUAL_RAT_ROSTER_ID = '__todo_virtual_rat__';
 
 export function isRosterEventTask(taskId: string): boolean {
-  return taskId === 'event_argeos_winter';
+  return taskId === 'gate' || taskId === 'boss' || taskId === 'event_argeos_winter';
 }
 
 export function buildRosterTaskStates(baseMatrix: TodoMatrixResponse): Record<string, boolean> {

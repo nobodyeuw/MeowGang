@@ -279,10 +279,10 @@
   async function toggleRosterTask(taskId: string, newState: boolean) {
     try {
       const characters = matrixData?.characters || [];
-      
-      for (const char of characters) {
-        await updateTrackingConfigCommand(char.char_id, taskId, newState);
-      }
+
+      const firstCharacter = characters[0];
+      if (!firstCharacter) return;
+      await updateTrackingConfigCommand(firstCharacter.char_id, taskId, newState);
       
       // Update local data and force reactivity
       matrixData.roster_tasks = matrixData.roster_tasks.map((t: any) => {

@@ -30,13 +30,18 @@
   import {
     hasMeowConnectConsent,
     isMeowConnectFeatureEnabled,
+    isMeowConnectFriendClearHintsEnabled,
     isMeowConnectRealtimeEnabled,
+    applyFriendClearHintsToLocalSnapshot,
+    fetchMeowConnectRemoteSnapshots,
+    loadMeowConnectLocalSnapshot,
     loadMeowConnectPendingRequests,
     logMeowConnectRequest,
     markMeowConnectActive,
     markMeowConnectConnecting,
     markMeowConnectFailure,
     meowConnectStatus,
+    subscribeMeowConnectChanges,
     uploadMeowConnectSnapshotIfNeeded,
     type MeowConnectFriendConnection,
     type MeowConnectGroup
@@ -82,6 +87,8 @@
   let meowConnectFeatureEnabled = true;
   let meowConnectRealtimeEnabled = true;
   let meowConnectCompletionUploadTimer: ReturnType<typeof setTimeout> | null = null;
+  let meowConnectFriendHintRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let unsubscribeMeowConnectRealtime: (() => void) | null = null;
   const MEOWCONNECT_PENDING_IDLE_REFRESH_MS = 3 * 60 * 1000;
   const HAALS_HOURGLASS_DISMISS_KEY_PREFIX = 'haalsHourglassReminderDismissed';
 
@@ -148,6 +155,9 @@
     const handleMeowConnectRealtimeChanged = () => {
       refreshMeowConnectFeatureSettings();
     };
+    const handleMeowConnectFriendClearHintsChanged = () => {
+      refreshMeowConnectFeatureSettings();
+    };
     const handleMeowConnectCompletionChanged = () => {
       scheduleMeowConnectCompletionUpload();
       scheduleMeowConnectFriendRequestRefresh();
@@ -169,6 +179,7 @@
     window.addEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
     window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
     window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+    window.addEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
     window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
     window.addEventListener('todo-task-status-changed', handleTodoTaskStatusChanged);
     cleanupLegacyBrowserStorage();
@@ -186,6 +197,7 @@
         return;
       }
       await initializeAuthorizedApp();
+      startMeowConnectRealtimeHints();
     })();
 
     // Update countdown every second from cached reset timestamp.
@@ -198,15 +210,18 @@
     // Cleanup on unmount
     return () => {
       unlistenMeowConnectScrape?.();
+      unsubscribeMeowConnectRealtime?.();
       unsubscribeMeowConnectStatus();
       if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
       if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
+      if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
       window.removeEventListener('header-countdown:changed', handleHeaderCountdownChanged);
       window.removeEventListener('haals-hourglass-reminder:changed', handleHaalsHourglassReminderChanged);
       window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
       window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
       window.removeEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+      window.removeEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
       window.removeEventListener('raid-completed', handleMeowConnectCompletionChanged);
       window.removeEventListener('todo-task-status-changed', handleTodoTaskStatusChanged);
       clearInterval(countdownInterval);
@@ -340,11 +355,17 @@
     try {
       markMeowConnectConnecting('Checking MeowConnect startup sync.');
       const result = await uploadMeowConnectSnapshotIfNeeded();
-      markMeowConnectActive(
-        result.uploaded
+      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
+      if (appliedClearHints > 0) {
+        await uploadMeowConnectSnapshotIfNeeded({ force: true });
+        window.dispatchEvent(new CustomEvent('raid-completed'));
+      }
+      const statusMessage = appliedClearHints > 0
+        ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
+        : result.uploaded
           ? 'MeowConnect startup sync succeeded.'
-          : 'MeowConnect is connected.'
-      );
+          : 'MeowConnect is connected.';
+      markMeowConnectActive(statusMessage);
       await refreshMeowConnectFriendRequests();
     } catch (error) {
       markMeowConnectFailure(error);
@@ -575,6 +596,31 @@
     meowConnectFeatureEnabled = isMeowConnectFeatureEnabled();
     meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
     refreshMeowConnectHeaderStatus();
+    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) {
+      stopMeowConnectRealtimeHints();
+    } else {
+      startMeowConnectRealtimeHints();
+    }
+  }
+
+  function startMeowConnectRealtimeHints() {
+    if (unsubscribeMeowConnectRealtime) return;
+    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
+
+    unsubscribeMeowConnectRealtime = subscribeMeowConnectChanges(() => {
+      if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+      meowConnectFriendHintRefreshTimer = setTimeout(() => {
+        meowConnectFriendHintRefreshTimer = null;
+        void applyMeowConnectFriendClearHintsFromRealtime();
+      }, 1500);
+    });
+  }
+
+  function stopMeowConnectRealtimeHints() {
+    unsubscribeMeowConnectRealtime?.();
+    unsubscribeMeowConnectRealtime = null;
+    if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+    meowConnectFriendHintRefreshTimer = null;
   }
 
   function scheduleMeowConnectCompletionUpload() {
@@ -591,14 +637,45 @@
     try {
       markMeowConnectConnecting('Syncing MeowConnect completion update.');
       const result = await uploadMeowConnectSnapshotIfNeeded({ force: true });
-      markMeowConnectActive(
-        result.uploaded
+      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
+      if (appliedClearHints > 0) {
+        await uploadMeowConnectSnapshotIfNeeded({ force: true });
+        window.dispatchEvent(new CustomEvent('raid-completed'));
+      }
+      const statusMessage = appliedClearHints > 0
+        ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
+        : result.uploaded
           ? 'MeowConnect completion update synced.'
-          : 'MeowConnect completion update checked.'
-      );
+          : 'MeowConnect completion update checked.';
+      markMeowConnectActive(statusMessage);
     } catch (error) {
       markMeowConnectFailure(error);
       console.warn('MeowConnect completion sync failed:', error);
+    }
+  }
+
+  async function applyMeowConnectFriendClearHintsIfEnabled(weeklyResetMs?: number): Promise<number> {
+    if (!isMeowConnectFriendClearHintsEnabled()) return 0;
+
+    const localSnapshot = await loadMeowConnectLocalSnapshot();
+    const resetCycle = String(weeklyResetMs || localSnapshot.weeklyResetMs || 0);
+    const remoteSnapshots = await fetchMeowConnectRemoteSnapshots(resetCycle);
+    return applyFriendClearHintsToLocalSnapshot(localSnapshot, remoteSnapshots);
+  }
+
+  async function applyMeowConnectFriendClearHintsFromRealtime() {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
+
+    try {
+      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled();
+      if (appliedClearHints <= 0) return;
+
+      await uploadMeowConnectSnapshotIfNeeded({ force: true });
+      window.dispatchEvent(new CustomEvent('raid-completed'));
+      markMeowConnectActive(`MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`);
+    } catch (error) {
+      markMeowConnectFailure(error);
+      console.warn('MeowConnect friend clear hint refresh failed:', error);
     }
   }
 

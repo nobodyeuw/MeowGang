@@ -8,8 +8,8 @@
   export let getTaskIcon: (taskId: string) => string;
   export let onRaidGateToggle: (characterId: number, raidId: string, gateId: string) => void;
 
-  function formatGateTitle(plannedDifficulty: string, actualDifficulty?: string | null): string {
-    if (!actualDifficulty || actualDifficulty === plannedDifficulty) {
+  function formatGateTitle(plannedDifficulty: string, completed: boolean, actualDifficulty?: string | null): string {
+    if (!completed || !actualDifficulty) {
       return `Planned: ${plannedDifficulty}`;
     }
 
@@ -42,7 +42,7 @@
                 class="gate-toggle"
                 class:completed={gateState}
                 on:click={() => onRaidGateToggle(character.id, raid.id, gate.gate)}
-                title={formatGateTitle(difficulty, actualDifficulty)}
+                title={formatGateTitle(difficulty, gateState, actualDifficulty)}
                 disabled={gateIlvlTooLow ? true : undefined}
               >
                 <div class="gate-button">

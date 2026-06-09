@@ -1,6 +1,62 @@
 {
   "versions": [
     {
+      "version": "1.3.4",
+      "date": "2026-06-09",
+      "changes": [
+        {
+          "type": "Added",
+          "description": "MeowConnect can now complete managed roster characters from shared LOA Logs evidence.",
+          "details": "If multiple connected rosters under the same account appear in the same uploaded raid log, matching characters can now be completed as well. Logs use the profile name for the played roster and roster names for additional managed rosters."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect raid completion refreshes faster.",
+          "details": "Friend clear hints now apply during normal MeowConnect refreshes and realtime updates, so Dashboard and To Do can update without needing to manually open the Logs tab first."
+        },
+        {
+          "type": "Improved",
+          "description": "MeowConnect Logs explain shared clears better.",
+          "details": "MeowConnect-sourced raid completions are grouped with LOA Logs style entries, and same-account roster participants are separated by roster name when needed."
+        },
+        {
+          "type": "Fixed",
+          "description": "Chaos Gate and Field Boss availability now follows the event calendar correctly.",
+          "details": "The To Do tab now shows the countdown when Chaos Gate or Field Boss are not active, instead of incorrectly showing them as available outside their scheduled 17-hour window."
+        },
+        {
+          "type": "Fixed",
+          "description": "Field Boss completion from the dashboard now matches To Do correctly.",
+          "details": "Completing Field Boss from the dashboard label now updates the To Do tab state consistently."
+        },
+        {
+          "type": "Fixed",
+          "description": "Roster-wide event task storage is more stable.",
+          "details": "Roster-wide tasks are now prepared to store completions without relying on a specific character id, preventing deleted characters from breaking event completion state."
+        },
+        {
+          "type": "Fixed",
+          "description": "To Do raid gate tooltips show confirmed clear difficulty.",
+          "details": "Completed raid gates now show both planned and cleared difficulty when clear difficulty data is available, including clears filled by MeowConnect."
+        },
+        {
+          "type": "Fixed",
+          "description": "To Do event buttons are cleaner.",
+          "details": "Chaos Gate and Field Boss no longer show an unnecessary 1/1 counter because they can only be completed once per roster per event day."
+        },
+        {
+          "type": "Fixed",
+          "description": "Custom roster names are preserved during roster refreshes.",
+          "details": "Daily roster updates and newly discovered characters now keep the renamed roster display name instead of reverting to the original scraped roster name."
+        },
+        {
+          "type": "Fixed",
+          "description": "Roster-wide tracking settings no longer duplicate per character.",
+          "details": "Tracking settings for roster-wide tasks are now stored once per roster, so newly added or removed characters do not create duplicate roster task settings."
+        }
+      ]
+    },
+    {
       "version": "1.3.3",
       "date": "2026-06-08",
       "changes": [

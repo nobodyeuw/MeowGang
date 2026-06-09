@@ -24,12 +24,14 @@ export {
 } from './groups';
 export { buildMeowConnectLogEntries } from './logs';
 import {
+  applyFriendClearHintsToLocalSnapshot,
   applyMeowConnectClearHints,
   fetchMeowConnectRemoteSnapshots,
   loadMeowConnectLocalSnapshot,
   syncMeowConnectSnapshot
 } from './snapshot';
 export {
+  applyFriendClearHintsToLocalSnapshot,
   applyMeowConnectClearHints,
   fetchMeowConnectRemoteSnapshots,
   loadMeowConnectLocalSnapshot,
@@ -442,7 +444,7 @@ export function subscribeMeowConnectChanges(onChange: () => void): () => void {
   }
 
   const channel = supabase
-    .channel('meow-connect-availability')
+    .channel(`meow-connect-availability-${Date.now()}-${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_profiles' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_friend_connections' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'meow_characters' }, onChange)

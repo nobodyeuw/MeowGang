@@ -479,6 +479,7 @@ function buildEncounterOwnerParticipants(
   resolvedLocalPlayer: string
 ): MeowConnectLogParticipant[] {
   const ownerCharacters = Array.from(characterById.values());
+  const primaryCharacter = ownerCharacters.find((character) => sameCharacterName(character.charName, resolvedLocalPlayer));
   const matchedCharacters = (encounter.matchedCharacterIds || [])
     .map((charId) => characterById.get(charId))
     .filter((character): character is MeowConnectCharacterSnapshot => Boolean(character));
@@ -488,12 +489,18 @@ function buildEncounterOwnerParticipants(
     .filter((character): character is MeowConnectCharacterSnapshot => Boolean(character));
   const characters = dedupeCharacters([...matchedCharacters, ...namedCharacters]);
 
-  return characters.map((character) => ({
-    ownerId,
-    ownerName: profile.displayName,
-    ownerAvatarUrl: profile.avatarUrl,
-    localPlayer: character.charName
-  }));
+  return characters.map((character) => {
+    const isPrimaryPlayer = sameCharacterName(character.charName, resolvedLocalPlayer);
+    const isSameRosterAsPrimary = primaryCharacter && character.rosterId === primaryCharacter.rosterId;
+    const shouldUseRosterLabel = !isPrimaryPlayer && !isSameRosterAsPrimary;
+
+    return {
+      ownerId: shouldUseRosterLabel ? `${ownerId}:roster:${character.rosterId}` : ownerId,
+      ownerName: shouldUseRosterLabel ? (character.rosterName || profile.displayName) : profile.displayName,
+      ownerAvatarUrl: shouldUseRosterLabel ? undefined : profile.avatarUrl,
+      localPlayer: character.charName
+    };
+  });
 }
 
 function buildTemporaryEncounterPlayers(
@@ -827,7 +834,7 @@ function getGateNumbers(value?: string | null): number[] {
 function normalizeLogSource(source?: string): 'Manual' | 'LOA Logs' | string {
   const normalized = String(source || '').trim().toLowerCase();
   if (!normalized || normalized === 'manual') return 'Manual';
-  if (normalized === 'loalogs' || normalized === 'loa logs') return 'LOA Logs';
+  if (normalized === 'loalogs' || normalized === 'loa logs' || normalized === 'meow_connect') return 'LOA Logs';
   return source || 'Manual';
 }
 

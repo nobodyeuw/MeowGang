@@ -47,21 +47,22 @@ impl TrackingRepository {
 
         let characters: Vec<crate::models::CharacterMatrixInfo> = character_iter.filter_map(Result::ok).collect();
 
-        // Get all conf_tracking entries for characters in this roster (both tasks and raids)
+        // Get all conf_tracking entries for this roster. Roster-wide tasks have
+        // `char_id = NULL` and are expanded into every character column below.
         let mut todo_stmt = conn.prepare(
             "SELECT char_id, content_id, is_tracked, COALESCE(lazy_daily, 0) FROM conf_tracking WHERE roster_id = ?1",
         )?;
 
         let todo_iter = todo_stmt.query_map([roster_id], |row| {
             Ok((
-                row.get::<_, i64>(0)?,      // char_id
-                row.get::<_, String>(1)?,   // content_id
-                row.get::<_, i64>(2)? == 1, // is_tracked
-                row.get::<_, i64>(3)? == 1, // lazy_daily
+                row.get::<_, Option<i64>>(0)?, // char_id
+                row.get::<_, String>(1)?,      // content_id
+                row.get::<_, i64>(2)? == 1,    // is_tracked
+                row.get::<_, i64>(3)? == 1,    // lazy_daily
             ))
         })?;
 
-        let todo_entries: Vec<(i64, String, bool, bool)> = todo_iter.filter_map(Result::ok).collect();
+        let todo_entries: Vec<(Option<i64>, String, bool, bool)> = todo_iter.filter_map(Result::ok).collect();
 
         // Get rested values for characters in this roster
         let mut rested_stmt = conn.prepare(
@@ -87,13 +88,16 @@ impl TrackingRepository {
         let mut character_states = std::collections::HashMap::new();
         for char in &characters {
             for (char_id, content_id, is_tracked, lazy_daily) in &todo_entries {
-                // Only create state if this entry belongs to the current character
-                if *char_id == char.char_id {
+                let applies_to_character = char_id
+                    .map(|entry_char_id| entry_char_id == char.char_id)
+                    .unwrap_or_else(|| Self::is_roster_wide_task_id(content_id));
+
+                if applies_to_character {
                     // Get rested value if exists, default to 0
                     let current_value = rested_entries
                         .iter()
                         .find(|(rested_char_id, rested_content_id, _)| {
-                            rested_char_id == char_id && rested_content_id == content_id
+                            *rested_char_id == char.char_id && rested_content_id == content_id
                         })
                         .map(|(_, _, value)| *value)
                         .unwrap_or(0);
@@ -112,6 +116,20 @@ impl TrackingRepository {
             }
         }
 
+        let expanded_todo_entries: Vec<(i64, String, bool)> = todo_entries
+            .iter()
+            .flat_map(|(char_id, content_id, is_tracked, _)| {
+                if let Some(char_id) = char_id {
+                    vec![(*char_id, content_id.clone(), *is_tracked)]
+                } else {
+                    characters
+                        .iter()
+                        .map(|character| (character.char_id, content_id.clone(), *is_tracked))
+                        .collect()
+                }
+            })
+            .collect();
+
         // Create empty matrices - frontend will populate them with actual data
         let matrix = crate::models::TodoConfigMatrix {
             characters,
@@ -119,12 +137,7 @@ impl TrackingRepository {
             roster_tasks: Vec::new(),
             weekly_tasks: Vec::new(),
             raids: Vec::new(),
-            todo_entries: Some(
-                todo_entries
-                    .iter()
-                    .map(|(char_id, content_id, is_tracked, _)| (*char_id, content_id.clone(), *is_tracked))
-                    .collect(),
-            ),
+            todo_entries: Some(expanded_todo_entries),
             rested_entries: Some(rested_entries),
             character_states: Some(character_states.into_iter().map(|(_, state)| state).collect()),
         };
@@ -134,8 +147,7 @@ impl TrackingRepository {
 
     /// Updates one tracking toggle in `conf_tracking`.
     ///
-    /// Roster-wide tasks are expanded across all active characters so every
-    /// matrix cell has a row, while completion state remains roster-level.
+    /// Roster-wide tasks are stored once with `char_id = NULL`.
     pub fn update_tracking_config(&self, character_id: i64, content_id: &str, is_tracked: bool) -> Result<()> {
         let mut conn = self.pool.get()?;
 
@@ -150,15 +162,23 @@ impl TrackingRepository {
 
         if Self::is_roster_wide_task_id(content_id) {
             let tx = conn.transaction()?;
+            let changed = tx.execute(
+                "UPDATE conf_tracking
+                 SET is_tracked = ?1, lazy_daily = 0
+                 WHERE roster_id = ?2 AND content_id = ?3 AND char_id IS NULL",
+                params![tracked_value, roster_id, content_id],
+            )?;
+            if changed == 0 {
+                tx.execute(
+                    "INSERT OR IGNORE INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
+                     VALUES (?1, NULL, ?2, ?3, 0)",
+                    params![roster_id, content_id, tracked_value],
+                )?;
+            }
             tx.execute(
-                "INSERT INTO conf_tracking (roster_id, char_id, content_id, is_tracked, lazy_daily)
-                 SELECT roster_id, char_id, ?2, ?3, 0
-                 FROM conf_character
-                 WHERE roster_id = ?1
-                 ON CONFLICT(char_id, content_id) DO UPDATE SET
-                   roster_id = excluded.roster_id,
-                   is_tracked = excluded.is_tracked",
-                params![roster_id, content_id, tracked_value],
+                "DELETE FROM conf_tracking
+                 WHERE roster_id = ?1 AND content_id = ?2 AND char_id IS NOT NULL",
+                params![roster_id, content_id],
             )?;
             tx.commit()?;
             return Ok(());
@@ -229,6 +249,10 @@ impl TrackingRepository {
 
     /// Compatibility command for older To Do tracking toggles.
     pub fn set_todo_tracked(&self, character_id: i64, content_id: &str, tracked: bool) -> Result<()> {
+        if Self::is_roster_wide_task_id(content_id) {
+            return self.update_tracking_config(character_id, content_id, tracked);
+        }
+
         let conn = self.pool.get()?;
         let roster_id: String = conn.query_row(
             "SELECT roster_id FROM conf_character WHERE char_id = ?1",
@@ -262,6 +286,30 @@ impl TrackingRepository {
         let tx = conn.transaction()?;
 
         for update in task_updates {
+            if Self::is_roster_wide_task_id(&update.task_id) {
+                let tracked_value = if update.tracked { 1 } else { 0 };
+                let changed = tx.execute(
+                    "UPDATE conf_tracking
+                     SET is_tracked = ?1, lazy_daily = 0
+                     WHERE roster_id = ?2 AND content_id = ?3 AND char_id IS NULL",
+                    params![tracked_value, &roster_id, &update.task_id],
+                )?;
+                if changed == 0 {
+                    tx.execute(
+                        "INSERT OR IGNORE INTO conf_tracking
+                            (roster_id, char_id, content_id, is_tracked, lazy_daily)
+                         VALUES (?1, NULL, ?2, ?3, 0)",
+                        params![&roster_id, &update.task_id, tracked_value],
+                    )?;
+                }
+                tx.execute(
+                    "DELETE FROM conf_tracking
+                     WHERE roster_id = ?1 AND content_id = ?2 AND char_id IS NOT NULL",
+                    params![&roster_id, &update.task_id],
+                )?;
+                continue;
+            }
+
             tx.execute(
                 "INSERT INTO conf_tracking 
                  (roster_id, char_id, content_id, is_tracked, lazy_daily)

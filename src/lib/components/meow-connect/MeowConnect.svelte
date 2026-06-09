@@ -13,7 +13,7 @@
   import {
     acceptMeowConnectFriendRequest,
     acceptMeowConnectGroupInvite,
-    applyMeowConnectClearHints,
+    applyFriendClearHintsToLocalSnapshot,
     assignMeowConnectRaidToGroup,
     buildMeowConnectAvailabilityRows,
     buildMeowConnectLogEntries,
@@ -310,57 +310,6 @@
 
   function setStoredTimestamp(key: string, value: number) {
     localStorage.setItem(key, String(value));
-  }
-
-  async function applyFriendClearHintsToLocalSnapshot(
-    snapshot: MeowConnectLocalSnapshot,
-    snapshots: MeowConnectRemoteSnapshot[]
-  ): Promise<number> {
-    const hints = buildFriendClearHints(snapshot, snapshots);
-    if (hints.length === 0) return 0;
-    return applyMeowConnectClearHints(hints);
-  }
-
-  function buildFriendClearHints(snapshot: MeowConnectLocalSnapshot, snapshots: MeowConnectRemoteSnapshot[]) {
-    const charactersByName = new Map(
-      snapshot.characters.map((character) => [normalizeName(character.charName), character])
-    );
-    const latestByGate = new Map<string, {
-      charId: number;
-      contentId: string;
-      gate: string;
-      difficulty?: string;
-      completedAt: number;
-      sourceOwnerName?: string;
-    }>();
-
-    for (const remoteSnapshot of snapshots) {
-      for (const encounter of remoteSnapshot.encounterSnapshots || []) {
-        if (!encounter.cleared || !encounter.contentId || !encounter.gate) continue;
-        const completedAt = Number(encounter.clearedAt || encounter.fightStart || 0);
-        if (completedAt > 0 && completedAt < snapshot.weeklyResetMs) continue;
-
-        for (const playerName of [encounter.localPlayer, ...(encounter.players || [])]) {
-          const character = charactersByName.get(normalizeName(playerName));
-          if (!character) continue;
-
-          const key = `${character.charId}:${encounter.contentId}:${normalizeName(encounter.gate)}`;
-          const current = latestByGate.get(key);
-          if (current && current.completedAt >= completedAt) continue;
-
-          latestByGate.set(key, {
-            charId: character.charId,
-            contentId: encounter.contentId,
-            gate: encounter.gate,
-            difficulty: encounter.difficulty,
-            completedAt,
-            sourceOwnerName: remoteSnapshot.profile.displayName
-          });
-        }
-      }
-    }
-
-    return Array.from(latestByGate.values());
   }
 
   async function loadAndMirrorMeowGroups(): Promise<MeowConnectGroup[]> {
@@ -934,8 +883,17 @@
       friendConnections = await loadMeowConnectFriends();
       meowGroups = await loadAndMirrorMeowGroups();
       remoteSnapshots = await fetchMeowConnectRemoteSnapshots(String(localSnapshot.weeklyResetMs || 0));
+      const appliedClearHints = friendClearHintsEnabled
+        ? await applyFriendClearHintsToLocalSnapshot(localSnapshot, remoteSnapshots)
+        : 0;
+      if (appliedClearHints > 0) {
+        localSnapshot = await loadMeowConnectLocalSnapshot();
+        await uploadMeowConnectSnapshotIfNeeded({ force: true });
+        localSnapshot = await loadMeowConnectLocalSnapshot();
+        window.dispatchEvent(new CustomEvent('raid-completed'));
+      }
       logMeowConnectRequest(
-        `Remote refresh finished (realtime) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}.`,
+        `Remote refresh finished (realtime) in ${Math.round(performance.now() - startedAt)}ms: friends=${friendConnections.length}, groups=${meowGroups.length}, remoteSnapshots=${remoteSnapshots.length}, clearHints=${appliedClearHints}.`,
         'info'
       );
       markMeowConnectActive('MeowConnect realtime refresh succeeded.');

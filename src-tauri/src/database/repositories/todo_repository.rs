@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{Datelike, Utc, Weekday};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -100,7 +101,7 @@ impl TodoRepository {
 
     /// Roster-wide tasks that can be completed multiple times per weekly window.
     fn is_roster_event_task_id(task_id: &str) -> bool {
-        matches!(task_id, "event_argeos_winter")
+        matches!(task_id, "gate" | "boss" | "event_argeos_winter")
     }
 
     /// Weekly cap for roster event progress counters.
@@ -108,6 +109,33 @@ impl TodoRepository {
         match task_id {
             "event_argeos_winter" => 3,
             _ => 1,
+        }
+    }
+
+    /// Whether a roster event should currently be available for manual completion.
+    fn roster_event_available_now(task_id: &str) -> bool {
+        match task_id {
+            "gate" | "boss" => {
+                let now = Utc::now();
+                let mut game_day_start = now.date_naive().and_hms_opt(10, 0, 0).unwrap().and_utc();
+                if now < game_day_start {
+                    game_day_start -= chrono::Duration::days(1);
+                }
+
+                if now >= game_day_start + chrono::Duration::hours(17) {
+                    return false;
+                }
+
+                match task_id {
+                    "gate" => matches!(
+                        game_day_start.weekday(),
+                        Weekday::Mon | Weekday::Thu | Weekday::Sat | Weekday::Sun
+                    ),
+                    "boss" => matches!(game_day_start.weekday(), Weekday::Tue | Weekday::Fri | Weekday::Sun),
+                    _ => false,
+                }
+            }
+            _ => true,
         }
     }
 
@@ -138,22 +166,6 @@ impl TodoRepository {
         } else {
             reset_time.timestamp_millis()
         }
-    }
-
-    /// Fallback active character row used when a roster-wide completion needs
-    /// a `char_id` for the current schema but no prior roster row exists.
-    fn get_first_character_id_for_roster(conn: &rusqlite::Connection, roster_id: &str) -> Result<i64> {
-        let char_id = conn.query_row(
-            "SELECT char_id FROM conf_character
-             WHERE roster_id = ?1
-               AND COALESCE(removed_from_roster, 0) = 0
-             ORDER BY CAST(display_order AS INTEGER), char_name, char_id
-             LIMIT 1",
-            [roster_id],
-            |row| row.get(0),
-        )?;
-
-        Ok(char_id)
     }
 
     /// Finds the existing row used to store a simple roster-wide completion.
@@ -238,19 +250,20 @@ impl TodoRepository {
             characters.push(character?);
         }
 
-        // Load all tracked tasks from conf_tracking (like tracking_repository does)
+        // Load all tracked tasks from conf_tracking. Roster-wide tasks use
+        // `char_id = NULL`; character rows and raid rows keep a concrete id.
         let mut todo_stmt =
             conn.prepare("SELECT char_id, content_id, is_tracked FROM conf_tracking WHERE roster_id = ?1")?;
 
         let todo_iter = todo_stmt.query_map([roster_id], |row| {
             Ok((
-                row.get::<_, i64>(0)?,      // char_id
-                row.get::<_, String>(1)?,   // content_id
-                row.get::<_, i64>(2)? == 1, // is_tracked
+                row.get::<_, Option<i64>>(0)?, // char_id
+                row.get::<_, String>(1)?,      // content_id
+                row.get::<_, i64>(2)? == 1,    // is_tracked
             ))
         })?;
 
-        let todo_entries: Vec<(i64, String, bool)> = todo_iter.filter_map(Result::ok).collect();
+        let todo_entries: Vec<(Option<i64>, String, bool)> = todo_iter.filter_map(Result::ok).collect();
 
         // Load rested values
         let mut rested_stmt = conn.prepare(
@@ -330,7 +343,7 @@ impl TodoRepository {
                 }
 
                 // Create state for character-specific tasks
-                if *char_id == character.id {
+                if char_id == &Some(character.id) {
                     let completed = self.get_task_completed(character.id, content_id).unwrap_or(false);
 
                     let state = CharacterTaskState {
@@ -346,9 +359,12 @@ impl TodoRepository {
         for task_id in ["gate", "boss"] {
             let tracked = todo_entries
                 .iter()
-                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
+                .any(|(char_id, content_id, is_tracked)| {
+                    content_id == task_id && char_id.is_none() && *is_tracked
+                });
 
-            let completed = Self::get_roster_task_completed_with_conn(&conn, roster_id, task_id)?;
+            let progress = self.get_roster_event_progress(roster_id, task_id)?;
+            let completed = progress.completed_today || progress.completed_this_week >= progress.weekly_limit;
 
             for roster_char in &characters {
                 character_states.insert(
@@ -361,7 +377,9 @@ impl TodoRepository {
         for task_id in ["event_argeos_winter"] {
             let tracked = todo_entries
                 .iter()
-                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
+                .any(|(char_id, content_id, is_tracked)| {
+                    content_id == task_id && char_id.is_none() && *is_tracked
+                });
 
             let progress = self.get_roster_event_progress(roster_id, task_id)?;
             for roster_char in &characters {
@@ -378,7 +396,9 @@ impl TodoRepository {
         for task_id in ["ship_shop"] {
             let tracked = todo_entries
                 .iter()
-                .any(|(_, content_id, is_tracked)| content_id == task_id && *is_tracked);
+                .any(|(char_id, content_id, is_tracked)| {
+                    content_id == task_id && char_id.is_none() && *is_tracked
+                });
 
             let completed = Self::get_roster_task_completed_with_conn(&conn, roster_id, task_id)?;
 
@@ -390,6 +410,20 @@ impl TodoRepository {
             }
         }
 
+        let expanded_todo_entries: Vec<(i64, String, bool)> = todo_entries
+            .iter()
+            .flat_map(|(char_id, content_id, is_tracked)| {
+                if let Some(char_id) = char_id {
+                    vec![(*char_id, content_id.clone(), *is_tracked)]
+                } else {
+                    characters
+                        .iter()
+                        .map(|character| (character.id, content_id.clone(), *is_tracked))
+                        .collect()
+                }
+            })
+            .collect();
+
         // Create matrix with basic data - frontend will handle task definitions
         let matrix = TodoMatrixResponse {
             characters,
@@ -399,7 +433,7 @@ impl TodoRepository {
             raids,
             character_states: Some(character_states),
             rested_entries: Some(rested_entries),
-            todo_entries: Some(todo_entries),
+            todo_entries: Some(expanded_todo_entries),
         };
 
         Ok(matrix)
@@ -759,12 +793,11 @@ impl TodoRepository {
                 params![completed_value, timestamp, rowid],
             )?;
         } else {
-            let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
             tx.execute(
                 "INSERT INTO completion_status
                     (roster_id, char_id, content_id, is_completed, timestamp, completion_source, session_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, 'manual', NULL)",
-                params![roster_id, char_id, task_id, completed_value, timestamp],
+                 VALUES (?1, NULL, ?2, ?3, ?4, 'manual', NULL)",
+                params![roster_id, task_id, completed_value, timestamp],
             )?;
         }
 
@@ -812,7 +845,7 @@ impl TodoRepository {
             completed_this_week,
             weekly_limit,
             completed_today,
-            available: completed_this_week < weekly_limit && !completed_today,
+            available: completed_this_week < weekly_limit && !completed_today && Self::roster_event_available_now(task_id),
         })
     }
 
@@ -820,7 +853,6 @@ impl TodoRepository {
     pub fn set_roster_event_completed(&self, roster_id: &str, task_id: &str, completed: bool) -> Result<()> {
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
-        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
         let daily_reset_ms = Self::current_daily_reset_ms();
         let weekly_reset_ms = Self::current_weekly_reset_ms();
         let timestamp = chrono::Utc::now().timestamp_millis();
@@ -884,8 +916,8 @@ impl TodoRepository {
                 tx.execute(
                     "INSERT INTO completion_status
                         (roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
-                     VALUES (?1, ?2, ?3, 1, 'manual', ?4, 'manual event completion', ?5)",
-                    params![roster_id, char_id, task_id, timestamp, session_id],
+                     VALUES (?1, NULL, ?2, 1, 'manual', ?3, 'manual event completion', ?4)",
+                    params![roster_id, task_id, timestamp, session_id],
                 )?;
             }
         } else {
@@ -915,7 +947,6 @@ impl TodoRepository {
 
         let mut conn = self.pool.get()?;
         let tx = conn.transaction()?;
-        let char_id = Self::get_first_character_id_for_roster(&tx, roster_id)?;
         let weekly_reset_ms = Self::current_weekly_reset_ms();
         let daily_reset_ms = Self::current_daily_reset_ms();
         let timestamp_base = if daily_reset_ms > weekly_reset_ms {
@@ -939,8 +970,8 @@ impl TodoRepository {
             tx.execute(
                 "INSERT INTO completion_status
                     (roster_id, char_id, content_id, is_completed, completion_source, timestamp, details, session_id)
-                 VALUES (?1, ?2, ?3, 1, 'manual', ?4, 'manual weekly event count', ?5)",
-                params![roster_id, char_id, task_id, event_timestamp, session_id],
+                 VALUES (?1, NULL, ?2, 1, 'manual', ?3, 'manual weekly event count', ?4)",
+                params![roster_id, task_id, event_timestamp, session_id],
             )?;
         }
 

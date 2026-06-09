@@ -278,13 +278,15 @@ pub fn upsert_scraped_character(
             "INSERT INTO conf_character
              (char_id, char_name, roster_id, roster_name, class_id, item_level,
               combat_power, display_order, roster_display_order, earns_gold, hide_from_dashboard, meow_connect_enabled, class_display_name)
-             VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6, ?7,
+             VALUES (?1, ?2, ?3,
+                     COALESCE((SELECT NULLIF(TRIM(roster_name), '') FROM conf_character WHERE roster_id = ?3 LIMIT 1), ?3),
+                     ?4, ?5, ?6, ?7,
                      COALESCE((SELECT MIN(roster_display_order) FROM conf_character WHERE roster_id = ?3), 0),
                      ?8, ?9, ?10, ?11)
              ON CONFLICT(char_id) DO UPDATE SET
                char_name = excluded.char_name,
                roster_id = excluded.roster_id,
-               roster_name = excluded.roster_name,
+               roster_name = COALESCE(NULLIF(TRIM(conf_character.roster_name), ''), excluded.roster_name),
                class_id = excluded.class_id,
                item_level = excluded.item_level,
                combat_power = excluded.combat_power,

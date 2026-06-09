@@ -184,9 +184,20 @@ impl DataManager {
         }
 
         // Task definitions come from the frontend source-of-truth payload.
+        let mut initialized_roster_tasks = std::collections::HashSet::new();
         for (character_id, roster_id) in &characters {
-            // Process ALL tasks (both character and roster tasks)
             for (task_id, task) in tasks.iter() {
+                if task.category == "roster" {
+                    if initialized_roster_tasks.insert((roster_id.clone(), task_id.clone())) {
+                        tx.execute(
+                            "INSERT OR IGNORE INTO conf_tracking (roster_id, char_id, content_id, is_tracked)
+                             VALUES (?1, NULL, ?2, ?3)",
+                            params![roster_id, task_id, 1],
+                        )?;
+                    }
+                    continue;
+                }
+
                 tx.execute(
                     "INSERT OR IGNORE INTO conf_tracking (roster_id, char_id, content_id, is_tracked) VALUES (?1, ?2, ?3, ?4)",
                     params![roster_id, character_id, task_id, 1],

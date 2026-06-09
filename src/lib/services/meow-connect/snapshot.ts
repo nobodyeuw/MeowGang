@@ -44,6 +44,70 @@ export async function applyMeowConnectClearHints(hints: MeowConnectClearHintInpu
   return invoke<number>('apply_meow_connect_clear_hints', { hints });
 }
 
+/// Applies friend LOA Logs evidence to local MeowConnect-enabled characters.
+export async function applyFriendClearHintsToLocalSnapshot(
+  snapshot: MeowConnectLocalSnapshot,
+  snapshots: MeowConnectRemoteSnapshot[]
+): Promise<number> {
+  const hints = buildFriendClearHints(snapshot, snapshots);
+  if (hints.length === 0) return 0;
+  return applyMeowConnectClearHints(hints);
+}
+
+/// Builds one latest clear hint per local character/content/gate from remote encounter evidence.
+export function buildFriendClearHints(
+  snapshot: MeowConnectLocalSnapshot,
+  snapshots: MeowConnectRemoteSnapshot[]
+): MeowConnectClearHintInput[] {
+  const charactersByName = new Map(
+    snapshot.characters.map((character) => [normalizeCharacterName(character.charName), character])
+  );
+  const latestByGate = new Map<string, MeowConnectClearHintInput>();
+
+  const evidenceSnapshots = [
+    {
+      ownerName: 'Local LOA Logs',
+      encounterSnapshots: snapshot.encounterSnapshots || []
+    },
+    ...snapshots.map((remoteSnapshot) => ({
+      ownerName: remoteSnapshot.profile.displayName,
+      encounterSnapshots: remoteSnapshot.encounterSnapshots || []
+    }))
+  ];
+
+  for (const evidenceSnapshot of evidenceSnapshots) {
+    for (const encounter of evidenceSnapshot.encounterSnapshots) {
+      if (!encounter.cleared || !encounter.contentId || !encounter.gate) continue;
+      const completedAt = Number(encounter.clearedAt || encounter.fightStart || 0);
+      if (completedAt > 0 && completedAt < snapshot.weeklyResetMs) continue;
+
+      for (const playerName of [encounter.localPlayer, ...(encounter.players || [])]) {
+        const character = charactersByName.get(normalizeCharacterName(playerName));
+        if (!character) continue;
+
+        const key = `${character.charId}:${encounter.contentId}:${normalizeCharacterName(encounter.gate)}`;
+        const current = latestByGate.get(key);
+        if (current && current.completedAt >= completedAt) continue;
+
+        latestByGate.set(key, {
+          charId: character.charId,
+          contentId: encounter.contentId,
+          gate: encounter.gate,
+          difficulty: encounter.difficulty,
+          completedAt,
+          sourceOwnerName: evidenceSnapshot.ownerName
+        });
+      }
+    }
+  }
+
+  return Array.from(latestByGate.values());
+}
+
+function normalizeCharacterName(value?: string | null): string {
+  return String(value || '').trim().toLowerCase();
+}
+
 export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot): Promise<{
   syncedSnapshot: MeowConnectLocalSnapshot;
   duplicateCharacters: MeowConnectCharacterConflict[];

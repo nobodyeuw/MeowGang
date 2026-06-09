@@ -2,7 +2,7 @@
 
 **A lightweight desktop companion for Lost Ark roster, raid, gold, task, and friend availability tracking.**
 
-[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
@@ -51,16 +51,14 @@ MeowConnect clear hints are opt-in from `System Settings > MeowConnect`. Existin
 
 ## Current Release
 
-### v1.3.3
+### v1.3.4
 
-- Added Ship Shop as a weekly roster-wide task.
-- Added a daily Sea Coin header reminder when Ship Shop is tracked.
-- Added Lost Ark Bible preview links to MeowConnect Logs.
-- Added optional MeowConnect friend clear hints for missing local raid gate completions.
-- Fixed rested value catch-up after multiple missed daily reset cycles.
-- Improved roster-wide task completion reliability when characters are removed.
-- Improved dashboard card task icon alignment.
-- Improved MeowConnect shared clear log merging and temporary-character handling.
+- Improved MeowConnect clear hints so matching raid clears can refresh Dashboard and To Do faster.
+- Added managed-roster support for MeowConnect logs and clear hints when multiple connected rosters appear in the same LOA Logs clear.
+- Fixed Chaos Gate and Field Boss availability so To Do shows countdowns outside the correct event window.
+- Fixed dashboard Field Boss completion syncing into To Do.
+- Improved roster-wide event task storage stability.
+- Improved To Do raid gate tooltips to show confirmed cleared difficulty when available.
 
 ---
 

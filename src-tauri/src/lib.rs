@@ -597,7 +597,7 @@ fn initialize_local_database_runtime(db_manager: &DatabaseManager) -> Result<(),
     }
 
     let current_version = database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-    const TARGET_VERSION: i32 = 16;
+const TARGET_VERSION: i32 = 18;
     crate::log_info!(
         "Current schema version: {}, target version: {}",
         current_version,
