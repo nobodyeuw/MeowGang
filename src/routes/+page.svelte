@@ -52,6 +52,7 @@
   import { cleanupLegacyBrowserStorage } from '$lib/utils/browser-storage';
   import { reloadTenorEmbeds } from '$lib/utils/tenor';
   import { applyTheme } from '$lib/services/theme-preferences';
+  import { hasRaidManagementAccess } from '$lib/services/raid-management';
   import { getGameClassDisplayName, getGameClassIconId } from '$lib/data/classes';
 
   import { listen } from '@tauri-apps/api/event';
@@ -80,6 +81,7 @@
   let discordAuthState: DiscordAuthState = 'checking';
   let discordAuthMessage = 'Checking Discord access...';
   let discordAuthUser = '';
+  let discordAuthUserId = '';
   let appInitializationStarted = false;
   let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
   let meowConnectHeaderMessage = 'MeowConnect is inactive.';
@@ -114,6 +116,11 @@
   }
 
   $: if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
+    switchTab('dashboard');
+  }
+
+  $: raidManagementVisible = discordAuthState === 'approved' && hasRaidManagementAccess(discordAuthUserId);
+  $: if (!raidManagementVisible && activeTab === 'raid-management') {
     switchTab('dashboard');
   }
 
@@ -246,6 +253,7 @@
       discordAuthState = 'login';
       discordAuthMessage = 'Sign in with Discord to access LOA Tracker.';
       discordAuthUser = '';
+      discordAuthUserId = '';
     } catch (error) {
       discordAuthState = 'login';
       discordAuthMessage = `Discord auth could not be checked: ${error}`;
@@ -271,6 +279,7 @@
   function handleDiscordAuthResult(result: DiscordAuthResult) {
     discordAuthMessage = result.message;
     discordAuthUser = result.username ?? result.user_id ?? '';
+    discordAuthUserId = result.user_id ?? '';
 
     if (result.approved) {
       discordAuthState = showAuthWelcome ? 'welcome' : 'approved';
@@ -289,6 +298,7 @@
     discordAuthState = 'login';
     discordAuthMessage = 'Sign in with Discord to access LOA Tracker.';
     discordAuthUser = '';
+    discordAuthUserId = '';
   }
 
   async function proceedFromWelcome() {
@@ -394,6 +404,9 @@
 
   function switchTab(tab: string) {
     if (tab === 'meow-connect' && !meowConnectFeatureEnabled) {
+      tab = 'dashboard';
+    }
+    if (tab === 'raid-management' && !raidManagementVisible) {
       tab = 'dashboard';
     }
     activeTab = isAppTab(tab) ? tab : 'dashboard';
@@ -718,7 +731,14 @@
 {:else}
 <div class="app">
   <!-- Sidebar -->
-  <Sidebar {activeTab} {switchTab} isOpen={sidebarOpen} {discordAuthUser} showMeowConnect={meowConnectFeatureEnabled} />
+  <Sidebar
+    {activeTab}
+    {switchTab}
+    isOpen={sidebarOpen}
+    {discordAuthUser}
+    showMeowConnect={meowConnectFeatureEnabled}
+    showRaidManagement={raidManagementVisible}
+  />
 
   <!-- Overlay for mobile -->
   {#if sidebarOpen}
@@ -759,6 +779,9 @@
       bind:activeSettingsTab
       {activeMeowConnectTab}
       {meowConnectFeatureEnabled}
+      {raidManagementVisible}
+      {discordAuthUserId}
+      {discordAuthUser}
       highlightCharId={$activeFilterCharId}
       {setHeaderContent}
       {handlePendingRequestsChanged}

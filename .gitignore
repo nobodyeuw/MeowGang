@@ -47,6 +47,8 @@ src-tauri/gen/
 /.github
 /supabase
 CLEANUP_PLAN.md
+RAID_MANAGEMENT_BOT_PLAN.md
+private/
 
 # Private scraper implementations kept local to avoid unnecessary traffic to third-party services.
 src-tauri/private/

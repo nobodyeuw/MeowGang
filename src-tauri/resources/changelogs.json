@@ -1,104 +1,23 @@
 {
   "versions": [
     {
-      "version": "1.3.4",
+      "version": "1.3.5",
       "date": "2026-06-09",
       "changes": [
         {
           "type": "Added",
-          "description": "MeowConnect can now complete managed roster characters from shared LOA Logs evidence.",
-          "details": "If multiple connected rosters under the same account appear in the same uploaded raid log, matching characters can now be completed as well. Logs use the profile name for the played roster and roster names for additional managed rosters."
+          "description": "Added the first local foundation for MeowGang Raid Management.",
+          "details": "Selected Discord IDs can access a new Raid Management area for drafting learning and reclear signup sheets with fixed raid templates, custom raid trains, Discord timestamp previews, DPS/SUP spots, and experienced helper markers for learning runs."
         },
         {
-          "type": "Improved",
-          "description": "MeowConnect raid completion refreshes faster.",
-          "details": "Friend clear hints now apply during normal MeowConnect refreshes and realtime updates, so Dashboard and To Do can update without needing to manually open the Logs tab first."
-        },
-        {
-          "type": "Improved",
-          "description": "MeowConnect Logs explain shared clears better.",
-          "details": "MeowConnect-sourced raid completions are grouped with LOA Logs style entries, and same-account roster participants are separated by roster name when needed."
+          "type": "Updated",
+          "description": "Updated raid gold values for the latest game changes.",
+          "details": "Raid reward data now reflects the new normal and bound gold splits for Echidna, Behemoth, Aegir, Brelshaza, Mordum, Armoche, Kazeros, and Serca. Cathedral data is prepared internally but stays hidden until encounter mapping is available."
         },
         {
           "type": "Fixed",
-          "description": "Chaos Gate and Field Boss availability now follows the event calendar correctly.",
-          "details": "The To Do tab now shows the countdown when Chaos Gate or Field Boss are not active, instead of incorrectly showing them as available outside their scheduled 17-hour window."
-        },
-        {
-          "type": "Fixed",
-          "description": "Field Boss completion from the dashboard now matches To Do correctly.",
-          "details": "Completing Field Boss from the dashboard label now updates the To Do tab state consistently."
-        },
-        {
-          "type": "Fixed",
-          "description": "Roster-wide event task storage is more stable.",
-          "details": "Roster-wide tasks are now prepared to store completions without relying on a specific character id, preventing deleted characters from breaking event completion state."
-        },
-        {
-          "type": "Fixed",
-          "description": "To Do raid gate tooltips show confirmed clear difficulty.",
-          "details": "Completed raid gates now show both planned and cleared difficulty when clear difficulty data is available, including clears filled by MeowConnect."
-        },
-        {
-          "type": "Fixed",
-          "description": "To Do event buttons are cleaner.",
-          "details": "Chaos Gate and Field Boss no longer show an unnecessary 1/1 counter because they can only be completed once per roster per event day."
-        },
-        {
-          "type": "Fixed",
-          "description": "Custom roster names are preserved during roster refreshes.",
-          "details": "Daily roster updates and newly discovered characters now keep the renamed roster display name instead of reverting to the original scraped roster name."
-        },
-        {
-          "type": "Fixed",
-          "description": "Roster-wide tracking settings no longer duplicate per character.",
-          "details": "Tracking settings for roster-wide tasks are now stored once per roster, so newly added or removed characters do not create duplicate roster task settings."
-        }
-      ]
-    },
-    {
-      "version": "1.3.3",
-      "date": "2026-06-08",
-      "changes": [
-        {
-          "type": "Added",
-          "description": "Added Ship Shop as a weekly roster-wide task.",
-          "details": "Ship Shop can now be tracked in To Do and reminds you which ports sell gems when completed."
-        },
-        {
-          "type": "Added",
-          "description": "Added a daily Sea Coin header reminder.",
-          "details": "When Ship Shop is tracked, a small ship icon in the header reminds you to buy 300 Sea Coins in your Stronghold. Multiple rosters can be completed individually."
-        },
-        {
-          "type": "Added",
-          "description": "Added Lost Ark Bible preview links to MeowConnect Logs.",
-          "details": "When LOA Logs has uploaded a clear to lostark.bible, MeowConnect Logs can now show compact per-gate preview links on the matching shared clear."
-        },
-        {
-          "type": "Added",
-          "description": "Added optional MeowConnect friend clear hints.",
-          "details": "System Settings now includes an opt-in MeowConnect toggle that can use friends' LOA Logs evidence to fill missing local raid gate completions as a MeowConnect source, while completed manual and local LOA Logs clears keep priority."
-        },
-        {
-          "type": "Fixed",
-          "description": "Rested values now catch up correctly after multiple missed resets.",
-          "details": "Characters that were not cleared while the app was closed for multiple daily resets now receive +10 rested per missed reset cycle, instead of only catching up one cycle."
-        },
-        {
-          "type": "Fixed",
-          "description": "Roster-wide task completions are more reliable.",
-          "details": "Roster-wide tasks such as Ship Shop, Sea Coins, Chaos Gate, and Field Boss now keep their completion state even if the original stored character is removed from the roster."
-        },
-        {
-          "type": "Fixed",
-          "description": "Dashboard card task icons stay aligned.",
-          "details": "Weekly and daily icons in dashboard card view now keep stable slots when a weekly task is untracked."
-        },
-        {
-          "type": "Fixed",
-          "description": "MeowConnect Logs handle shared clears more accurately.",
-          "details": "Shared LOA Logs clears now deduplicate overlapping gate entries, include connected friends found in the encounter player list, and mark borrowed or temporary characters with an info indicator instead of treating them as roster-owned characters."
+          "description": "MeowConnect temporary-player markers are more accurate.",
+          "details": "Temporary played-by labels now stay tied to the specific uploaded encounter instead of being reused on unrelated logs where the same borrowed character only appears as another party member."
         }
       ]
     }

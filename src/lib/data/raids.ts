@@ -11,9 +11,42 @@ export interface RaidGate {
 export interface Raid {
   id: string;
   name: string;
-  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare";
+  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare" | "Stage 1" | "Stage 2" | "Stage 3";
   gates: RaidGate[];
 }
+
+// Prepared for the next raid release, but intentionally not included in `RAIDS`
+// until encounter names/boss mappings are known. Keeping it separate prevents the
+// frontend raid settings and auto-completion logic from exposing incomplete data.
+export const PENDING_CATHEDRAL_RAIDS: Raid[] = [
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Stage 1",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 0, boundGold: 13500, boxPrice: 0 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 0, boundGold: 16500, boxPrice: 0 }
+    ]
+  },
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Stage 2",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1720, tradableGold: 0, boundGold: 16000, boxPrice: 0 },
+      { gate: "Gate 2", minIlvl: 1720, tradableGold: 0, boundGold: 24000, boxPrice: 0 }
+    ]
+  },
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Stage 3",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1750, tradableGold: 0, boundGold: 20000, boxPrice: 0 },
+      { gate: "Gate 2", minIlvl: 1750, tradableGold: 0, boundGold: 30000, boxPrice: 0 }
+    ]
+  }
+];
 
 export const RAIDS: Raid[] = [
   {
@@ -21,8 +54,8 @@ export const RAIDS: Raid[] = [
     name: "Echidna",
     difficulty: "Solo",
     gates: [
-      { gate: "Gate 1", minIlvl: 1620, tradableGold: 0, boundGold: 3500, boxPrice: 310 },
-      { gate: "Gate 2", minIlvl: 1620, tradableGold: 0, boundGold: 5600, boxPrice: 700 }
+      { gate: "Gate 1", minIlvl: 1620, tradableGold: 0, boundGold: 1900, boxPrice: 310 },
+      { gate: "Gate 2", minIlvl: 1620, tradableGold: 0, boundGold: 4200, boxPrice: 700 }
     ]
   },
   {
@@ -30,8 +63,8 @@ export const RAIDS: Raid[] = [
     name: "Aegir",
     difficulty: "Solo",
     gates: [
-      { gate: "Gate 1", minIlvl: 1660, tradableGold: 0, boundGold: 7000, boxPrice: 750 },
-      { gate: "Gate 2", minIlvl: 1660, tradableGold: 0, boundGold: 9800, boxPrice: 1780 }
+      { gate: "Gate 1", minIlvl: 1660, tradableGold: 1750, boundGold: 1750, boxPrice: 750 },
+      { gate: "Gate 2", minIlvl: 1660, tradableGold: 4000, boundGold: 4000, boxPrice: 1780 }
     ]
   },
   {
@@ -39,8 +72,8 @@ export const RAIDS: Raid[] = [
     name: "Aegir",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1660, tradableGold: 3500, boundGold: 3500, boxPrice: 750 },
-      { gate: "Gate 2", minIlvl: 1660, tradableGold: 4900, boundGold: 4900, boxPrice: 1780 }
+      { gate: "Gate 1", minIlvl: 1660, tradableGold: 1750, boundGold: 1750, boxPrice: 750 },
+      { gate: "Gate 2", minIlvl: 1660, tradableGold: 4000, boundGold: 4000, boxPrice: 1780 }
     ]
   },
   {
@@ -48,8 +81,8 @@ export const RAIDS: Raid[] = [
     name: "Aegir",
     difficulty: "Hard",
     gates: [
-      { gate: "Gate 1", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 1820 },
-      { gate: "Gate 2", minIlvl: 1680, tradableGold: 7000, boundGold: 7000, boxPrice: 4150 }
+      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2750, boundGold: 2750, boxPrice: 1820 },
+      { gate: "Gate 2", minIlvl: 1680, tradableGold: 6250, boundGold: 6250, boxPrice: 4150 }
     ]
   },
   {
@@ -57,8 +90,8 @@ export const RAIDS: Raid[] = [
     name: "Brelshaza",
     difficulty: "Solo",
     gates: [
-      { gate: "Gate 1", minIlvl: 1670, tradableGold: 0, boundGold: 6300, boxPrice: 1820 },
-      { gate: "Gate 2", minIlvl: 1670, tradableGold: 0, boundGold: 12950, boxPrice: 3720 }
+      { gate: "Gate 1", minIlvl: 1670, tradableGold: 2750, boundGold: 2750, boxPrice: 1820 },
+      { gate: "Gate 2", minIlvl: 1670, tradableGold: 5500, boundGold: 5500, boxPrice: 3720 }
     ]
   },
   {
@@ -66,8 +99,8 @@ export const RAIDS: Raid[] = [
     name: "Brelshaza",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1670, tradableGold: 3150, boundGold: 3150, boxPrice: 1820 },
-      { gate: "Gate 2", minIlvl: 1670, tradableGold: 6475, boundGold: 6475, boxPrice: 3720 }
+      { gate: "Gate 1", minIlvl: 1670, tradableGold: 2750, boundGold: 2750, boxPrice: 1820 },
+      { gate: "Gate 2", minIlvl: 1670, tradableGold: 5500, boundGold: 5500, boxPrice: 3720 }
     ]
   },
   {
@@ -75,8 +108,8 @@ export const RAIDS: Raid[] = [
     name: "Brelshaza",
     difficulty: "Hard",
     gates: [
-      { gate: "Gate 1", minIlvl: 1690, tradableGold: 3850, boundGold: 3850, boxPrice: 2400 },
-      { gate: "Gate 2", minIlvl: 1690, tradableGold: 8050, boundGold: 8050, boxPrice: 5100 }
+      { gate: "Gate 1", minIlvl: 1690, tradableGold: 3750, boundGold: 3750, boxPrice: 2400 },
+      { gate: "Gate 2", minIlvl: 1690, tradableGold: 7750, boundGold: 7750, boxPrice: 5100 }
     ]
   },
   {
@@ -84,9 +117,9 @@ export const RAIDS: Raid[] = [
     name: "Mordum",
     difficulty: "Solo",
     gates: [
-      { gate: "Gate 1", minIlvl: 1680, tradableGold: 0, boundGold: 6000, boxPrice: 2400 },
-      { gate: "Gate 2", minIlvl: 1680, tradableGold: 0, boundGold: 9500, boxPrice: 3200 },
-      { gate: "Gate 3", minIlvl: 1680, tradableGold: 0, boundGold: 12500, boxPrice: 4200 }
+      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 2400 },
+      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 3200 },
+      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 4200 }
     ]
   },
   {
@@ -94,9 +127,9 @@ export const RAIDS: Raid[] = [
     name: "Mordum",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1680, tradableGold: 4200, boundGold: 1800, boxPrice: 2400 },
-      { gate: "Gate 2", minIlvl: 1680, tradableGold: 6650, boundGold: 2850, boxPrice: 3200 },
-      { gate: "Gate 3", minIlvl: 1680, tradableGold: 8750, boundGold: 3750, boxPrice: 4200 }
+      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 2400 },
+      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 3200 },
+      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 4200 }
     ]
   },
   {
@@ -104,9 +137,9 @@ export const RAIDS: Raid[] = [
     name: "Mordum",
     difficulty: "Hard",
     gates: [
-      { gate: "Gate 1", minIlvl: 1700, tradableGold: 4900, boundGold: 2100, boxPrice: 2700 },
-      { gate: "Gate 2", minIlvl: 1700, tradableGold: 7700, boundGold: 3300, boxPrice: 4100 },
-      { gate: "Gate 3", minIlvl: 1700, tradableGold: 14000, boundGold: 6000, boxPrice: 5800 }
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 2500, boundGold: 2500, boxPrice: 2700 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 4000, boundGold: 4000, boxPrice: 4100 },
+      { gate: "Gate 3", minIlvl: 1700, tradableGold: 7000, boundGold: 7000, boxPrice: 5800 }
     ]
   },
   {
@@ -114,8 +147,8 @@ export const RAIDS: Raid[] = [
     name: "Echidna",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1620, tradableGold: 1750, boundGold: 1750, boxPrice: 310 },
-      { gate: "Gate 2", minIlvl: 1620, tradableGold: 2800, boundGold: 2800, boxPrice: 700 }
+      { gate: "Gate 1", minIlvl: 1620, tradableGold: 0, boundGold: 1900, boxPrice: 310 },
+      { gate: "Gate 2", minIlvl: 1620, tradableGold: 0, boundGold: 4200, boxPrice: 700 }
     ]
   },
   {
@@ -123,8 +156,8 @@ export const RAIDS: Raid[] = [
     name: "Armoche",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1700, tradableGold: 12500, boundGold: 0, boxPrice: 4000 },
-      { gate: "Gate 2", minIlvl: 1700, tradableGold: 20500, boundGold: 0, boxPrice: 6560 }
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 6250, boundGold: 6250, boxPrice: 4000 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 10250, boundGold: 10250, boxPrice: 6560 }
     ]
   },
   {
@@ -141,8 +174,8 @@ export const RAIDS: Raid[] = [
     name: "Kazeros",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 14000, boundGold: 0, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 26000, boundGold: 0, boxPrice: 8320 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 13000, boundGold: 13000, boxPrice: 8320 }
     ]
   },
   {
@@ -159,8 +192,8 @@ export const RAIDS: Raid[] = [
     name: "Serca",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 14000, boundGold: 0, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 21000, boundGold: 0, boxPrice: 6720 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
     ]
   },
   {
@@ -186,8 +219,8 @@ export const RAIDS: Raid[] = [
     name: "Echidna",
     difficulty: "Hard",
     gates: [
-      { gate: "Gate 1", minIlvl: 1630, tradableGold: 2100, boundGold: 2800, boxPrice: 720 },
-      { gate: "Gate 2", minIlvl: 1630, tradableGold: 2800, boundGold: 3500, boxPrice: 1630 }
+      { gate: "Gate 1", minIlvl: 1640, tradableGold: 1100, boundGold: 1100, boxPrice: 720 },
+      { gate: "Gate 2", minIlvl: 1640, tradableGold: 2500, boundGold: 2500, boxPrice: 1630 }
     ]
   },
   {
@@ -195,8 +228,8 @@ export const RAIDS: Raid[] = [
     name: "Behemoth",
     difficulty: "Normal",
     gates: [
-      { gate: "Gate 1", minIlvl: 1620, tradableGold: 1750, boundGold: 1750, boxPrice: 1250 },
-      { gate: "Gate 2", minIlvl: 1620, tradableGold: 2800, boundGold: 2800, boxPrice: 2000 }
+      { gate: "Gate 1", minIlvl: 1620, tradableGold: 1100, boundGold: 1100, boxPrice: 1250 },
+      { gate: "Gate 2", minIlvl: 1620, tradableGold: 2500, boundGold: 2500, boxPrice: 2000 }
     ]
   }
 ];

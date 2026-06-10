@@ -18,7 +18,6 @@ export function buildMeowConnectLogEntries(
 ): MeowConnectLogEntry[] {
   const allowedRaidIds = new Set(raidIds);
   const participantIndex = buildLogParticipantIndex(localSnapshot, remoteSnapshots, localProfile);
-  const temporaryPlayerIndex = buildTemporaryPlayerIndex(localSnapshot, remoteSnapshots, localProfile);
   const localEntries = localSnapshot
     ? buildSnapshotLogEntries({
         profile: {
@@ -45,8 +44,7 @@ export function buildMeowConnectLogEntries(
           ),
           buildLogOwnerNameSet(localSnapshot, remoteSnapshots, localProfile),
           buildLogCharacterNameSet(localSnapshot, remoteSnapshots),
-          participantIndex,
-          temporaryPlayerIndex
+          participantIndex
         )
       )
     )
@@ -428,49 +426,6 @@ function buildLogCharacterNameSet(
   ].map((character) => normalizeSingleLogPlayer(character.charName)).filter(Boolean));
 }
 
-function buildTemporaryPlayerIndex(
-  localSnapshot: MeowConnectLocalSnapshot | null,
-  remoteSnapshots: MeowConnectRemoteSnapshot[],
-  localProfile?: MeowConnectProfile | null
-): Map<string, { name: string; playedBy: string }> {
-  const temporaryPlayers = new Map<string, { name: string; playedBy: string }>();
-  const snapshots: MeowConnectRemoteSnapshot[] = [
-    ...(localSnapshot
-      ? [{
-          profile: {
-            userId: 'local',
-            discordId: 'local',
-            displayName: 'You',
-            avatarUrl: localProfile?.avatarUrl
-          },
-          characters: localSnapshot.characters,
-          completionSnapshots: localSnapshot.completionSnapshots,
-          raidReservations: localSnapshot.raidReservations,
-          encounterSnapshots: localSnapshot.encounterSnapshots,
-          updatedAt: new Date(localSnapshot.generatedAt).toISOString()
-        }]
-      : []),
-    ...remoteSnapshots
-  ];
-
-  for (const snapshot of snapshots) {
-    const rosterCharacterNames = new Set(snapshot.characters.map((character) => normalizeSingleLogPlayer(character.charName)));
-
-    for (const encounter of snapshot.encounterSnapshots || []) {
-      const localPlayer = encounter.localPlayer.trim();
-      const normalizedLocalPlayer = normalizeSingleLogPlayer(localPlayer);
-      if (!localPlayer || isGenericLogPlayer(localPlayer) || rosterCharacterNames.has(normalizedLocalPlayer)) continue;
-
-      temporaryPlayers.set(normalizedLocalPlayer, {
-        name: localPlayer,
-        playedBy: snapshot.profile.displayName
-      });
-    }
-  }
-
-  return temporaryPlayers;
-}
-
 function buildEncounterOwnerParticipants(
   encounter: MeowConnectEncounterSnapshot,
   profile: MeowConnectProfile,
@@ -554,8 +509,7 @@ function normalizeEncounterLogParticipantLabels(
   entries: MeowConnectLogEntry[],
   ownerNames: Set<string>,
   characterNames: Set<string>,
-  participantsByCharacter: Map<string, MeowConnectLogParticipant>,
-  temporaryPlayersByName: Map<string, { name: string; playedBy: string }>
+  participantsByCharacter: Map<string, MeowConnectLogParticipant>
 ): MeowConnectLogEntry[] {
   return entries.map((entry) => {
     if (entry.source !== 'LOA Logs') return entry;
@@ -566,12 +520,7 @@ function normalizeEncounterLogParticipantLabels(
         return characterNames.has(normalized);
       })
     );
-    const temporaryPlayers = dedupeTemporaryPlayers([
-      ...(entry.temporaryPlayers || []),
-      ...(entry.players || [])
-        .map((player) => temporaryPlayersByName.get(normalizeSingleLogPlayer(player)))
-        .filter((player): player is { name: string; playedBy: string } => Boolean(player))
-    ]);
+    const temporaryPlayers = dedupeTemporaryPlayers(entry.temporaryPlayers || []);
     const cleanedParticipants = (entry.participants || [entryAsParticipant(entry)])
       .map((participant) => {
         const playerNames = splitLogPlayers(participant.localPlayer);

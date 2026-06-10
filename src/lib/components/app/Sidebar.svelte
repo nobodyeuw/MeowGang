@@ -6,12 +6,14 @@
   export let isOpen: boolean = false;
   export let discordAuthUser: string = '';
   export let showMeowConnect: boolean = true;
+  export let showRaidManagement: boolean = false;
 
   const navIcons = {
     dashboard: appAsset('dashboard.png'),
     todo: appAsset('todo_tab.png'),
     marketplace: appAsset('marketplace.png'),
     meowConnect: appAsset('meowconnect_tab.png'),
+    raidManagement: appAsset('LOAtracker_appicon.png'),
     settings: appAsset('settings_tab.png'),
     updates: appAsset('updates.png')
   };
@@ -62,6 +64,19 @@
           <img src={navIcons.meowConnect} alt="" />
         </span>
         <span class="nav-text">MeowConnect</span>
+      </button>
+    {/if}
+
+    {#if showRaidManagement}
+      <button
+        class="nav-item"
+        class:active={activeTab === 'raid-management'}
+        on:click={() => switchTab('raid-management')}
+      >
+        <span class="nav-icon image-icon">
+          <img src={navIcons.raidManagement} alt="" />
+        </span>
+        <span class="nav-text">Raid Management</span>
       </button>
     {/if}
 

@@ -1,6 +1,6 @@
 import type { AppTab, MeowConnectHeaderState } from '$lib/types/app-shell';
 
-export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'meow-connect', 'updates'];
+export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'meow-connect', 'raid-management', 'updates'];
 
 export function isAppTab(value: string): value is AppTab {
   return (VALID_APP_TABS as string[]).includes(value);

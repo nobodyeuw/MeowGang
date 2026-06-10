@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { Dashboard, Marketplace, MeowConnect, Settings, Todo, UpdateTab } from '$lib/components/features';
+  import { Dashboard, Marketplace, MeowConnect, RaidManagement, Settings, Todo, UpdateTab } from '$lib/components/features';
   import type { AppTab, MeowConnectSection } from '$lib/types/app-shell';
 
   export let activeTab: AppTab = 'dashboard';
   export let activeSettingsTab = 'roster';
   export let activeMeowConnectTab: MeowConnectSection = 'together';
   export let meowConnectFeatureEnabled = true;
+  export let raidManagementVisible = false;
+  export let discordAuthUserId = '';
+  export let discordAuthUser = '';
   export let highlightCharId: number | null = null;
   export let setHeaderContent: (content: string) => void;
   export let handlePendingRequestsChanged: (count: number) => void;
@@ -25,6 +28,8 @@
       activeSection={activeMeowConnectTab}
       on:pendingRequestsChanged={(event: CustomEvent<number>) => handlePendingRequestsChanged(event.detail)}
     />
+  {:else if activeTab === 'raid-management' && raidManagementVisible}
+    <RaidManagement discordId={discordAuthUserId} discordName={discordAuthUser} />
   {:else if activeTab === 'updates'}
     <UpdateTab />
   {/if}
