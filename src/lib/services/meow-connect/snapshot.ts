@@ -202,7 +202,7 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
           difficulty: completion.difficulty || '',
           gate: completion.gate || completion.sessionId || 'raid',
           is_completed: completion.isCompleted,
-          source: completion.source || 'manual',
+          source: getSharedCompletionSource(completion, syncedSnapshot.encounterSnapshots || []),
           session_id: completion.sessionId || null,
           reset_cycle: completion.resetCycle || resetCycle,
           completed_at: completion.completedAt ?? null
@@ -260,6 +260,51 @@ export async function syncMeowConnectSnapshot(snapshot: MeowConnectLocalSnapshot
   }
 
   return { syncedSnapshot, duplicateCharacters: blockedDuplicateCharacters };
+}
+
+/// Keeps completion-only uploads from being presented as encounter-backed LOA Logs.
+function getSharedCompletionSource(
+  completion: MeowConnectLocalSnapshot['completionSnapshots'][number],
+  encounters: MeowConnectEncounterSnapshot[]
+): string {
+  const source = completion.source || 'manual';
+  if (!isLoaLogsSource(source)) return source;
+  return hasMatchingEncounterEvidence(completion, encounters) ? source : 'manual';
+}
+
+function isLoaLogsSource(source?: string | null): boolean {
+  const normalized = String(source || '').trim().toLowerCase().replace(/\s+/g, '');
+  return normalized === 'loalogs';
+}
+
+function hasMatchingEncounterEvidence(
+  completion: MeowConnectLocalSnapshot['completionSnapshots'][number],
+  encounters: MeowConnectEncounterSnapshot[]
+): boolean {
+  const completionGate = normalizeCompletionGateLabel(completion.gate || completion.sessionId || '');
+  const completionDifficulty = normalizeDifficulty(completion.difficulty || '');
+  return encounters.some((encounter) => {
+    if (!encounter.cleared || encounter.contentId !== completion.contentId) return false;
+    if (completion.charId && !(encounter.matchedCharacterIds || []).includes(completion.charId)) return false;
+    const encounterGate = normalizeCompletionGateLabel(encounter.gate || '');
+    if (completionGate && encounterGate && completionGate !== encounterGate) return false;
+    const encounterDifficulty = normalizeDifficulty(encounter.difficulty || '');
+    if (completionDifficulty && encounterDifficulty && completionDifficulty !== encounterDifficulty) return false;
+    return true;
+  });
+}
+
+function normalizeCompletionGateLabel(value: string): string {
+  const raw = String(value || '').trim().toLowerCase();
+  const gateMatch = raw.match(/gate\s*(\d+)/i);
+  if (gateMatch) return `gate ${gateMatch[1]}`;
+  const suffixMatch = raw.match(/_(g(?:ate)?_?(\d+)|(\d+))$/i);
+  if (suffixMatch) return `gate ${suffixMatch[2] || suffixMatch[3]}`;
+  return raw;
+}
+
+function normalizeDifficulty(value: string): string {
+  return String(value || '').trim().toLowerCase();
 }
 
 export async function fetchMeowConnectRemoteSnapshots(resetCycle?: string): Promise<MeowConnectRemoteSnapshot[]> {

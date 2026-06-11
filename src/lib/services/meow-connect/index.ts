@@ -438,8 +438,11 @@ async function applyWhitelistDisplayNamesToFriends(
   })));
 }
 
-export function subscribeMeowConnectChanges(onChange: () => void): () => void {
-  if (!isMeowConnectRealtimeEnabled()) {
+export function subscribeMeowConnectChanges(
+  onChange: () => void,
+  options: { ignoreRealtimePreference?: boolean; connectedMessage?: string } = {}
+): () => void {
+  if (!options.ignoreRealtimePreference && !isMeowConnectRealtimeEnabled()) {
     return () => {};
   }
 
@@ -457,7 +460,7 @@ export function subscribeMeowConnectChanges(onChange: () => void): () => void {
     .subscribe((status, error) => {
       if (!hasMeowConnectConsent()) return;
       if (status === 'SUBSCRIBED') {
-        updateMeowConnectStatus('active', 'MeowConnect realtime is connected.');
+        updateMeowConnectStatus('active', options.connectedMessage || 'MeowConnect realtime is connected.');
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         markMeowConnectFailure(error || new Error(`MeowConnect realtime ${status.toLowerCase().replace('_', ' ')}.`));
       } else if (status === 'CLOSED') {

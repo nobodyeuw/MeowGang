@@ -35,7 +35,7 @@ export function buildMeowConnectLogEntries(
     : [];
 
   return suppressCoveredEncounterLogEntries(combineEncounterGateLogEntries(
-    suppressManualLogsCoveredByEncounterLogs(
+    suppressCompletionOnlyLogsCoveredByEncounterLogs(suppressManualLogsCoveredByEncounterLogs(
       combineSharedEncounterLogEntries(
         normalizeEncounterLogParticipantLabels(
           enrichEncounterLogParticipants(
@@ -47,7 +47,7 @@ export function buildMeowConnectLogEntries(
           participantIndex
         )
       )
-    )
+    ))
   )).sort((a, b) => getLogDisplayTimestamp(b) - getLogDisplayTimestamp(a));
 }
 
@@ -283,6 +283,15 @@ function suppressManualLogsCoveredByEncounterLogs(entries: MeowConnectLogEntry[]
   });
 }
 
+function suppressCompletionOnlyLogsCoveredByEncounterLogs(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
+  const encounterEntries = entries.filter((entry) => entry.source === 'LOA Logs' && !isCompletionOnlyLogEntry(entry));
+
+  return entries.filter((entry) => {
+    if (!isCompletionOnlyLogEntry(entry)) return true;
+    return !encounterEntries.some((encounterEntry) => coversCompletionOnlyLogEntry(encounterEntry, entry));
+  });
+}
+
 function suppressCoveredEncounterLogEntries(entries: MeowConnectLogEntry[]): MeowConnectLogEntry[] {
   return entries.filter((entry) => {
     if (entry.source !== 'LOA Logs') return true;
@@ -317,6 +326,26 @@ function coversManualLogEntry(encounterEntry: MeowConnectLogEntry, manualEntry: 
     .flatMap((participant) => splitLogPlayers(participant.localPlayer))
     .map(normalizeSingleLogPlayer)
     .some((player) => encounterPlayers.has(player));
+}
+
+function coversCompletionOnlyLogEntry(encounterEntry: MeowConnectLogEntry, completionEntry: MeowConnectLogEntry): boolean {
+  if (encounterEntry.contentId !== completionEntry.contentId) return false;
+  if (!sameDifficulty(encounterEntry.difficulty, completionEntry.difficulty)) return false;
+  if (encounterEntry.resetCycle && completionEntry.resetCycle && encounterEntry.resetCycle !== completionEntry.resetCycle) return false;
+  if (!sameOrUnknownGate(encounterEntry.gate, completionEntry.gate)) return false;
+
+  const encounterPlayers = getNormalizedLogParticipantPlayers(encounterEntry);
+  const completionPlayers = getNormalizedLogParticipantPlayers(completionEntry);
+  if (encounterPlayers.size === 0 || completionPlayers.size === 0) return false;
+
+  return Array.from(completionPlayers).some((player) => encounterPlayers.has(player));
+}
+
+function isCompletionOnlyLogEntry(entry: MeowConnectLogEntry): boolean {
+  return entry.source === 'LOA Logs' &&
+    (entry.players || []).length === 0 &&
+    (entry.bibleLogs || []).length === 0 &&
+    (entry.duration || 0) === 0;
 }
 
 function isGateSuperset(candidateGate?: string, coveredGate?: string): boolean {

@@ -2,16 +2,20 @@
   import { loadDiscordWhitelistMembers } from '$lib/services/discord-whitelist';
   import {
     deleteRaidSignupSheet,
+    grantRaidManagementAccessMember,
     getRaidManagementAccessMembers,
     getRaidSignupSheets,
     hasRaidManagementAccess,
+    loadRaidManagementAccessMembers,
     loadRaidManagementRequests,
     loadRaidSignupSheetsFromSupabase,
     publishRaidSignupSheet,
     removeRaidSignupEntry,
     removeRaidManagementAccessMember,
+    revokeRaidManagementAccessMember,
     saveRaidSignupSheet,
     setRaidManagementAccessMember,
+    updateRaidManagementRequestStatus,
     updateRaidSignupSheet
   } from '$lib/services/raid-management';
   import {
@@ -35,6 +39,7 @@
 
   export let discordId = '';
   export let discordName = '';
+  export let accessGranted = false;
 
   let accessMembers: RaidManagementAccessMember[] = [];
   let whitelistMembers: FriendOption[] = [];
@@ -47,7 +52,6 @@
   let requestSearch = '';
   let showDoneRequests = false;
   let requests: RaidManagementRequest[] = [];
-  let doneRequestIds: string[] = [];
   let requestsError = '';
   let globalRefreshLoading = false;
   let globalRefreshError = '';
@@ -87,7 +91,7 @@
     canHelp: appAsset('meowtator_can_help.webp')
   };
 
-  $: hasAccess = hasRaidManagementAccess(discordId);
+  $: hasAccess = accessGranted || hasRaidManagementAccess(discordId);
   $: selectedRaidCapacity = getRaidSignupTotalSpots(selectedRaidIds, customRaids);
   $: suggestedDpsSpots = getRaidSignupTotalDpsSpots(selectedRaidIds, customRaids);
   $: suggestedSupportSpots = getRaidSignupTotalSupportSpots(selectedRaidIds, customRaids);
@@ -118,23 +122,6 @@
   function refreshLocalState() {
     accessMembers = getRaidManagementAccessMembers();
     localSheets = getRaidSignupSheets();
-    doneRequestIds = readDoneRequestIds();
-  }
-
-  function readDoneRequestIds(): string[] {
-    if (typeof localStorage === 'undefined') return [];
-    try {
-      return JSON.parse(localStorage.getItem('raidManagement.doneRequestIds') || '[]') as string[];
-    } catch {
-      return [];
-    }
-  }
-
-  function writeDoneRequestIds(ids: string[]) {
-    doneRequestIds = ids;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('raidManagement.doneRequestIds', JSON.stringify(ids));
-    }
   }
 
   async function loadWhitelist() {
@@ -155,14 +142,16 @@
       globalRefreshLoading = true;
       requestsError = '';
       globalRefreshError = '';
-      const [nextRequests, nextSharedSheets, nextWhitelistMembers] = await Promise.all([
+      const [nextRequests, nextSharedSheets, nextWhitelistMembers, nextAccessMembers] = await Promise.all([
         loadRaidManagementRequests(),
         loadRaidSignupSheetsFromSupabase(),
-        loadDiscordWhitelistMembers().catch(() => whitelistMembers)
+        loadDiscordWhitelistMembers().catch(() => whitelistMembers),
+        loadRaidManagementAccessMembers().catch(() => accessMembers)
       ]);
       requests = nextRequests;
       sharedSheets = nextSharedSheets;
       whitelistMembers = nextWhitelistMembers;
+      accessMembers = nextAccessMembers;
       globalRefreshLoadedAt = Date.now();
     } catch (error) {
       globalRefreshError = error instanceof Error ? error.message : String(error);
@@ -218,25 +207,81 @@
     return offsetDate.toISOString().slice(0, 16);
   }
 
+  function dateToLocalDateTimeInput(date: Date) {
+    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return offsetDate.toISOString().slice(0, 16);
+  }
+
+  function parseServerDateTimeRequest(dateValue: string, timeValue: string): string {
+    const dateMatch = dateValue.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    const timeMatch = timeValue.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!dateMatch || !timeMatch) return '';
+
+    const day = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    const year = Number(dateMatch[3]);
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2]);
+    if (
+      day < 1 ||
+      day > 31 ||
+      month < 1 ||
+      month > 12 ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return '';
+    }
+
+    const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day ||
+      date.getHours() !== hour ||
+      date.getMinutes() !== minute
+    ) {
+      return '';
+    }
+
+    return dateToLocalDateTimeInput(date);
+  }
+
   function formatReviewerName(discordIdValue: string) {
     const normalizedId = String(discordIdValue || '').trim();
     if (!normalizedId) return 'Unknown';
     return reviewerNames.get(normalizedId) || normalizedId;
   }
 
-  function isRequestDone(requestId: string) {
-    return doneRequestIds.includes(requestId);
+  function isRequestDone(request: RaidManagementRequest) {
+    return request.status === 'closed';
   }
 
-  function markRequestDone(requestId: string) {
-    if (isRequestDone(requestId)) return;
-    writeDoneRequestIds([...doneRequestIds, requestId]);
-    doneRequestIds = [...doneRequestIds];
+  async function markRequestDone(request: RaidManagementRequest) {
+    if (isRequestDone(request)) return;
+    try {
+      await updateRaidManagementRequestStatus(request.id, 'closed', discordId);
+      requests = requests.map((entry) =>
+        entry.id === request.id ? { ...entry, status: 'closed', decidedBy: discordId || entry.decidedBy } : entry
+      );
+    } catch (error) {
+      requestsError = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to mark raid request done:', error);
+    }
   }
 
-  function reopenRequest(requestId: string) {
-    writeDoneRequestIds(doneRequestIds.filter((id) => id !== requestId));
-    doneRequestIds = [...doneRequestIds];
+  async function reopenRequest(request: RaidManagementRequest) {
+    try {
+      await updateRaidManagementRequestStatus(request.id, 'accepted', discordId);
+      requests = requests.map((entry) =>
+        entry.id === request.id ? { ...entry, status: 'accepted', decidedBy: discordId || entry.decidedBy } : entry
+      );
+    } catch (error) {
+      requestsError = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to reopen raid request:', error);
+    }
   }
 
   function getSheetRaidNames(sheet: RaidSignupSheet): string[] {
@@ -325,6 +370,7 @@
     runType = getRequestRunType(request);
     selectedRaidIds = [];
     customRaids = [];
+    startsAtLocal = parseServerDateTimeRequest(request.dateWindow, request.timeWindow);
 
     for (const raidName of request.raidNames) {
       const fixedRaid = RAID_SIGNUP_RAIDS.find((raid) => raid.name.toLowerCase() === raidName.toLowerCase());
@@ -345,8 +391,9 @@
 
     note = [
       request.details,
-      request.dateWindow ? `Requested date window: ${request.dateWindow}` : '',
-      request.timeWindow ? `Requested time window: ${request.timeWindow}` : '',
+      request.dateWindow ? `Requested server date: ${request.dateWindow}` : '',
+      request.timeWindow ? `Requested server time: ${request.timeWindow}` : '',
+      startsAtLocal ? `Converted Discord time: ${formatDiscordTimestamp(startsAtLocal, 'F')}` : '',
       `Requester: ${request.requester}`
     ].filter(Boolean).join('\n');
     preRegisterDiscordId = request.discordId;
@@ -525,21 +572,36 @@
     }
   }
 
-  function grantAccess() {
+  async function grantAccess() {
     const member = whitelistMembers.find((value) => value.id === selectedAccessDiscordId);
     if (!member) return;
 
-    setRaidManagementAccessMember({
-      discordId: member.id,
-      displayName: member.name
-    });
-    selectedAccessDiscordId = '';
-    refreshLocalState();
+    try {
+      const accessMember = {
+        discordId: member.id,
+        displayName: member.name
+      };
+      setRaidManagementAccessMember(accessMember);
+      await grantRaidManagementAccessMember(accessMember, discordId);
+      selectedAccessDiscordId = '';
+      accessMembers = await loadRaidManagementAccessMembers();
+    } catch (error) {
+      globalRefreshError = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to grant raid management access:', error);
+      refreshLocalState();
+    }
   }
 
-  function revokeAccess(discordId: string) {
-    removeRaidManagementAccessMember(discordId);
-    refreshLocalState();
+  async function revokeAccess(discordIdValue: string) {
+    try {
+      removeRaidManagementAccessMember(discordIdValue);
+      await revokeRaidManagementAccessMember(discordIdValue);
+      accessMembers = await loadRaidManagementAccessMembers();
+    } catch (error) {
+      globalRefreshError = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to revoke raid management access:', error);
+      refreshLocalState();
+    }
   }
 
   function removeSheet(sheetId: string) {
@@ -560,9 +622,9 @@
   }
 
   $: filteredRequests = requests.filter((request) => {
-    const doneIds = doneRequestIds;
     const matchesStatus = requestFilter === 'all' || request.status === requestFilter;
-    const matchesDoneState = showDoneRequests || !doneIds.includes(request.id);
+    const matchesDoneState =
+      request.status !== 'closed' || showDoneRequests;
     const haystack = [
       request.title,
       request.requester,
@@ -570,7 +632,8 @@
       request.raidNames.join(' '),
       request.category,
       request.decidedBy,
-      formatReviewerName(request.decidedBy)
+      formatReviewerName(request.decidedBy),
+      request.reviewNote
     ].join(' ').toLowerCase();
     return matchesStatus && matchesDoneState && haystack.includes(requestSearch.trim().toLowerCase());
   });
@@ -937,6 +1000,7 @@
               <option value="all">Accepted + Declined</option>
               <option value="accepted">Accepted</option>
               <option value="declined">Declined</option>
+              <option value="closed">Done</option>
             </select>
           </label>
           <label>
@@ -971,30 +1035,42 @@
                 <span>{request.category}</span>
               </div>
               <div>
-                <small>Window</small>
+                <small>Server time</small>
                 <span>{request.dateWindow} | {request.timeWindow}</span>
                 <small>Requested {formatDateTime(request.createdAt)}</small>
               </div>
               <div>
-                <small>{request.status === 'accepted' ? 'Accepted by' : 'Declined by'}</small>
+                <small>
+                  {request.status === 'declined' ? 'Declined by' : request.status === 'closed' ? 'Done by' : 'Accepted by'}
+                </small>
                 <span>{formatReviewerName(request.decidedBy)}</span>
               </div>
-              <span class:accepted={request.status === 'accepted'} class="request-status">
-                {isRequestDone(request.id) ? 'done' : request.status}
+              <span
+                class:accepted={request.status === 'accepted'}
+                class:declined={request.status === 'declined'}
+                class:closed={request.status === 'closed'}
+                class="request-status"
+              >
+                {request.status === 'closed' ? 'done' : request.status}
               </span>
-              {#if request.status === 'accepted'}
+              {#if request.status === 'declined' && request.reviewNote}
+                <span class="request-info" title={request.reviewNote} aria-label={`Decline reason: ${request.reviewNote}`}>
+                  i
+                </span>
+              {/if}
+              {#if request.status === 'accepted' || request.status === 'closed'}
                 <button type="button" class="request-use-button" on:click={() => useRequest(request)}>
                   Use
                 </button>
-              {/if}
-              {#if isRequestDone(request.id)}
-                <button type="button" class="request-use-button" on:click={() => reopenRequest(request.id)}>
-                  Reopen
-                </button>
-              {:else}
-                <button type="button" class="request-use-button" on:click={() => markRequestDone(request.id)}>
-                  Done
-                </button>
+                {#if isRequestDone(request)}
+                  <button type="button" class="request-use-button" on:click={() => reopenRequest(request)}>
+                    Reopen
+                  </button>
+                {:else}
+                  <button type="button" class="request-use-button" on:click={() => markRequestDone(request)}>
+                    Done
+                  </button>
+                {/if}
               {/if}
             </div>
           {/each}
@@ -1329,6 +1405,34 @@
     border-color: var(--md-sys-color-success);
     color: var(--md-sys-color-on-primary-container) !important;
     background: var(--md-sys-color-primary-container);
+  }
+
+  .request-status.closed {
+    border-color: var(--md-sys-color-outline-variant);
+    color: var(--md-sys-color-on-surface-variant) !important;
+    background: var(--md-sys-color-surface-container-high);
+  }
+
+  .request-status.declined {
+    border-color: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error-container) !important;
+    background: var(--md-sys-color-error-container);
+  }
+
+  .request-info {
+    display: inline-grid;
+    place-items: center;
+    justify-self: end;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 50%;
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-container-high);
+    cursor: help;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
   }
 
   .request-use-button {

@@ -592,7 +592,11 @@ impl TodoRepository {
             Ok(_existing_completed) => {
                 // Update existing entry
                 conn.execute(
-                    "UPDATE completion_status SET is_completed = ?1, timestamp = ?2 WHERE char_id = ?3 AND content_id = ?4",
+                    "UPDATE completion_status
+                     SET is_completed = ?1,
+                         timestamp = ?2,
+                         completion_source = 'manual'
+                     WHERE char_id = ?3 AND content_id = ?4",
                     params![completed_value, timestamp, char_id, task_id]
                 )?;
             }
@@ -755,7 +759,12 @@ impl TodoRepository {
             Ok(_existing_completed) => {
                 // Update existing entry
                 conn.execute(
-                    "UPDATE completion_status SET is_completed = ?1, timestamp = ?2, details = ?3 WHERE char_id = ?4 AND content_id = ?5 AND session_id = ?6",
+                    "UPDATE completion_status
+                     SET is_completed = ?1,
+                         timestamp = ?2,
+                         completion_source = 'manual',
+                         details = ?3
+                     WHERE char_id = ?4 AND content_id = ?5 AND session_id = ?6",
                     params![completed_value, timestamp, difficulty, char_id, task_id, &base_session_id]
                 )?;
             }

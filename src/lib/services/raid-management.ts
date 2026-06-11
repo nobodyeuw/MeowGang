@@ -12,6 +12,8 @@ import { supabase } from '$lib/services/supabase-auth';
 
 const ACCESS_STORAGE_KEY = 'raidManagement.accessMembers';
 const SHEETS_STORAGE_KEY = 'raidManagement.signupSheets';
+const TICKET_TABLE = 'raid_management_tickets';
+const LEGACY_TICKET_TABLE = 'meowtator_project_requests';
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof localStorage === 'undefined') return fallback;
@@ -27,6 +29,11 @@ function writeJson<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function isMissingTicketTableError(error: { message?: string; code?: string } | null): boolean {
+  const message = String(error?.message || '');
+  return error?.code === '42P01' || /raid_management_tickets/i.test(message);
+}
+
 export function getRaidManagementAccessMembers(): RaidManagementAccessMember[] {
   return readJson<RaidManagementAccessMember[]>(ACCESS_STORAGE_KEY, []);
 }
@@ -36,6 +43,100 @@ export function hasRaidManagementAccess(discordId?: string | null): boolean {
   if (!normalizedId) return false;
   if (RAID_MANAGEMENT_BOOTSTRAP_ADMIN_DISCORD_IDS.includes(normalizedId)) return true;
   return getRaidManagementAccessMembers().some((member) => member.discordId === normalizedId);
+}
+
+export async function loadRaidManagementAccessMembers(): Promise<RaidManagementAccessMember[]> {
+  const { data, error } = await supabase
+    .from('raid_management_access')
+    .select('discord_id, display_name, granted_at')
+    .order('display_name', { ascending: true });
+
+  if (error && /display_name|granted_at/i.test(error.message)) {
+    const fallback = await supabase
+      .from('raid_management_access')
+      .select('discord_id')
+      .order('discord_id', { ascending: true });
+
+    if (fallback.error) {
+      throw new Error(fallback.error.message);
+    }
+
+    return ((fallback.data || []) as Array<{ discord_id: string }>).map((row) => ({
+      discordId: row.discord_id,
+      displayName: row.discord_id,
+      grantedAt: 0
+    }));
+  }
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data || []) as Array<{ discord_id: string; display_name?: string | null; granted_at?: string | null }>).map((row) => ({
+    discordId: row.discord_id,
+    displayName: row.display_name || row.discord_id,
+    grantedAt: row.granted_at ? new Date(row.granted_at).getTime() : 0
+  }));
+}
+
+export async function hasRaidManagementAccessRemote(discordId?: string | null): Promise<boolean> {
+  const normalizedId = String(discordId || '').trim();
+  if (!normalizedId) return false;
+  if (hasRaidManagementAccess(normalizedId)) return true;
+
+  const { data, error } = await supabase
+    .from('raid_management_access')
+    .select('discord_id')
+    .eq('discord_id', normalizedId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return Boolean(data);
+}
+
+export async function grantRaidManagementAccessMember(
+  member: Omit<RaidManagementAccessMember, 'grantedAt'>,
+  grantedByDiscordId = ''
+): Promise<void> {
+  const normalizedMember = {
+    discord_id: member.discordId.trim(),
+    display_name: member.displayName.trim() || member.discordId.trim(),
+    granted_by_discord_id: grantedByDiscordId.trim() || null
+  };
+  if (!normalizedMember.discord_id) return;
+
+  const { error } = await supabase
+    .from('raid_management_access')
+    .upsert(normalizedMember, { onConflict: 'discord_id' });
+
+  if (error && /display_name|granted_by_discord_id/i.test(error.message)) {
+    const fallback = await supabase
+      .from('raid_management_access')
+      .upsert({ discord_id: normalizedMember.discord_id }, { onConflict: 'discord_id' });
+
+    if (fallback.error) {
+      throw new Error(fallback.error.message);
+    }
+    return;
+  }
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function revokeRaidManagementAccessMember(discordId: string): Promise<void> {
+  const { error } = await supabase
+    .from('raid_management_access')
+    .delete()
+    .eq('discord_id', discordId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export function setRaidManagementAccessMember(member: Omit<RaidManagementAccessMember, 'grantedAt'>) {
@@ -102,6 +203,7 @@ interface RaidManagementRequestRow {
   description: string;
   status: 'open' | 'accepted' | 'declined' | 'closed';
   reviewed_by_discord_id: string | null;
+  review_note?: string | null;
   created_at: string;
 }
 
@@ -144,6 +246,14 @@ function extractRequestField(description: string, label: string): string {
   return line ? line.slice(label.length + 1).trim() : '';
 }
 
+function extractFirstRequestField(description: string, labels: string[]): string {
+  for (const label of labels) {
+    const value = extractRequestField(description, label);
+    if (value) return value;
+  }
+  return '';
+}
+
 function toDiscordTimestamp(value: string | null): string {
   if (!value) return '';
   const timestamp = Math.floor(new Date(value).getTime() / 1000);
@@ -157,20 +267,53 @@ function isRaidSignupSheetRaid(value: RaidSignupSheetRaid | undefined): value is
 function stripStructuredRequestDetails(description: string): string {
   return description
     .split('\n')
-    .filter((line) => !/^(Raid\(s\)|Date Window|Time Window):/i.test(line.trim()))
+    .filter((line) => !/^(Raid\(s\)|Date Window|Time Window|Server Date|Server Time):/i.test(line.trim()))
     .join('\n')
     .trim();
 }
 
 export async function loadRaidManagementRequests(): Promise<RaidManagementRequest[]> {
-  const { data, error } = await supabase
-    .from('meowtator_project_requests')
-    .select(
-      'request_id, requester_discord_id, requester_display_name, title, category, description, status, reviewed_by_discord_id, created_at'
-    )
-    .in('status', ['accepted', 'declined'])
+  const selectWithReviewNote =
+    'request_id, requester_discord_id, requester_display_name, title, category, description, status, reviewed_by_discord_id, review_note, created_at';
+  const selectWithoutReviewNote =
+    'request_id, requester_discord_id, requester_display_name, title, category, description, status, reviewed_by_discord_id, created_at';
+
+  let data: RaidManagementRequestRow[] | null = null;
+  let error: { message: string } | null = null;
+
+  const primary = await supabase
+    .from(TICKET_TABLE)
+    .select(selectWithReviewNote)
+    .in('status', ['accepted', 'declined', 'closed'])
     .order('created_at', { ascending: false })
     .limit(100);
+
+  data = (primary.data || null) as RaidManagementRequestRow[] | null;
+  error = primary.error;
+
+  if (error && isMissingTicketTableError(error)) {
+    const legacy = await supabase
+      .from(LEGACY_TICKET_TABLE)
+      .select(selectWithReviewNote)
+      .in('status', ['accepted', 'declined', 'closed'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    data = (legacy.data || null) as RaidManagementRequestRow[] | null;
+    error = legacy.error;
+  }
+
+  if (error && /review_note/i.test(error.message)) {
+    const fallback = await supabase
+      .from(isMissingTicketTableError(primary.error) ? LEGACY_TICKET_TABLE : TICKET_TABLE)
+      .select(selectWithoutReviewNote)
+      .in('status', ['accepted', 'declined', 'closed'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    data = (fallback.data || null) as RaidManagementRequestRow[] | null;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(error.message);
@@ -191,12 +334,46 @@ export async function loadRaidManagementRequests(): Promise<RaidManagementReques
       category: row.category,
       status: row.status,
       decidedBy: row.reviewed_by_discord_id || '',
+      reviewNote: row.review_note || '',
       createdAt: new Date(row.created_at).getTime(),
-      dateWindow: extractRequestField(row.description, 'Date Window'),
-      timeWindow: extractRequestField(row.description, 'Time Window'),
+      dateWindow: extractFirstRequestField(row.description, ['Server Date', 'Date Window']),
+      timeWindow: extractFirstRequestField(row.description, ['Server Time', 'Time Window']),
       details: stripStructuredRequestDetails(row.description)
     };
   });
+}
+
+export async function updateRaidManagementRequestStatus(
+  requestId: string,
+  status: 'accepted' | 'closed',
+  reviewerDiscordId = ''
+): Promise<void> {
+  const { error } = await supabase
+    .from(TICKET_TABLE)
+    .update({
+      status,
+      reviewed_by_discord_id: reviewerDiscordId || null
+    })
+    .eq('request_id', requestId);
+
+  if (error && isMissingTicketTableError(error)) {
+    const { error: legacyError } = await supabase
+      .from(LEGACY_TICKET_TABLE)
+      .update({
+        status,
+        reviewed_by_discord_id: reviewerDiscordId || null
+      })
+      .eq('request_id', requestId);
+
+    if (legacyError) {
+      throw new Error(legacyError.message);
+    }
+    return;
+  }
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupSheet[]> {

@@ -52,7 +52,7 @@
   import { cleanupLegacyBrowserStorage } from '$lib/utils/browser-storage';
   import { reloadTenorEmbeds } from '$lib/utils/tenor';
   import { applyTheme } from '$lib/services/theme-preferences';
-  import { hasRaidManagementAccess } from '$lib/services/raid-management';
+  import { hasRaidManagementAccess, hasRaidManagementAccessRemote } from '$lib/services/raid-management';
   import { getGameClassDisplayName, getGameClassIconId } from '$lib/data/classes';
 
   import { listen } from '@tauri-apps/api/event';
@@ -82,6 +82,9 @@
   let discordAuthMessage = 'Checking Discord access...';
   let discordAuthUser = '';
   let discordAuthUserId = '';
+  let raidManagementAccessUserId = '';
+  let raidManagementAccessGranted = false;
+  let raidManagementAccessLoading = false;
   let appInitializationStarted = false;
   let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
   let meowConnectHeaderMessage = 'MeowConnect is inactive.';
@@ -119,7 +122,12 @@
     switchTab('dashboard');
   }
 
-  $: raidManagementVisible = discordAuthState === 'approved' && hasRaidManagementAccess(discordAuthUserId);
+  $: raidManagementLocalAccess = hasRaidManagementAccess(discordAuthUserId);
+  $: raidManagementVisible =
+    discordAuthState === 'approved' && (raidManagementLocalAccess || raidManagementAccessGranted);
+  $: if (discordAuthState === 'approved' && discordAuthUserId && raidManagementAccessUserId !== discordAuthUserId) {
+    void refreshRaidManagementAccess(discordAuthUserId);
+  }
   $: if (!raidManagementVisible && activeTab === 'raid-management') {
     switchTab('dashboard');
   }
@@ -402,6 +410,19 @@
     }
   }
 
+  async function refreshRaidManagementAccess(userId: string) {
+    raidManagementAccessUserId = userId;
+    raidManagementAccessLoading = true;
+    try {
+      raidManagementAccessGranted = await hasRaidManagementAccessRemote(userId);
+    } catch (error) {
+      raidManagementAccessGranted = false;
+      console.warn('Failed to check remote raid management access:', error);
+    } finally {
+      raidManagementAccessLoading = false;
+    }
+  }
+
   function switchTab(tab: string) {
     if (tab === 'meow-connect' && !meowConnectFeatureEnabled) {
       tab = 'dashboard';
@@ -609,7 +630,7 @@
     meowConnectFeatureEnabled = isMeowConnectFeatureEnabled();
     meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
     refreshMeowConnectHeaderStatus();
-    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) {
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) {
       stopMeowConnectRealtimeHints();
     } else {
       startMeowConnectRealtimeHints();
@@ -618,15 +639,23 @@
 
   function startMeowConnectRealtimeHints() {
     if (unsubscribeMeowConnectRealtime) return;
-    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
+    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
 
-    unsubscribeMeowConnectRealtime = subscribeMeowConnectChanges(() => {
-      if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
-      meowConnectFriendHintRefreshTimer = setTimeout(() => {
-        meowConnectFriendHintRefreshTimer = null;
-        void applyMeowConnectFriendClearHintsFromRealtime();
-      }, 1500);
-    });
+    unsubscribeMeowConnectRealtime = subscribeMeowConnectChanges(
+      () => {
+        if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+        meowConnectFriendHintRefreshTimer = setTimeout(() => {
+          meowConnectFriendHintRefreshTimer = null;
+          void applyMeowConnectFriendClearHintsFromRealtime();
+        }, 1500);
+      },
+      {
+        ignoreRealtimePreference: true,
+        connectedMessage: meowConnectRealtimeEnabled
+          ? 'MeowConnect realtime is connected.'
+          : 'MeowConnect friend clear hints are listening.'
+      }
+    );
   }
 
   function stopMeowConnectRealtimeHints() {

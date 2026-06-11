@@ -57,11 +57,13 @@
     const start = entry.fightStart || entry.clearedAt || 0;
     if (!start) return 'unknown';
 
-    if (entry.source === 'Manual') {
+    const end = entry.clearedAt || (entry.fightStart ? entry.fightStart + Math.max(entry.duration || 0, 0) : start);
+    const hasKnownDuration = Boolean(entry.duration && entry.duration > 0 && end > start);
+
+    if (entry.source === 'Manual' || !hasKnownDuration) {
       return formatLogTime(start);
     }
 
-    const end = entry.clearedAt || (entry.fightStart ? entry.fightStart + Math.max(entry.duration || 0, 0) : start);
     const startDay = new Date(start).toDateString();
     const endDay = new Date(end).toDateString();
 

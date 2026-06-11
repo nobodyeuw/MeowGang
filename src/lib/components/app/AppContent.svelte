@@ -29,7 +29,7 @@
       on:pendingRequestsChanged={(event: CustomEvent<number>) => handlePendingRequestsChanged(event.detail)}
     />
   {:else if activeTab === 'raid-management' && raidManagementVisible}
-    <RaidManagement discordId={discordAuthUserId} discordName={discordAuthUser} />
+    <RaidManagement discordId={discordAuthUserId} discordName={discordAuthUser} accessGranted={raidManagementVisible} />
   {:else if activeTab === 'updates'}
     <UpdateTab />
   {/if}

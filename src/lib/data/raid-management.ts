@@ -58,6 +58,7 @@ export interface RaidManagementRequest {
   category: string;
   status: 'open' | 'accepted' | 'declined' | 'closed';
   decidedBy: string;
+  reviewNote: string;
   createdAt: number;
   dateWindow: string;
   timeWindow: string;
