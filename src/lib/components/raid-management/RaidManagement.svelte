@@ -2,6 +2,7 @@
   import { loadDiscordWhitelistMembers } from '$lib/services/discord-whitelist';
   import {
     deleteRaidSignupSheet,
+    cancelRaidSignupSheet,
     grantRaidManagementAccessMember,
     getRaidManagementAccessMembers,
     getRaidSignupSheets,
@@ -75,6 +76,8 @@
   let supportSpots = 2;
   let anySpots = 0;
   let experiencedRequired = 1;
+  let customCompositionEnabled = false;
+  let builderErrors: Record<string, string> = {};
   let note = '';
   let preRegisteredMembers: RaidSignupPreRegisteredMember[] = [];
   let preRegisterDiscordId = '';
@@ -88,7 +91,8 @@
     any: appAsset('meowtator_any.webp'),
     learning: appAsset('meowtator_learning.webp'),
     experienced: appAsset('meowtator_expierenced.webp'),
-    canHelp: appAsset('meowtator_can_help.webp')
+    canHelp: appAsset('meowtator_can_help.webp'),
+    leader: appAsset('meowtator_leader.webp')
   };
 
   $: hasAccess = accessGranted || hasRaidManagementAccess(discordId);
@@ -118,6 +122,10 @@
     const startB = parseDiscordTimestamp(b.startsAt) || Number.MAX_SAFE_INTEGER;
     return startA - startB || a.updatedAt - b.updatedAt;
   });
+  $: if (!customCompositionEnabled) {
+    dpsSpots = suggestedDpsSpots;
+    supportSpots = suggestedSupportSpots;
+  }
 
   function refreshLocalState() {
     accessMembers = getRaidManagementAccessMembers();
@@ -297,11 +305,28 @@
   }
 
   function getSheetMembers(sheet: RaidSignupSheet, role: RaidSignupRole) {
-    return (sheet.preRegisteredMembers || []).filter((member) => member.role === role && member.status !== 'can_help');
+    return (sheet.preRegisteredMembers || []).filter((member) =>
+      member.role === role && member.status !== 'can_help' && member.status !== 'leader'
+    );
   }
 
   function getSheetCanHelpMembers(sheet: RaidSignupSheet) {
     return (sheet.preRegisteredMembers || []).filter((member) => member.status === 'can_help');
+  }
+
+  function getSheetLeader(sheet: RaidSignupSheet) {
+    return (sheet.preRegisteredMembers || []).find((member) => member.status === 'leader');
+  }
+
+  function getSheetEventGroups(sheet: RaidSignupSheet) {
+    const groups = [
+      { key: 'leader', label: 'Leader', members: (sheet.preRegisteredMembers || []).filter((member) => member.status === 'leader') },
+      { key: 'dps', label: 'DPS', members: getSheetMembers(sheet, 'dps') },
+      { key: 'support', label: 'SUP', members: getSheetMembers(sheet, 'support') },
+      { key: 'any', label: 'ANY', members: getSheetMembers(sheet, 'any') },
+      { key: 'can_help', label: 'Can Help', members: getSheetCanHelpMembers(sheet) }
+    ];
+    return groups.filter((group) => group.members.length > 0);
   }
 
   function getRoleIcon(role: RaidSignupRole) {
@@ -311,6 +336,7 @@
   }
 
   function getStatusIcon(status: RaidSignupPreRegisteredMember['status']) {
+    if (status === 'leader') return roleIcons.leader;
     if (status === 'experienced') return roleIcons.experienced;
     if (status === 'can_help') return roleIcons.canHelp;
     return roleIcons.learning;
@@ -334,6 +360,23 @@
   function applySuggestedComposition() {
     dpsSpots = suggestedDpsSpots;
     supportSpots = suggestedSupportSpots;
+    customCompositionEnabled = false;
+    builderErrors = { ...builderErrors, composition: '' };
+  }
+
+  function validateSheetForm() {
+    const errors: Record<string, string> = {};
+    if (selectedRaidCount === 0) errors.raids = 'Choose at least one raid.';
+    if (!startsAtLocal || !startsAtDiscord) errors.startsAt = 'Choose a valid start time.';
+    if (selectedRoleTotal <= 0) errors.composition = 'Set at least one signup spot.';
+    if (customCompositionEnabled && selectedRaidCapacity > 0 && selectedRoleTotal !== selectedRaidCapacity) {
+      errors.composition = `Configured spots should match raid capacity (${selectedRaidCapacity}).`;
+    }
+    if (runType === 'learning' && experiencedRequired < 0) {
+      errors.experienced = 'Minimum experienced cannot be negative.';
+    }
+    builderErrors = errors;
+    return Object.keys(errors).length === 0;
   }
 
   function addCustomRaid() {
@@ -394,10 +437,14 @@
       request.dateWindow ? `Requested server date: ${request.dateWindow}` : '',
       request.timeWindow ? `Requested server time: ${request.timeWindow}` : '',
       startsAtLocal ? `Converted Discord time: ${formatDiscordTimestamp(startsAtLocal, 'F')}` : '',
+      `Requester can do sidereals: ${request.canDoSidereals ? 'yes' : 'no'}`,
       `Requester: ${request.requester}`
     ].filter(Boolean).join('\n');
     preRegisterDiscordId = request.discordId;
     preRegisterDisplayName = request.requester;
+    preRegisterStatus = request.canDoSidereals ? 'leader' : 'learner';
+    customCompositionEnabled = false;
+    builderErrors = {};
     activeMode = 'sheets';
   }
 
@@ -408,7 +455,11 @@
       discordId: discordIdValue,
       displayName: preRegisterDisplayName.trim() || discordIdValue,
       role: preRegisterRole,
-      status: runType === 'learning' ? preRegisterStatus : 'experienced'
+      status: preRegisterStatus === 'leader'
+        ? 'leader'
+        : runType === 'learning'
+          ? preRegisterStatus
+          : 'experienced'
     };
     preRegisteredMembers = [
       ...preRegisteredMembers.filter((member) => member.discordId !== nextMember.discordId),
@@ -439,6 +490,8 @@
     editingSheetId = sheet.id;
     editingEventId = sheet.eventId || sheet.id;
     editingPublished = shared;
+    customCompositionEnabled = false;
+    builderErrors = {};
     publishMessage = shared
       ? `Editing published event ${editingEventId}. Updating will keep the same event id.`
       : `Editing draft ${sheet.eventId}.`;
@@ -451,7 +504,7 @@
 
   function buildSheet(): RaidSignupSheet | null {
     const cleanTitle = title.trim() || `${formatRunType(runType)} Signup`;
-    if (selectedRaidCount === 0) return null;
+    if (!validateSheetForm()) return null;
 
     return {
       id: editingSheetId || `raid-signup-${Date.now()}`,
@@ -461,8 +514,8 @@
       raidIds: selectedRaidIds,
       customRaids,
       startsAt: startsAtDiscord,
-      dpsSpots,
-      supportSpots,
+      dpsSpots: customCompositionEnabled ? dpsSpots : suggestedDpsSpots,
+      supportSpots: customCompositionEnabled ? supportSpots : suggestedSupportSpots,
       anySpots,
       experiencedRequired: runType === 'learning' ? experiencedRequired : 0,
       note: note.trim(),
@@ -479,6 +532,8 @@
     customRaids = [];
     startsAtLocal = '';
     anySpots = 0;
+    customCompositionEnabled = false;
+    builderErrors = {};
     note = '';
     preRegisteredMembers = [];
     preRegisterDiscordId = '';
@@ -621,6 +676,21 @@
     }
   }
 
+  async function deleteOngoingSignup(sheet: RaidSignupSheet) {
+    const confirmed = window.confirm(`Delete ${sheet.title} and remove the Discord signup message?`);
+    if (!confirmed) return;
+
+    try {
+      eventEditMessage = '';
+      await cancelRaidSignupSheet(sheet.id);
+      eventEditMessage = `Deleted ${sheet.title}. Meowtator will remove the Discord message shortly.`;
+      await refreshRaidManagementData();
+    } catch (error) {
+      eventEditMessage = `Delete failed: ${error instanceof Error ? error.message : String(error)}`;
+      console.warn('Failed to delete ongoing signup:', error);
+    }
+  }
+
   $: filteredRequests = requests.filter((request) => {
     const matchesStatus = requestFilter === 'all' || request.status === requestFilter;
     const matchesDoneState =
@@ -631,6 +701,7 @@
       request.discordId,
       request.raidNames.join(' '),
       request.category,
+      request.canDoSidereals ? 'sidereal leader host yes' : 'sidereal no',
       request.decidedBy,
       formatReviewerName(request.decidedBy),
       request.reviewNote
@@ -704,7 +775,10 @@
 
           <label>
             Start time
-            <input type="datetime-local" bind:value={startsAtLocal} />
+            <input class:field-error={builderErrors.startsAt} type="datetime-local" bind:value={startsAtLocal} />
+            {#if builderErrors.startsAt}
+              <small class="field-error-text">{builderErrors.startsAt}</small>
+            {/if}
           </label>
 
           {#if startsAtDiscord}
@@ -715,7 +789,7 @@
             </div>
           {/if}
 
-          <div class="raid-select">
+          <div class="raid-select" class:field-group-error={builderErrors.raids}>
             <span>Raid</span>
             <div class="raid-select-row">
               <select bind:value={selectedRaidOption}>
@@ -755,33 +829,47 @@
                 {/each}
               </div>
             {/if}
+            {#if builderErrors.raids}
+              <small class="field-error-text">{builderErrors.raids}</small>
+            {/if}
           </div>
 
-          <div class="role-grid">
+          <label class="inline-check compact-check">
+            <input type="checkbox" bind:checked={customCompositionEnabled} />
+            Customize DPS/SUP/ANY spots
+          </label>
+
+          <div class="role-grid" class:field-group-error={builderErrors.composition}>
             <label>
               DPS
-              <input type="number" min="0" bind:value={dpsSpots} />
+              <input type="number" min="0" bind:value={dpsSpots} disabled={!customCompositionEnabled} />
             </label>
             <label>
               SUP
-              <input type="number" min="0" bind:value={supportSpots} />
+              <input type="number" min="0" bind:value={supportSpots} disabled={!customCompositionEnabled} />
             </label>
             <label>
               ANY
-              <input type="number" min="0" bind:value={anySpots} />
+              <input type="number" min="0" bind:value={anySpots} disabled={!customCompositionEnabled} />
             </label>
             {#if runType === 'learning'}
               <label>
                 Minimum experienced
-                <input type="number" min="0" bind:value={experiencedRequired} />
+                <input class:field-error={builderErrors.experienced} type="number" min="0" bind:value={experiencedRequired} />
               </label>
             {/if}
           </div>
+          {#if builderErrors.composition}
+            <small class="field-error-text">{builderErrors.composition}</small>
+          {/if}
+          {#if builderErrors.experienced}
+            <small class="field-error-text">{builderErrors.experienced}</small>
+          {/if}
 
           <button
             class="secondary-action"
             type="button"
-            disabled={selectedRaidCapacity === 0}
+            disabled={selectedRaidCapacity === 0 || !customCompositionEnabled}
             on:click={applySuggestedComposition}
           >
             Use suggested {suggestedDpsSpots} DPS / {suggestedSupportSpots} SUP
@@ -808,6 +896,7 @@
               <select bind:value={preRegisterStatus}>
                 <option value="learner">Learning Kitten</option>
                 <option value="experienced">Experienced</option>
+                <option value="leader">Leader / Sidereal</option>
                 <option value="can_help">Can Help</option>
               </select>
               <button type="button" disabled={!preRegisterDiscordId.trim()} on:click={addPreRegisteredMember}>
@@ -892,6 +981,19 @@
                     <p>Start: {sheet.startsAt || 'No time set'}</p>
                   </div>
 
+                  <div class="discord-preview-field">
+                    <small>Lobby Host / Sidereal</small>
+                    {#if getSheetLeader(sheet)}
+                      <p class="signup-member">
+                        <img src={getRoleIcon(getSheetLeader(sheet)?.role || 'dps')} alt="" />
+                        {getSheetLeader(sheet)?.displayName}
+                        <img src={roleIcons.leader} alt="Leader" />
+                      </p>
+                    {:else}
+                      <p>Open leader spot</p>
+                    {/if}
+                  </div>
+
                   <div class="discord-signup-columns">
                     <div>
                       <strong>DPS</strong>
@@ -900,7 +1002,9 @@
                           <span class="signup-member">
                             <img src={getRoleIcon(member.role)} alt="" />
                             {member.displayName}
-                            <img src={getStatusIcon(member.status)} alt="" />
+                            {#if getStatusIcon(member.status)}
+                              <img src={getStatusIcon(member.status)} alt="" />
+                            {/if}
                           </span>
                         {/each}
                       {:else}
@@ -914,7 +1018,9 @@
                           <span class="signup-member">
                             <img src={getRoleIcon(member.role)} alt="" />
                             {member.displayName}
-                            <img src={getStatusIcon(member.status)} alt="" />
+                            {#if getStatusIcon(member.status)}
+                              <img src={getStatusIcon(member.status)} alt="" />
+                            {/if}
                           </span>
                         {/each}
                       {:else}
@@ -928,7 +1034,9 @@
                           <span class="signup-member">
                             <img src={getRoleIcon(member.role)} alt="" />
                             {member.displayName}
-                            <img src={getStatusIcon(member.status)} alt="" />
+                            {#if getStatusIcon(member.status)}
+                              <img src={getStatusIcon(member.status)} alt="" />
+                            {/if}
                           </span>
                         {/each}
                       {:else}
@@ -951,7 +1059,9 @@
                         <span class="signup-member">
                           <img src={getRoleIcon(member.role)} alt="" />
                           {member.displayName}
-                          <img src={getStatusIcon(member.status)} alt="" />
+                          {#if getStatusIcon(member.status)}
+                            <img src={getStatusIcon(member.status)} alt="" />
+                          {/if}
                         </span>
                       {/each}
                     {:else}
@@ -968,7 +1078,11 @@
                   </div>
                   {#if sheet.runType === 'learning'}
                     <small class="discord-preview-hint">
-                      DPS/SUP/ANY opens: Learning Kitten, Experienced, or Can Help.
+                      DPS/SUP/ANY opens: Learning Kitten, Experienced, Can Help, or Leader while the leader spot is open.
+                    </small>
+                  {:else}
+                    <small class="discord-preview-hint">
+                      DPS/SUP/ANY opens: Can Help or Leader while the leader spot is open. Reclear signups treat normal signups as experienced by default.
                     </small>
                   {/if}
                   <small class="discord-event-id">Event ID: {sheet.eventId || sheet.id}</small>
@@ -1038,6 +1152,10 @@
                 <small>Server time</small>
                 <span>{request.dateWindow} | {request.timeWindow}</span>
                 <small>Requested {formatDateTime(request.createdAt)}</small>
+              </div>
+              <div>
+                <small>Sidereals</small>
+                <span>{request.canDoSidereals ? 'Can lead' : 'Needs leader'}</span>
               </div>
               <div>
                 <small>
@@ -1111,20 +1229,40 @@
                   <span>{sheet.startsAt || 'No time set'}</span>
                 </div>
                 <div class="event-actions">
-                  <button type="button" on:click={() => editSheet(sheet)}>
-                    Edit in builder
+                  <button type="button" title="Edit in builder" on:click={() => editSheet(sheet)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="danger-action"
+                    title="Delete signup"
+                    on:click={() => deleteOngoingSignup(sheet)}
+                  >
+                    Delete
                   </button>
                 </div>
                 {#if sheet.preRegisteredMembers?.length}
                   <div class="event-signups">
                     <small>Signups</small>
-                    <div>
-                      {#each sheet.preRegisteredMembers as member}
-                        <button type="button" on:click={() => deleteSignupMember(sheet, member)}>
-                          <img src={getRoleIcon(member.role)} alt="" />
-                          {member.displayName}
-                          <img src={getStatusIcon(member.status)} alt="" />
-                        </button>
+                    <div class="event-signup-groups">
+                      {#each getSheetEventGroups(sheet) as group, groupIndex}
+                        {#if groupIndex > 0}
+                          <span class="event-signup-separator" aria-hidden="true">|</span>
+                        {/if}
+                        <div class="event-signup-group">
+                          <strong>{group.label}</strong>
+                          <div>
+                            {#each group.members as member}
+                              <button type="button" on:click={() => deleteSignupMember(sheet, member)}>
+                                <img src={getRoleIcon(member.role)} alt="" />
+                                {member.displayName}
+                                {#if getStatusIcon(member.status)}
+                                  <img src={getStatusIcon(member.status)} alt="" />
+                                {/if}
+                              </button>
+                            {/each}
+                          </div>
+                        </div>
                       {/each}
                     </div>
                   </div>
@@ -1358,7 +1496,7 @@
   }
 
   .event-row {
-    grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(7rem, 0.7fr) minmax(10rem, 1fr);
+    grid-template-columns: minmax(10rem, 1.1fr) minmax(10rem, 1fr) minmax(6rem, 0.6fr) minmax(10rem, 1fr) auto;
   }
 
   .request-row > div,
@@ -1465,6 +1603,33 @@
     color: var(--md-sys-color-on-surface);
     padding: 0.55rem;
     font: inherit;
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+  }
+
+  .field-error,
+  .field-group-error input,
+  .field-group-error select {
+    border-color: var(--md-sys-color-error) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--md-sys-color-error) 35%, transparent);
+  }
+
+  .field-error-text {
+    color: var(--md-sys-color-error);
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
+  .compact-check {
+    justify-content: start;
+    min-height: auto;
+    color: var(--md-sys-color-on-surface);
+    font-size: 0.76rem;
   }
 
   .timestamp-preview,
@@ -1780,10 +1945,10 @@
   }
 
   .event-actions {
-    grid-column: 1 / -1;
     display: flex;
-    gap: 0.45rem;
+    gap: 0.3rem;
     align-items: center;
+    justify-content: end;
   }
 
   .event-actions button,
@@ -1797,7 +1962,15 @@
   }
 
   .event-actions button {
-    padding: 0.45rem 0.6rem;
+    min-width: 3.1rem;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .event-actions .danger-action {
+    border-color: var(--md-sys-color-error);
+    color: var(--md-sys-color-error);
   }
 
   .event-signups {
@@ -1806,18 +1979,46 @@
     gap: 0.35rem;
   }
 
-  .event-signups > div {
+  .event-signup-groups {
     display: flex;
     flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .event-signup-group {
+    display: inline-flex;
     gap: 0.35rem;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .event-signup-group strong {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .event-signup-group > div {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .event-signup-separator {
+    color: var(--md-sys-color-outline-variant);
+    font-size: 0.78rem;
   }
 
   .event-signups button {
     display: inline-flex;
-    gap: 0.25rem;
+    gap: 0.2rem;
     align-items: center;
-    padding: 0.35rem 0.5rem;
-    font-size: 0.76rem;
+    padding: 0.24rem 0.38rem;
+    font-size: 0.72rem;
+    line-height: 1.1;
   }
 
   .event-signups img {

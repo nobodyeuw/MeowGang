@@ -217,6 +217,7 @@ interface RaidSignupSheetRow {
   support_spots: number | null;
   any_spots: number | null;
   experienced_minimum: number | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -236,7 +237,7 @@ interface RaidSignupEntryRow {
   discord_id: string;
   display_name: string;
   role: 'dps' | 'support' | 'any';
-  status: 'learner' | 'experienced' | 'can_help';
+  status: 'learner' | 'experienced' | 'can_help' | 'leader';
 }
 
 function extractRequestField(description: string, label: string): string {
@@ -267,7 +268,7 @@ function isRaidSignupSheetRaid(value: RaidSignupSheetRaid | undefined): value is
 function stripStructuredRequestDetails(description: string): string {
   return description
     .split('\n')
-    .filter((line) => !/^(Raid\(s\)|Date Window|Time Window|Server Date|Server Time):/i.test(line.trim()))
+    .filter((line) => !/^(Raid\(s\)|Date Window|Time Window|Server Date|Server Time|Can do sidereals\?):/i.test(line.trim()))
     .join('\n')
     .trim();
 }
@@ -338,6 +339,7 @@ export async function loadRaidManagementRequests(): Promise<RaidManagementReques
       createdAt: new Date(row.created_at).getTime(),
       dateWindow: extractFirstRequestField(row.description, ['Server Date', 'Date Window']),
       timeWindow: extractFirstRequestField(row.description, ['Server Time', 'Time Window']),
+      canDoSidereals: /^yes/i.test(extractRequestField(row.description, 'Can do sidereals?')),
       details: stripStructuredRequestDetails(row.description)
     };
   });
@@ -377,13 +379,32 @@ export async function updateRaidManagementRequestStatus(
 }
 
 export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupSheet[]> {
-  const { data: sheetData, error: sheetError } = await supabase
+  let sheetData: RaidSignupSheetRow[] | null = null;
+  let sheetError: { message: string; code?: string } | null = null;
+
+  const primarySheets = await supabase
     .from('raid_signup_sheets')
     .select(
-      'sheet_id, event_id, title, run_type, starts_at, dps_spots, support_spots, any_spots, experienced_minimum, created_at, updated_at'
+      'sheet_id, event_id, title, run_type, starts_at, note, dps_spots, support_spots, any_spots, experienced_minimum, created_at, updated_at'
     )
+    .eq('status', 'published')
     .order('starts_at', { ascending: true, nullsFirst: false })
     .limit(100);
+  sheetData = (primarySheets.data || null) as RaidSignupSheetRow[] | null;
+  sheetError = primarySheets.error;
+
+  if (sheetError && /note/i.test(sheetError.message)) {
+    const fallback = await supabase
+      .from('raid_signup_sheets')
+      .select(
+        'sheet_id, event_id, title, run_type, starts_at, dps_spots, support_spots, any_spots, experienced_minimum, created_at, updated_at'
+      )
+      .eq('status', 'published')
+      .order('starts_at', { ascending: true, nullsFirst: false })
+      .limit(100);
+    sheetData = (fallback.data || null) as RaidSignupSheetRow[] | null;
+    sheetError = fallback.error;
+  }
 
   if (sheetError) {
     throw new Error(sheetError.message);
@@ -457,7 +478,7 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
       supportSpots: sheet.support_spots || 0,
       anySpots: sheet.any_spots || 0,
       experiencedRequired: sheet.experienced_minimum || 0,
-      note: '',
+      note: sheet.note || '',
       preRegisteredMembers: (entriesBySheetId.get(sheet.sheet_id) || []).map((entry) => ({
         discordId: entry.discord_id,
         displayName: entry.display_name || entry.discord_id,
@@ -494,26 +515,55 @@ export async function removeRaidSignupEntry(sheetId: string, discordId: string):
   }
 }
 
-export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<string> {
-  const { data, error } = await supabase
+export async function cancelRaidSignupSheet(sheetId: string): Promise<void> {
+  const { error } = await supabase
     .from('raid_signup_sheets')
-    .insert({
-      event_id: sheet.eventId,
-      title: sheet.title,
-      run_type: sheet.runType,
-      starts_at: parseDiscordTimestampToIso(sheet.startsAt),
-      dps_spots: sheet.dpsSpots,
-      support_spots: sheet.supportSpots,
-      any_spots: sheet.anySpots,
-      experienced_minimum: sheet.experiencedRequired,
-      status: 'published'
-    })
-    .select('sheet_id')
-    .single();
+    .update({ status: 'cancelled' })
+    .eq('sheet_id', sheetId);
 
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<string> {
+  const sheetPayload = {
+    event_id: sheet.eventId,
+    title: sheet.title,
+    run_type: sheet.runType,
+    starts_at: parseDiscordTimestampToIso(sheet.startsAt),
+    dps_spots: sheet.dpsSpots,
+    support_spots: sheet.supportSpots,
+    any_spots: sheet.anySpots,
+    experienced_minimum: sheet.experiencedRequired,
+    status: 'published',
+    note: sheet.note || ''
+  };
+
+  let { data, error } = await supabase
+    .from('raid_signup_sheets')
+    .insert(sheetPayload)
+    .select('sheet_id')
+    .single();
+
+  if (error && /note/i.test(error.message)) {
+    delete (sheetPayload as Partial<typeof sheetPayload>).note;
+    const fallback = await supabase
+      .from('raid_signup_sheets')
+      .insert(sheetPayload)
+      .select('sheet_id')
+      .single();
+    data = fallback.data;
+    error = fallback.error;
+  }
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data?.sheet_id) {
+    throw new Error('Signup sheet was created but no sheet id was returned.');
+  }
+  const sheetId = data.sheet_id;
 
   const selectedRaids = [
     ...sheet.raidIds
@@ -540,7 +590,7 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
       .from('raid_signup_raids')
       .insert(
         selectedRaids.map((raid, index) => ({
-          sheet_id: data.sheet_id,
+          sheet_id: sheetId,
           ...raid,
           sort_order: index
         }))
@@ -556,7 +606,7 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
       .from('raid_signup_entries')
       .insert(
         sheet.preRegisteredMembers.map((member) => ({
-          sheet_id: data.sheet_id,
+          sheet_id: sheetId,
           discord_id: member.discordId,
           display_name: member.displayName || member.discordId,
           role: member.role,
@@ -569,24 +619,36 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
     }
   }
 
-  return data.sheet_id;
+  return sheetId;
 }
 
 export async function updateRaidSignupSheet(sheet: RaidSignupSheet): Promise<void> {
-  const { error } = await supabase
+  const sheetPayload = {
+    event_id: sheet.eventId,
+    title: sheet.title,
+    run_type: sheet.runType,
+    starts_at: parseDiscordTimestampToIso(sheet.startsAt),
+    dps_spots: sheet.dpsSpots,
+    support_spots: sheet.supportSpots,
+    any_spots: sheet.anySpots,
+    experienced_minimum: sheet.experiencedRequired,
+    status: 'published',
+    note: sheet.note || ''
+  };
+
+  let { error } = await supabase
     .from('raid_signup_sheets')
-    .update({
-      event_id: sheet.eventId,
-      title: sheet.title,
-      run_type: sheet.runType,
-      starts_at: parseDiscordTimestampToIso(sheet.startsAt),
-      dps_spots: sheet.dpsSpots,
-      support_spots: sheet.supportSpots,
-      any_spots: sheet.anySpots,
-      experienced_minimum: sheet.experiencedRequired,
-      status: 'published'
-    })
+    .update(sheetPayload)
     .eq('sheet_id', sheet.id);
+
+  if (error && /note/i.test(error.message)) {
+    delete (sheetPayload as Partial<typeof sheetPayload>).note;
+    const fallback = await supabase
+      .from('raid_signup_sheets')
+      .update(sheetPayload)
+      .eq('sheet_id', sheet.id);
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(error.message);

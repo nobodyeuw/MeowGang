@@ -46,7 +46,7 @@ export interface RaidSignupPreRegisteredMember {
   discordId: string;
   displayName: string;
   role: RaidSignupRole;
-  status: 'learner' | 'experienced' | 'can_help';
+  status: 'learner' | 'experienced' | 'can_help' | 'leader';
 }
 
 export interface RaidManagementRequest {
@@ -62,6 +62,7 @@ export interface RaidManagementRequest {
   createdAt: number;
   dateWindow: string;
   timeWindow: string;
+  canDoSidereals: boolean;
   details: string;
 }
 
