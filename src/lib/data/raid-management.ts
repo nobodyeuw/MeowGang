@@ -2,8 +2,8 @@
 // The Tauri app owns planning/configuration; the Discord bot will later publish
 // these sheets to Discord and handle button/select-menu signups.
 
-export type RaidManagementRunType = 'learning' | 'reclear' | 'raid-night';
-export type RaidSignupRole = 'dps' | 'support' | 'any';
+export type RaidManagementRunType = 'learning' | 'reclear' | 'raid-train';
+export type RaidSignupRole = 'dps' | 'support' | 'any' | 'fixed';
 
 export interface RaidManagementAccessMember {
   discordId: string;
@@ -42,11 +42,14 @@ export interface RaidSignupSheet {
   updatedAt: number;
 }
 
+export type RaidSignupPreRegisteredStatus = 'learner' | 'experienced' | 'can_help' | 'leader';
+
 export interface RaidSignupPreRegisteredMember {
   discordId: string;
   displayName: string;
   role: RaidSignupRole;
-  status: 'learner' | 'experienced' | 'can_help' | 'leader';
+  status: RaidSignupPreRegisteredStatus;
+  raidSections?: string[];
 }
 
 export interface RaidManagementRequest {
@@ -73,9 +76,9 @@ export interface RaidSignupRoleConfig {
 }
 
 export const RAID_SIGNUP_ROLES: RaidSignupRoleConfig[] = [
-  { role: 'dps', label: 'DPS', availableFor: ['learning', 'reclear', 'raid-night'] },
-  { role: 'support', label: 'SUP', availableFor: ['learning', 'reclear', 'raid-night'] },
-  { role: 'any', label: 'ANY', availableFor: ['learning', 'reclear', 'raid-night'] }
+  { role: 'dps', label: 'DPS', availableFor: ['learning', 'reclear', 'raid-train'] },
+  { role: 'support', label: 'SUP', availableFor: ['learning', 'reclear', 'raid-train'] },
+  { role: 'any', label: 'ANY', availableFor: ['learning', 'reclear', 'raid-train'] }
 ];
 
 export const RAID_SIGNUP_RAIDS: RaidSignupSheetRaid[] = [

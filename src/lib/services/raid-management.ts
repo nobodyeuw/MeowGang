@@ -6,6 +6,7 @@ import {
   type RaidManagementRunType,
   type RaidSignupCustomRaid,
   type RaidSignupSheetRaid,
+  type RaidSignupPreRegisteredMember,
   type RaidSignupSheet
 } from '$lib/data/raid-management';
 import { supabase } from '$lib/services/supabase-auth';
@@ -236,8 +237,44 @@ interface RaidSignupEntryRow {
   sheet_id: string;
   discord_id: string;
   display_name: string;
-  role: 'dps' | 'support' | 'any';
-  status: 'learner' | 'experienced' | 'can_help' | 'leader';
+  role: 'dps' | 'support' | 'any' | 'fixed';
+  status: 'learner' | 'experienced' | 'can_help' | 'leader' | 'fixed';
+  raid_sections?: string[] | null;
+}
+
+function normalizeSignupEntry(entry: RaidSignupEntryRow): RaidSignupPreRegisteredMember {
+  let role = entry.role;
+  let status = entry.status;
+
+  // Legacy rows stored reserved slots as status=fixed with a combat role.
+  if (status === 'fixed') {
+    role = 'fixed';
+    status = 'experienced';
+  }
+
+  return {
+    discordId: entry.discord_id,
+    displayName: entry.display_name || entry.discord_id,
+    role,
+    status,
+    raidSections: entry.raid_sections || []
+  };
+}
+
+function mergePreRegisteredMembersByUserId(members: RaidSignupPreRegisteredMember[]): RaidSignupPreRegisteredMember[] {
+  const merged = new Map<string, RaidSignupPreRegisteredMember>();
+  for (const member of members) {
+    const key = `${member.discordId}|${member.role}`;
+    const existing = merged.get(key);
+    if (existing) {
+      // Merge raid sections for the same user and role
+      const mergedSections = [...new Set([...(existing.raidSections || []), ...(member.raidSections || [])])];
+      existing.raidSections = mergedSections;
+    } else {
+      merged.set(key, { ...member });
+    }
+  }
+  return Array.from(merged.values());
 }
 
 function extractRequestField(description: string, label: string): string {
@@ -425,7 +462,7 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
       .order('sort_order', { ascending: true }),
     supabase
       .from('raid_signup_entries')
-      .select('sheet_id, discord_id, display_name, role, status')
+      .select('sheet_id, discord_id, display_name, role, status, raid_sections')
       .in('sheet_id', sheetIds)
       .order('created_at', { ascending: true })
   ]);
@@ -437,18 +474,18 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
     throw new Error(entryError.message);
   }
 
-  const raidsBySheetId = new Map<string, RaidSignupRaidRow[]>();
-  for (const raid of (raidData || []) as RaidSignupRaidRow[]) {
+    const raidsBySheetId = new Map<string, RaidSignupRaidRow[]>();
+    const entriesBySheetId = new Map<string, any[]>();
+    for (const raid of (raidData || []) as RaidSignupRaidRow[]) {
     const existing = raidsBySheetId.get(raid.sheet_id) || [];
     existing.push(raid);
     raidsBySheetId.set(raid.sheet_id, existing);
   }
-  const entriesBySheetId = new Map<string, RaidSignupEntryRow[]>();
-  for (const entry of (entryData || []) as RaidSignupEntryRow[]) {
-    const existing = entriesBySheetId.get(entry.sheet_id) || [];
-    existing.push(entry);
-    entriesBySheetId.set(entry.sheet_id, existing);
-  }
+    for (const entry of (entryData || []) as any[]) {
+      const existing = entriesBySheetId.get(entry.sheet_id) || [];
+      existing.push(entry);
+      entriesBySheetId.set(entry.sheet_id, existing);
+    }
 
   return sheets.map((sheet) => {
     const raids = raidsBySheetId.get(sheet.sheet_id) || [];
@@ -470,7 +507,11 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
       id: sheet.sheet_id,
       eventId: sheet.event_id || sheet.sheet_id,
       title: sheet.title,
-      runType: (sheet.run_type === 'raid-night' ? 'raid-night' : sheet.run_type === 'reclear' ? 'reclear' : 'learning'),
+      runType: (sheet.run_type === 'raid-train' || sheet.run_type === 'raid-night'
+        ? 'raid-train'
+        : sheet.run_type === 'reclear'
+          ? 'reclear'
+          : 'learning'),
       raidIds: fixedRaidIds,
       customRaids,
       startsAt: toDiscordTimestamp(sheet.starts_at),
@@ -479,12 +520,9 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
       anySpots: sheet.any_spots || 0,
       experiencedRequired: sheet.experienced_minimum || 0,
       note: sheet.note || '',
-      preRegisteredMembers: (entriesBySheetId.get(sheet.sheet_id) || []).map((entry) => ({
-        discordId: entry.discord_id,
-        displayName: entry.display_name || entry.discord_id,
-        role: entry.role,
-        status: entry.status
-      })),
+      preRegisteredMembers: (entriesBySheetId.get(sheet.sheet_id) || []).map((entry) =>
+        normalizeSignupEntry(entry as RaidSignupEntryRow)
+      ),
       createdAt: new Date(sheet.created_at).getTime(),
       updatedAt: new Date(sheet.updated_at).getTime()
     };
@@ -515,18 +553,69 @@ export async function removeRaidSignupEntry(sheetId: string, discordId: string):
   }
 }
 
-export async function cancelRaidSignupSheet(sheetId: string): Promise<void> {
-  const { error } = await supabase
-    .from('raid_signup_sheets')
-    .update({ status: 'cancelled' })
+async function purgeRaidSignupSheetById(sheetId: string): Promise<void> {
+  const { error: entriesError } = await supabase
+    .from('raid_signup_entries')
+    .delete()
     .eq('sheet_id', sheetId);
+  if (entriesError) throw new Error(entriesError.message);
 
-  if (error) {
-    throw new Error(error.message);
+  const { error: raidsError } = await supabase
+    .from('raid_signup_raids')
+    .delete()
+    .eq('sheet_id', sheetId);
+  if (raidsError) throw new Error(raidsError.message);
+
+  const { error: messagesError } = await supabase
+    .from('raid_signup_messages')
+    .delete()
+    .eq('sheet_id', sheetId);
+  if (messagesError) throw new Error(messagesError.message);
+
+  const { error: sheetError } = await supabase
+    .from('raid_signup_sheets')
+    .delete()
+    .eq('sheet_id', sheetId);
+  if (sheetError) throw new Error(sheetError.message);
+}
+
+async function purgeRaidSignupSheetByEventId(eventId: string): Promise<void> {
+  const normalizedEventId = String(eventId || '').trim();
+  if (!normalizedEventId) return;
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('raid_signup_sheets')
+    .select('sheet_id, status')
+    .eq('event_id', normalizedEventId)
+    .maybeSingle();
+
+  if (lookupError) throw new Error(lookupError.message);
+  if (!existing?.sheet_id) return;
+
+  const { data: messageLink, error: messageError } = await supabase
+    .from('raid_signup_messages')
+    .select('message_id')
+    .eq('sheet_id', existing.sheet_id)
+    .maybeSingle();
+
+  if (messageError) throw new Error(messageError.message);
+
+  const isLivePublished = existing.status === 'published' && Boolean(messageLink?.message_id);
+  if (isLivePublished) {
+    throw new Error(
+      `Event ${normalizedEventId} is still live on Discord. Delete that signup first or use a new event id.`
+    );
   }
+
+  await purgeRaidSignupSheetById(existing.sheet_id);
+}
+
+export async function cancelRaidSignupSheet(sheetId: string): Promise<void> {
+  await purgeRaidSignupSheetById(sheetId);
 }
 
 export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<string> {
+  await purgeRaidSignupSheetByEventId(sheet.eventId);
   const sheetPayload = {
     event_id: sheet.eventId,
     title: sheet.title,
@@ -602,15 +691,17 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
   }
 
   if (sheet.preRegisteredMembers.length > 0) {
+    const mergedMembers = mergePreRegisteredMembersByUserId(sheet.preRegisteredMembers);
     const { error: entriesError } = await supabase
       .from('raid_signup_entries')
       .insert(
-        sheet.preRegisteredMembers.map((member) => ({
+        mergedMembers.map((member) => ({
           sheet_id: sheetId,
           discord_id: member.discordId,
           display_name: member.displayName || member.discordId,
           role: member.role,
-          status: member.status
+          status: member.status,
+          raid_sections: member.raidSections || []
         }))
       );
 
@@ -618,6 +709,11 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
       throw new Error(entriesError.message);
     }
   }
+
+  await supabase
+    .from('raid_signup_sheets')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('sheet_id', sheetId);
 
   return sheetId;
 }
@@ -699,7 +795,8 @@ export async function updateRaidSignupSheet(sheet: RaidSignupSheet): Promise<voi
     }
   }
 
-  for (const member of sheet.preRegisteredMembers || []) {
+  const mergedMembers = mergePreRegisteredMembersByUserId(sheet.preRegisteredMembers || []);
+  for (const member of mergedMembers) {
     const { error: entryError } = await supabase
       .from('raid_signup_entries')
       .upsert(
@@ -708,9 +805,10 @@ export async function updateRaidSignupSheet(sheet: RaidSignupSheet): Promise<voi
           discord_id: member.discordId,
           display_name: member.displayName || member.discordId,
           role: member.role,
-          status: member.status
+          status: member.status,
+          raid_sections: member.raidSections || []
         },
-        { onConflict: 'sheet_id,discord_id' }
+        { onConflict: 'sheet_id,discord_id,role' }
       );
 
     if (entryError) {

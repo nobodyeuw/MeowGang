@@ -1,58 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.3.7",
-      "date": "2026-06-11",
+      "version": "1.3.8",
+      "date": "2026-06-12",
       "changes": [
         {
-          "type": "Added",
+          "type": "Fixed",
           "description": "Meowtator request handling is easier for raid managers.",
-          "details": "Accepted request threads now offer a create-signup flow and a done action so moderators can turn a request into a signup with less manual copying."
-        },
-        {
-          "type": "Updated",
-          "description": "Raid Management signup drafting is easier to use.",
-          "details": "DPS and support counts now default from the selected raid composition, with optional custom spot editing only when needed."
-        },
-        {
-          "type": "Updated",
-          "description": "Meowtator signup names now use server profile names.",
-          "details": "Discord signup rows now prefer each member's server profile name instead of their global display name."
-        },
-        {
-          "type": "Updated",
-          "description": "Request-to-signup creation now supports more details.",
-          "details": "Managers can add signup info text and pre-register members directly from an accepted request, with the requester prefilled for faster setup."
-        },
-        {
-          "type": "Updated",
-          "description": "Ongoing signup cleanup is easier.",
-          "details": "Raid managers can now delete ongoing signup sheets from the app or from the Discord signup message, and Meowtator removes the related Discord message."
-        },
-        {
-          "type": "Updated",
-          "description": "Raid requests now support sidereal leaders.",
-          "details": "Meowtator requests now ask if the requester can handle sidereals, and signup sheets can reserve or assign a visible lobby host/leader spot."
-        },
-        {
-          "type": "Updated",
-          "description": "Meowtator reminders and cleanup are smarter.",
-          "details": "Signup reminders can now be sent automatically before raid start, and finished backlog tickets are cleaned up after their useful window."
-        },
-        {
-          "type": "Fixed",
-          "description": "Raid Management drafts now show missing input more clearly.",
-          "details": "Saving an incomplete signup draft now highlights the missing raid, start time, or spot configuration instead of silently doing nothing."
-        },
-        {
-          "type": "Fixed",
-          "description": "Meowtator signup rows show animated role icons correctly.",
-          "details": "ANY, experienced, and can-help emoji markers now render properly in signup rows instead of only working on the buttons."
-        },
-        {
-          "type": "Fixed",
-          "description": "Raid request date and time input is stricter.",
-          "details": "Meowtator now rejects free-text date or time values and asks users to refill the request with numeric server date and server time."
+          "details": "Fixed raid train issues in the raid manager to have proper handling."
         }
       ]
     }
