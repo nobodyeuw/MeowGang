@@ -90,7 +90,7 @@ export const RAID_SIGNUP_RAIDS: RaidSignupSheetRaid[] = [
   { id: 'armoche', name: 'Armoche', spots: 8, dpsSpots: 6, supportSpots: 2 },
   { id: 'kazeros', name: 'Kazeros', spots: 8, dpsSpots: 6, supportSpots: 2 },
   { id: 'serca', name: 'Serca', spots: 4, dpsSpots: 3, supportSpots: 1 },
-  { id: 'bell_raid', name: 'Bell Raid', spots: 4, dpsSpots: 3, supportSpots: 1 }
+  { id: 'cathedral', name: 'Cathedral', spots: 4, dpsSpots: 3, supportSpots: 1 }
 ];
 
 // Add your Discord id here if you want the app to ship with one permanent

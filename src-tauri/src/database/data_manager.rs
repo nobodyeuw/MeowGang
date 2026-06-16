@@ -32,7 +32,7 @@ pub struct RaidGate {
 pub struct Raid {
     pub id: String,
     pub name: String,
-    pub difficulty: String, // "Solo" | "Normal" | "Hard" | "Nightmare"
+    pub difficulty: String, // "Solo" | "Normal" | "Hard" | "Nightmare" | "Level 1" | "Level 2" | "Level 3"
     pub gates: Vec<RaidGate>,
 }
 

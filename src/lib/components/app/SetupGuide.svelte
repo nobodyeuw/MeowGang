@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { hasMeowConnectConsent, isMeowConnectFeatureEnabled } from '$lib/services/meow-connect';
-  import type { MeowConnectSection } from '$lib/types/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import { hasMeowConnectConsent, isMeowConnectFeatureEnabled } from '$lib/services/meow-connect';
+  // import type { MeowConnectSection } from '$lib/types/app-shell';
 
   type SettingsTab = 'roster' | 'todo' | 'raid' | 'system';
 
@@ -10,7 +11,7 @@
     body: string;
     tab: string;
     settingsTab?: SettingsTab;
-    meowConnectTab?: MeowConnectSection;
+    // meowConnectTab?: MeowConnectSection;
     target?: string;
     align?: 'left' | 'right';
     requiresMeowConnect?: boolean;
@@ -19,12 +20,12 @@
 
   export let activeTab = 'dashboard';
   export let activeSettingsTab = 'roster';
-  export let activeMeowConnectTab: MeowConnectSection = 'together';
+  // export let activeMeowConnectTab: MeowConnectSection = 'together';
   export let characterCount = 0;
   export let appReady = false;
   export let switchTab: (tab: string) => void;
   export let setSettingsTab: (tab: SettingsTab) => void;
-  export let setMeowConnectTab: (tab: MeowConnectSection) => void;
+  // export let setMeowConnectTab: (tab: MeowConnectSection) => void;
 
   const storageKey = 'setupGuideDismissed';
 
@@ -62,13 +63,13 @@
       settingsTab: 'roster',
       target: '[data-guide="character-drag"]'
     },
-    {
-      title: 'Enable MeowConnect',
-      body: 'In System, keep MeowConnect enabled if you want shared raid availability with friends. You can turn real-time updates on or off separately.',
-      tab: 'settings',
-      settingsTab: 'system',
-      target: '[data-guide="system-meowconnect"]'
-    },
+    //{
+      //title: 'Enable MeowConnect',
+     // body: 'In System, keep MeowConnect enabled if you want shared raid availability with friends. You can turn real-time updates on or off separately.',
+      //tab: 'settings',
+      //settingsTab: 'system',
+      //target: '[data-guide="system-meowconnect"]'
+    //},
     {
       title: 'Share Characters',
       body: 'Use the CONNECT toggle only for characters you want to share through MeowConnect. Characters left OFF stay local.',
@@ -121,58 +122,58 @@
       target: '[data-guide="marketplace"]',
       align: 'right'
     },
-    {
-      title: 'Accept MeowConnect',
-      body: 'Open MeowConnect and accept the sharing terms when you are ready. The guide waits here until MeowConnect consent is accepted.',
-      tab: 'meow-connect',
-      target: '[data-guide="meow-connect-consent"]',
-      requiresMeowConnect: true,
-      waitForMeowConnectConsent: true
-    },
-    {
-      title: 'MeowConnect',
-      body: 'Raid Together compares open raids between you and selected friends. After adding friends, it shows how many matching open raids you share.',
-      tab: 'meow-connect',
-      meowConnectTab: 'together',
-      target: '[data-guide="meow-connect"]',
-      requiresMeowConnect: true,
-      align: 'right'
-    },
-    {
-      title: 'Raid Together Details',
-      body: 'Select friends at the top, then expand a friend profile inside a raid card to see character details, available and cleared raids, reservations, and group assignment options.',
-      tab: 'meow-connect',
-      meowConnectTab: 'together',
-      target: '[data-guide="meow-connect-profile-details"]',
-      requiresMeowConnect: true,
-      align: 'right'
-    },
-    {
-      title: 'Sync Now',
-      body: 'After the initial roster setup, open MeowConnect Settings and press Sync now. The first upload can take a while because it prepares your connected characters, clears, logs, groups, and visibility data.',
-      tab: 'meow-connect',
-      meowConnectTab: 'settings',
-      target: '[data-guide="meow-connect-sync"]',
-      requiresMeowConnect: true
-    },
-    {
-      title: 'Add Friends',
-      body: 'Friends are added in MeowConnect Settings. Search for a whitelisted name, send a request, and accept incoming requests here.',
-      tab: 'meow-connect',
-      meowConnectTab: 'settings',
-      target: '[data-guide="meow-connect-friends"]',
-      requiresMeowConnect: true,
-      align: 'right'
-    },
-    {
-      title: 'Groups And Tags',
-      body: 'Groups let you organize static runs. Create a group, add an optional short tag, invite members, then assign characters to that group from Raid Together profile details.',
-      tab: 'meow-connect',
-      meowConnectTab: 'settings',
-      target: '[data-guide="meow-connect-groups"]',
-      requiresMeowConnect: true,
-      align: 'right'
-    },
+//    {
+//      title: 'Accept MeowConnect',
+//      body: 'Open MeowConnect and accept the sharing terms when you are ready. The guide waits here until MeowConnect consent is accepted.',
+//      tab: 'meow-connect',
+//      target: '[data-guide="meow-connect-consent"]',
+//      requiresMeowConnect: true,
+//      waitForMeowConnectConsent: true
+//    },
+//    {
+//      title: 'MeowConnect',
+//      body: 'Raid Together compares open raids between you and selected friends. After adding friends, it shows how many matching open raids you share.',
+//      tab: 'meow-connect',
+//      meowConnectTab: 'together',
+//      target: '[data-guide="meow-connect"]',
+//      requiresMeowConnect: true,
+//      align: 'right'
+//    },
+//    {
+//      title: 'Raid Together Details',
+//      body: 'Select friends at the top, then expand a friend profile inside a raid card to see character details, available and cleared raids, reservations, and group assignment options.',
+//      tab: 'meow-connect',
+//      meowConnectTab: 'together',
+//      target: '[data-guide="meow-connect-profile-details"]',
+//      requiresMeowConnect: true,
+//      align: 'right'
+//    },
+//    {
+//      title: 'Sync Now',
+//      body: 'After the initial roster setup, open MeowConnect Settings and press Sync now. The first upload can take a while because it prepares your connected characters, clears, logs, groups, and visibility data.',
+//      tab: 'meow-connect',
+//      meowConnectTab: 'settings',
+//      target: '[data-guide="meow-connect-sync"]',
+//      requiresMeowConnect: true
+//    },
+//    {
+//      title: 'Add Friends',
+//      body: 'Friends are added in MeowConnect Settings. Search for a whitelisted name, send a request, and accept incoming requests here.',
+//      tab: 'meow-connect',
+//      meowConnectTab: 'settings',
+//      target: '[data-guide="meow-connect-friends"]',
+//      requiresMeowConnect: true,
+//      align: 'right'
+//    },
+//    {
+//      title: 'Groups And Tags',
+//      body: 'Groups let you organize static runs. Create a group, add an optional short tag, invite members, then assign characters to that group from Raid Together profile details.',
+//      tab: 'meow-connect',
+//      meowConnectTab: 'settings',
+//      target: '[data-guide="meow-connect-groups"]',
+//      requiresMeowConnect: true,
+//      align: 'right'
+//    },
     {
       title: 'General Options',
       body: 'General contains app-wide options like dashboard layout, static badge visibility, welcome behavior, header countdown, RAT To Do view, and themes.',
@@ -215,20 +216,24 @@
   let currentStep = 0;
   let autoStarted = false;
   let hasMounted = false;
-  let meowConnectEnabled = true;
-  let meowConnectConsentAccepted = false;
+  // Temporarily disabled due to Supabase realtime message limits
+  // let meowConnectEnabled = true;
+  // let meowConnectConsentAccepted = false;
   let guidePlacementStyle = '';
 
-  $: steps = allSteps.filter((step) => !step.requiresMeowConnect || meowConnectEnabled);
+  // Temporarily disabled due to Supabase realtime message limits
+  // $: steps = allSteps.filter((step) => !step.requiresMeowConnect || meowConnectEnabled);
+  $: steps = allSteps.filter((step) => !step.requiresMeowConnect);
   $: if (currentStep >= steps.length) currentStep = Math.max(0, steps.length - 1);
   $: current = steps[currentStep];
   $: canGoBack = currentStep > 0;
   $: isLastStep = currentStep === steps.length - 1;
-  $: isCurrentStepBlocked = Boolean(current?.waitForMeowConnectConsent && !meowConnectConsentAccepted);
+  // $: isCurrentStepBlocked = Boolean(current?.waitForMeowConnectConsent && !meowConnectConsentAccepted);
+  $: isCurrentStepBlocked = false;
 
   onMount(() => {
     hasMounted = true;
-    refreshMeowConnectGuideState();
+    // refreshMeowConnectGuideState();
     const dismissed = localStorage.getItem(storageKey) === 'true';
     if (!dismissed && appReady && characterCount === 0) {
       startGuide();
@@ -236,15 +241,17 @@
     }
 
     const startListener = () => startGuide();
-    const meowConnectStateListener = () => refreshMeowConnectGuideState();
+    // Temporarily disabled due to Supabase realtime message limits
+    // const meowConnectStateListener = () => refreshMeowConnectGuideState();
     window.addEventListener('setup-guide:start', startListener);
-    window.addEventListener('meow-connect-consent-changed', meowConnectStateListener);
-    window.addEventListener('meow-connect-feature-changed', meowConnectStateListener);
+    // window.addEventListener('meow-connect-consent-changed', meowConnectStateListener);
+    // window.addEventListener('meow-connect-feature-changed', meowConnectStateListener);
 
     return () => {
       window.removeEventListener('setup-guide:start', startListener);
-      window.removeEventListener('meow-connect-consent-changed', meowConnectStateListener);
-      window.removeEventListener('meow-connect-feature-changed', meowConnectStateListener);
+      // Temporarily disabled due to Supabase realtime message limits
+      // window.removeEventListener('meow-connect-consent-changed', meowConnectStateListener);
+      // window.removeEventListener('meow-connect-feature-changed', meowConnectStateListener);
       clearHighlight();
     };
   });
@@ -274,18 +281,19 @@
       setSettingsTab(step.settingsTab);
     }
 
-    if (step.meowConnectTab && activeMeowConnectTab !== step.meowConnectTab) {
-      setMeowConnectTab(step.meowConnectTab);
-    }
+//    if (step.meowConnectTab && activeMeowConnectTab !== step.meowConnectTab) {
+//      setMeowConnectTab(step.meowConnectTab);
+//    }
 
     await tick();
     window.setTimeout(() => highlightTarget(step.target), 80);
   }
 
-  function refreshMeowConnectGuideState() {
-    meowConnectEnabled = isMeowConnectFeatureEnabled();
-    meowConnectConsentAccepted = hasMeowConnectConsent();
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // function refreshMeowConnectGuideState() {
+  //   meowConnectEnabled = isMeowConnectFeatureEnabled();
+  //   meowConnectConsentAccepted = hasMeowConnectConsent();
+  // }
 
   function highlightTarget(selector?: string) {
     clearHighlight();

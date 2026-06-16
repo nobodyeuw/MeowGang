@@ -27,28 +27,33 @@
     updateResetTimestamps,
     updateRestedValuesNow
   } from '$lib/services/app-startup';
-  import {
-    hasMeowConnectConsent,
-    isMeowConnectFeatureEnabled,
-    isMeowConnectFriendClearHintsEnabled,
-    isMeowConnectRealtimeEnabled,
-    applyFriendClearHintsToLocalSnapshot,
-    fetchMeowConnectRemoteSnapshots,
-    loadMeowConnectLocalSnapshot,
-    loadMeowConnectPendingRequests,
-    logMeowConnectRequest,
-    markMeowConnectActive,
-    markMeowConnectConnecting,
-    markMeowConnectFailure,
-    meowConnectStatus,
-    subscribeMeowConnectChanges,
-    uploadMeowConnectSnapshotIfNeeded,
-    type MeowConnectFriendConnection,
-    type MeowConnectGroup
-  } from '$lib/services/meow-connect';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import {
+  //   hasMeowConnectConsent,
+  //   isMeowConnectFeatureEnabled,
+  //   isMeowConnectFriendClearHintsEnabled,
+  //   isMeowConnectRealtimeEnabled,
+  //   applyFriendClearHintsToLocalSnapshot,
+  //   fetchMeowConnectRemoteSnapshots,
+  //   loadMeowConnectLocalSnapshot,
+  //   loadMeowConnectPendingRequests,
+  //   logMeowConnectRequest,
+  //   markMeowConnectActive,
+  //   markMeowConnectConnecting,
+  //   markMeowConnectFailure,
+  //   meowConnectStatus,
+  //   subscribeMeowConnectChanges,
+  //   uploadMeowConnectSnapshotIfNeeded,
+  //   type MeowConnectFriendConnection,
+  //   type MeowConnectGroup
+  // } from '$lib/services/meow-connect';
   import { initializeApp, activeFilterCharId, nextDailyReset, updateAvailable, latestAppVersion, currentAppVersion, isUpdateChecking, checkForAppUpdates, characters, rosters } from '$lib/store';
-  import type { AppTab, DiscordAuthState, MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
-  import { formatResetCountdown, getMeowConnectHeaderLabel, isAppTab } from '$lib/utils/app-shell';
+  import type { AppTab, DiscordAuthState } from '$lib/types/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import type { MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
+  import { formatResetCountdown, isAppTab } from '$lib/utils/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import { getMeowConnectHeaderLabel } from '$lib/utils/app-shell';
   import { cleanupLegacyBrowserStorage } from '$lib/utils/browser-storage';
   import { reloadTenorEmbeds } from '$lib/utils/tenor';
   import { applyTheme } from '$lib/services/theme-preferences';
@@ -61,11 +66,11 @@
   let sidebarOpen = false;
   let headerContent = '';
   let activeSettingsTab = 'roster';
-  let activeMeowConnectTab: MeowConnectSection = 'together';
-  let pendingMeowConnectRequests = 0;
-  let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
-  let pendingMeowConnectGroupInvites: MeowConnectGroup[] = [];
-  let meowConnectFriendRequestRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  //let activeMeowConnectTab: MeowConnectSection = 'together';
+  //let pendingMeowConnectRequests = 0;
+  //let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
+  //let pendingMeowConnectGroupInvites: MeowConnectGroup[] = [];
+  //let meowConnectFriendRequestRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let nextResetTime = '';
   let resetCountdown = '';
   let showHeaderCountdown = true;
@@ -86,15 +91,16 @@
   let raidManagementAccessGranted = false;
   let raidManagementAccessLoading = false;
   let appInitializationStarted = false;
-  let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
-  let meowConnectHeaderMessage = 'MeowConnect is inactive.';
-  let meowConnectHeaderLabel = 'Inactive';
-  let meowConnectFeatureEnabled = true;
-  let meowConnectRealtimeEnabled = true;
-  let meowConnectCompletionUploadTimer: ReturnType<typeof setTimeout> | null = null;
-  let meowConnectFriendHintRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-  let unsubscribeMeowConnectRealtime: (() => void) | null = null;
-  const MEOWCONNECT_PENDING_IDLE_REFRESH_MS = 3 * 60 * 1000;
+  // Temporarily disabled due to Supabase realtime message limits
+  // let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
+  // let meowConnectHeaderMessage = 'MeowConnect is inactive.';
+  // let meowConnectHeaderLabel = 'Inactive';
+  // let meowConnectFeatureEnabled = true;
+  // let meowConnectRealtimeEnabled = true;
+  // let meowConnectCompletionUploadTimer: ReturnType<typeof setTimeout> | null = null;
+  // let meowConnectFriendHintRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  // let unsubscribeMeowConnectRealtime: (() => void) | null = null;
+  // const MEOWCONNECT_PENDING_IDLE_REFRESH_MS = 3 * 60 * 1000;
   const HAALS_HOURGLASS_DISMISS_KEY_PREFIX = 'haalsHourglassReminderDismissed';
 
   interface HaalsHourglassReminderCharacter {
@@ -118,9 +124,10 @@
     }
   }
 
-  $: if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
-    switchTab('dashboard');
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // $: if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
+  //   switchTab('dashboard');
+  // }
 
   $: raidManagementLocalAccess = hasRaidManagementAccess(discordAuthUserId);
   $: raidManagementVisible =
@@ -156,63 +163,67 @@
         void showHaalsHourglassReminderIfNeeded();
       }
     };
-    const handleMeowConnectConsentChanged = () => {
-      refreshMeowConnectHeaderStatus();
-      scheduleMeowConnectFriendRequestRefresh();
-    };
-    const handleMeowConnectFeatureChanged = () => {
-      refreshMeowConnectFeatureSettings();
-      scheduleMeowConnectFriendRequestRefresh();
-      if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
-        switchTab('dashboard');
-      }
-    };
-    const handleMeowConnectRealtimeChanged = () => {
-      refreshMeowConnectFeatureSettings();
-    };
-    const handleMeowConnectFriendClearHintsChanged = () => {
-      refreshMeowConnectFeatureSettings();
-    };
-    const handleMeowConnectCompletionChanged = () => {
-      scheduleMeowConnectCompletionUpload();
-      scheduleMeowConnectFriendRequestRefresh();
-    };
+    // Temporarily disabled due to Supabase realtime message limits
+    // const handleMeowConnectConsentChanged = () => {
+    //   refreshMeowConnectHeaderStatus();
+    //   scheduleMeowConnectFriendRequestRefresh();
+    // };
+    // const handleMeowConnectFeatureChanged = () => {
+    //   refreshMeowConnectFeatureSettings();
+    //   scheduleMeowConnectFriendRequestRefresh();
+    //   if (!meowConnectFeatureEnabled && activeTab === 'meow-connect') {
+    //     switchTab('dashboard');
+    //   }
+    // };
+    // const handleMeowConnectRealtimeChanged = () => {
+    //   refreshMeowConnectFeatureSettings();
+    // };
+    // const handleMeowConnectFriendClearHintsChanged = () => {
+    //   refreshMeowConnectFeatureSettings();
+    // };
+    // const handleMeowConnectCompletionChanged = () => {
+    //   scheduleMeowConnectCompletionUpload();
+    //   scheduleMeowConnectFriendRequestRefresh();
+    // };
     const handleTodoTaskStatusChanged = () => {
       void showHaalsHourglassReminderIfNeeded();
     };
-    const unsubscribeMeowConnectStatus = meowConnectStatus.subscribe((status) => {
-      meowConnectHeaderState = status.state;
-      meowConnectHeaderMessage = status.message;
-      meowConnectHeaderLabel = getMeowConnectHeaderLabel(status.state);
-    });
-    let unlistenMeowConnectScrape: (() => void) | null = null;
+    // Temporarily disabled due to Supabase realtime message limits
+    // const unsubscribeMeowConnectStatus = meowConnectStatus.subscribe((status) => {
+    //   meowConnectHeaderState = status.state;
+    //   meowConnectHeaderMessage = status.message;
+    //   meowConnectHeaderLabel = getMeowConnectHeaderLabel(status.state);
+    // });
+    // let unlistenMeowConnectScrape: (() => void) | null = null;
 
     applyTheme();
     window.addEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
     window.addEventListener('header-countdown:changed', handleHeaderCountdownChanged);
     window.addEventListener('haals-hourglass-reminder:changed', handleHaalsHourglassReminderChanged);
-    window.addEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
-    window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
-    window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
-    window.addEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
-    window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
+    // Temporarily disabled due to Supabase realtime message limits
+    // window.addEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
+    // window.addEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
+    // window.addEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+    // window.addEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
+    // window.addEventListener('raid-completed', handleMeowConnectCompletionChanged);
     window.addEventListener('todo-task-status-changed', handleTodoTaskStatusChanged);
     cleanupLegacyBrowserStorage();
     refreshHeaderCountdownPreference();
-    refreshMeowConnectFeatureSettings();
-    refreshMeowConnectHeaderStatus();
+    // refreshMeowConnectFeatureSettings();
+    // refreshMeowConnectHeaderStatus();
 
     (async () => {
-      unlistenMeowConnectScrape = await listen('meow-connect-roster-scrape-complete', () => {
-        void syncMeowConnectAfterRosterScrape();
-      });
+      // Temporarily disabled due to Supabase realtime message limits
+      // unlistenMeowConnectScrape = await listen('meow-connect-roster-scrape-complete', () => {
+      //   void syncMeowConnectAfterRosterScrape();
+      // });
       await loadSystemPreferences();
       await checkStoredDiscordAuth();
       if (discordAuthState !== 'approved') {
         return;
       }
       await initializeAuthorizedApp();
-      startMeowConnectRealtimeHints();
+      // startMeowConnectRealtimeHints();
     })();
 
     // Update countdown every second from cached reset timestamp.
@@ -220,29 +231,31 @@
     // Refresh backend reset timestamp only once per minute.
     const resetRefreshInterval = setInterval(refreshNextResetTimeFromBackend, 60000);
     const loaLogsStatusInterval = setInterval(clearLoaLogsReminderWhenRunning, 5000);
-    const meowConnectFriendRequestInterval = setInterval(refreshMeowConnectFriendRequests, MEOWCONNECT_PENDING_IDLE_REFRESH_MS);
+    // Temporarily disabled due to Supabase realtime message limits
+    // const meowConnectFriendRequestInterval = setInterval(refreshMeowConnectFriendRequests, MEOWCONNECT_PENDING_IDLE_REFRESH_MS);
 
     // Cleanup on unmount
     return () => {
-      unlistenMeowConnectScrape?.();
-      unsubscribeMeowConnectRealtime?.();
-      unsubscribeMeowConnectStatus();
-      if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
-      if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
-      if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+      // Temporarily disabled due to Supabase realtime message limits
+      // unlistenMeowConnectScrape?.();
+      // unsubscribeMeowConnectRealtime?.();
+      // unsubscribeMeowConnectStatus();
+      // if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
+      // if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
+      // if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
       window.removeEventListener('setup-guide-button:changed', handleSetupGuideButtonChanged);
       window.removeEventListener('header-countdown:changed', handleHeaderCountdownChanged);
       window.removeEventListener('haals-hourglass-reminder:changed', handleHaalsHourglassReminderChanged);
-      window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
-      window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
-      window.removeEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
-      window.removeEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
-      window.removeEventListener('raid-completed', handleMeowConnectCompletionChanged);
+      // window.removeEventListener('meow-connect-consent-changed', handleMeowConnectConsentChanged);
+      // window.removeEventListener('meow-connect-feature-changed', handleMeowConnectFeatureChanged);
+      // window.removeEventListener('meow-connect-realtime-changed', handleMeowConnectRealtimeChanged);
+      // window.removeEventListener('meow-connect-friend-clear-hints-changed', handleMeowConnectFriendClearHintsChanged);
+      // window.removeEventListener('raid-completed', handleMeowConnectCompletionChanged);
       window.removeEventListener('todo-task-status-changed', handleTodoTaskStatusChanged);
       clearInterval(countdownInterval);
       clearInterval(resetRefreshInterval);
       clearInterval(loaLogsStatusInterval);
-      clearInterval(meowConnectFriendRequestInterval);
+      // clearInterval(meowConnectFriendRequestInterval);
     };
   });
 
@@ -323,7 +336,8 @@
     try {
       await initializeApp();
       await loadSystemPreferences();
-      refreshMeowConnectHeaderStatus();
+      // Temporarily disabled due to Supabase realtime message limits
+      // refreshMeowConnectHeaderStatus();
       appReady = true;
       await showLoaLogsReminderIfNeeded();
       checkForAppUpdates().catch((error) => console.warn('Update check failed:', error));
@@ -354,7 +368,7 @@
         }
 
         await showHaalsHourglassReminderIfNeeded();
-        await syncMeowConnectOnAppStart();
+        //await syncMeowConnectOnAppStart();
       } catch (error) {
         console.error('Data completeness check failed:', error);
       }
@@ -364,51 +378,53 @@
     }
   }
 
-  async function syncMeowConnectOnAppStart() {
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
-      refreshMeowConnectHeaderStatus();
-      return;
-    }
+  // Temporarily disabled due to Supabase realtime message limits
+  // async function syncMeowConnectOnAppStart() {
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+  //     refreshMeowConnectHeaderStatus();
+  //     return;
+  //   }
+  //
+  //   try {
+  //     markMeowConnectConnecting('Checking MeowConnect startup sync.');
+  //     const result = await uploadMeowConnectSnapshotIfNeeded();
+  //     const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
+  //     if (appliedClearHints > 0) {
+  //       await uploadMeowConnectSnapshotIfNeeded({ force: true });
+  //       window.dispatchEvent(new CustomEvent('raid-completed'));
+  //     }
+  //     const statusMessage = appliedClearHints > 0
+  //       ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
+  //       : result.uploaded
+  //         ? 'MeowConnect startup sync succeeded.'
+  //         : 'MeowConnect is connected.';
+  //     markMeowConnectActive(statusMessage);
+  //     await refreshMeowConnectFriendRequests();
+  //   } catch (error) {
+  //     markMeowConnectFailure(error);
+  //     console.warn('MeowConnect startup sync failed:', error);
+  //     await refreshMeowConnectFriendRequests();
+  //   }
+  // }
 
-    try {
-      markMeowConnectConnecting('Checking MeowConnect startup sync.');
-      const result = await uploadMeowConnectSnapshotIfNeeded();
-      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
-      if (appliedClearHints > 0) {
-        await uploadMeowConnectSnapshotIfNeeded({ force: true });
-        window.dispatchEvent(new CustomEvent('raid-completed'));
-      }
-      const statusMessage = appliedClearHints > 0
-        ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
-        : result.uploaded
-          ? 'MeowConnect startup sync succeeded.'
-          : 'MeowConnect is connected.';
-      markMeowConnectActive(statusMessage);
-      await refreshMeowConnectFriendRequests();
-    } catch (error) {
-      markMeowConnectFailure(error);
-      console.warn('MeowConnect startup sync failed:', error);
-      await refreshMeowConnectFriendRequests();
-    }
-  }
-
-  async function syncMeowConnectAfterRosterScrape() {
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
-      refreshMeowConnectHeaderStatus();
-      return;
-    }
-
-    try {
-      markMeowConnectConnecting('Syncing MeowConnect after roster scrape.');
-      await uploadMeowConnectSnapshotIfNeeded({ force: true });
-      markMeowConnectActive('MeowConnect roster scrape sync succeeded.');
-      await refreshMeowConnectFriendRequests();
-    } catch (error) {
-      markMeowConnectFailure(error);
-      console.warn('MeowConnect roster scrape sync failed:', error);
-      await refreshMeowConnectFriendRequests();
-    }
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // async function syncMeowConnectAfterRosterScrape() {
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+  //     refreshMeowConnectHeaderStatus();
+  //     return;
+  //   }
+  //
+  //   try {
+  //     markMeowConnectConnecting('Syncing MeowConnect after roster scrape.');
+  //     await uploadMeowConnectSnapshotIfNeeded({ force: true });
+  //     markMeowConnectActive('MeowConnect roster scrape sync succeeded.');
+  //     await refreshMeowConnectFriendRequests();
+  //   } catch (error) {
+  //     markMeowConnectFailure(error);
+  //     console.warn('MeowConnect roster scrape sync failed:', error);
+  //     await refreshMeowConnectFriendRequests();
+  //   }
+  // }
 
   async function refreshRaidManagementAccess(userId: string) {
     raidManagementAccessUserId = userId;
@@ -424,9 +440,10 @@
   }
 
   function switchTab(tab: string) {
-    if (tab === 'meow-connect' && !meowConnectFeatureEnabled) {
-      tab = 'dashboard';
-    }
+    // Temporarily disabled due to Supabase realtime message limits
+    // if (tab === 'meow-connect' && !meowConnectFeatureEnabled) {
+    //   tab = 'dashboard';
+    // }
     if (tab === 'raid-management' && !raidManagementVisible) {
       tab = 'dashboard';
     }
@@ -445,52 +462,54 @@
     goto(`/?${searchParams.toString()}`);
   }
 
-  function openMeowConnectRequests() {
-    activeMeowConnectTab = 'settings';
-    switchTab('meow-connect');
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // function openMeowConnectRequests() {
+  //   activeMeowConnectTab = 'settings';
+  //   switchTab('meow-connect');
+  // }
 
-  function switchMeowConnectTab(tab: MeowConnectSection) {
-    activeMeowConnectTab = tab;
-  }
+  // function switchMeowConnectTab(tab: MeowConnectSection) {
+  //   //activeMeowConnectTab = tab;
+  // }
 
-  function handlePendingRequestsChanged(count: number) {
-    pendingMeowConnectRequests = count;
-    scheduleMeowConnectFriendRequestRefresh();
-  }
+  // function handlePendingRequestsChanged(count: number) {
+  //   pendingMeowConnectRequests = count;
+  //   scheduleMeowConnectFriendRequestRefresh();
+  // }
 
-  function scheduleMeowConnectFriendRequestRefresh() {
-    if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
-    meowConnectFriendRequestRefreshTimer = setTimeout(() => {
-      meowConnectFriendRequestRefreshTimer = null;
-      void refreshMeowConnectFriendRequests();
-    }, 500);
-  }
-
-  async function refreshMeowConnectFriendRequests() {
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || discordAuthState !== 'approved') {
-      pendingMeowConnectFriendRequests = [];
-      pendingMeowConnectGroupInvites = [];
-      pendingMeowConnectRequests = 0;
-      return;
-    }
-
-    const startedAt = performance.now();
-    logMeowConnectRequest('Header pending request refresh started.');
-    try {
-      const { friendRequests, groupInvites } = await loadMeowConnectPendingRequests();
-      pendingMeowConnectFriendRequests = friendRequests;
-      pendingMeowConnectGroupInvites = groupInvites;
-      pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length + pendingMeowConnectGroupInvites.length;
-      logMeowConnectRequest(
-        `Header pending request refresh finished in ${Math.round(performance.now() - startedAt)}ms: friendRequests=${friendRequests.length}, groupInvites=${groupInvites.length}, pending=${pendingMeowConnectRequests}.`,
-        'info'
-      );
-    } catch (error) {
-      logMeowConnectRequest(`Header pending request refresh failed: ${error}`, 'warn');
-      console.warn('Failed to refresh MeowConnect friend request notifications:', error);
-    }
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // function scheduleMeowConnectFriendRequestRefresh() {
+  //   if (meowConnectFriendRequestRefreshTimer) clearTimeout(meowConnectFriendRequestRefreshTimer);
+  //   meowConnectFriendRequestRefreshTimer = setTimeout(() => {
+  //     meowConnectFriendRequestRefreshTimer = null;
+  //     void refreshMeowConnectFriendRequests();
+  //   }, 500);
+  // }
+  //
+  // async function refreshMeowConnectFriendRequests() {
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || discordAuthState !== 'approved') {
+  //     pendingMeowConnectFriendRequests = [];
+  //     pendingMeowConnectGroupInvites = [];
+  //     pendingMeowConnectRequests = 0;
+  //     return;
+  //   }
+  //
+  //   const startedAt = performance.now();
+  //   logMeowConnectRequest('Header pending request refresh started.');
+  //   try {
+  //     const { friendRequests, groupInvites } = await loadMeowConnectPendingRequests();
+  //     pendingMeowConnectFriendRequests = friendRequests;
+  //     pendingMeowConnectGroupInvites = groupInvites;
+  //     pendingMeowConnectRequests = pendingMeowConnectFriendRequests.length + pendingMeowConnectGroupInvites.length;
+  //     logMeowConnectRequest(
+  //       `Header pending request refresh finished in ${Math.round(performance.now() - startedAt)}ms: friendRequests=${friendRequests.length}, groupInvites=${groupInvites.length}, pending=${pendingMeowConnectRequests}.`,
+  //       'info'
+  //     );
+  //   } catch (error) {
+  //     logMeowConnectRequest(`Header pending request refresh failed: ${error}`, 'warn');
+  //     console.warn('Failed to refresh MeowConnect friend request notifications:', error);
+  //   }
+  // }
 
   function switchSettingsTab(tab: string) {
     activeSettingsTab = tab;
@@ -616,110 +635,111 @@
     headerContent = content;
   }
 
-  function refreshMeowConnectHeaderStatus() {
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
-      meowConnectStatus.set({
-        state: 'inactive',
-        message: meowConnectFeatureEnabled ? 'MeowConnect is inactive.' : 'MeowConnect is disabled.',
-        updatedAt: Date.now()
-      });
-    }
-  }
-
-  function refreshMeowConnectFeatureSettings() {
-    meowConnectFeatureEnabled = isMeowConnectFeatureEnabled();
-    meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
-    refreshMeowConnectHeaderStatus();
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) {
-      stopMeowConnectRealtimeHints();
-    } else {
-      startMeowConnectRealtimeHints();
-    }
-  }
-
-  function startMeowConnectRealtimeHints() {
-    if (unsubscribeMeowConnectRealtime) return;
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
-
-    unsubscribeMeowConnectRealtime = subscribeMeowConnectChanges(
-      () => {
-        if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
-        meowConnectFriendHintRefreshTimer = setTimeout(() => {
-          meowConnectFriendHintRefreshTimer = null;
-          void applyMeowConnectFriendClearHintsFromRealtime();
-        }, 1500);
-      },
-      {
-        ignoreRealtimePreference: true,
-        connectedMessage: meowConnectRealtimeEnabled
-          ? 'MeowConnect realtime is connected.'
-          : 'MeowConnect friend clear hints are listening.'
-      }
-    );
-  }
-
-  function stopMeowConnectRealtimeHints() {
-    unsubscribeMeowConnectRealtime?.();
-    unsubscribeMeowConnectRealtime = null;
-    if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
-    meowConnectFriendHintRefreshTimer = null;
-  }
-
-  function scheduleMeowConnectCompletionUpload() {
-    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
-    if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
-    meowConnectCompletionUploadTimer = setTimeout(() => {
-      void syncMeowConnectAfterCompletionChange();
-    }, 1200);
-  }
-
-  async function syncMeowConnectAfterCompletionChange() {
-    if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
-
-    try {
-      markMeowConnectConnecting('Syncing MeowConnect completion update.');
-      const result = await uploadMeowConnectSnapshotIfNeeded({ force: true });
-      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
-      if (appliedClearHints > 0) {
-        await uploadMeowConnectSnapshotIfNeeded({ force: true });
-        window.dispatchEvent(new CustomEvent('raid-completed'));
-      }
-      const statusMessage = appliedClearHints > 0
-        ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
-        : result.uploaded
-          ? 'MeowConnect completion update synced.'
-          : 'MeowConnect completion update checked.';
-      markMeowConnectActive(statusMessage);
-    } catch (error) {
-      markMeowConnectFailure(error);
-      console.warn('MeowConnect completion sync failed:', error);
-    }
-  }
-
-  async function applyMeowConnectFriendClearHintsIfEnabled(weeklyResetMs?: number): Promise<number> {
-    if (!isMeowConnectFriendClearHintsEnabled()) return 0;
-
-    const localSnapshot = await loadMeowConnectLocalSnapshot();
-    const resetCycle = String(weeklyResetMs || localSnapshot.weeklyResetMs || 0);
-    const remoteSnapshots = await fetchMeowConnectRemoteSnapshots(resetCycle);
-    return applyFriendClearHintsToLocalSnapshot(localSnapshot, remoteSnapshots);
-  }
-
-  async function applyMeowConnectFriendClearHintsFromRealtime() {
-    if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
-
-    try {
-      const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled();
-      if (appliedClearHints <= 0) return;
-
-      await uploadMeowConnectSnapshotIfNeeded({ force: true });
-      window.dispatchEvent(new CustomEvent('raid-completed'));
-      markMeowConnectActive(`MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`);
-    } catch (error) {
-      markMeowConnectFailure(error);
-      console.warn('MeowConnect friend clear hint refresh failed:', error);
-    }
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // function refreshMeowConnectHeaderStatus() {
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent()) {
+  //     meowConnectStatus.set({
+  //       state: 'inactive',
+  //       message: meowConnectFeatureEnabled ? 'MeowConnect is inactive.' : 'MeowConnect is disabled.',
+  //       updatedAt: Date.now()
+  //     });
+  //   }
+  // }
+  //
+  // function refreshMeowConnectFeatureSettings() {
+  //   meowConnectFeatureEnabled = isMeowConnectFeatureEnabled();
+  //   meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
+  //   refreshMeowConnectHeaderStatus();
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) {
+  //     stopMeowConnectRealtimeHints();
+  //   } else {
+  //     startMeowConnectRealtimeHints();
+  //   }
+  // }
+  //
+  // function startMeowConnectRealtimeHints() {
+  //   if (unsubscribeMeowConnectRealtime) return;
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
+  //
+  //   unsubscribeMeowConnectRealtime = subscribeMeowConnectChanges(
+  //     () => {
+  //       if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+  //       meowConnectFriendHintRefreshTimer = setTimeout(() => {
+  //         meowConnectFriendHintRefreshTimer = null;
+  //         void applyMeowConnectFriendClearHintsFromRealtime();
+  //       }, 1500);
+  //     },
+  //     {
+  //       ignoreRealtimePreference: true,
+  //       connectedMessage: meowConnectRealtimeEnabled
+  //         ? 'MeowConnect realtime is connected.'
+  //         : 'MeowConnect friend clear hints are listening.'
+  //     }
+  //   );
+  // }
+  //
+  // function stopMeowConnectRealtimeHints() {
+  //   unsubscribeMeowConnectRealtime?.();
+  //   unsubscribeMeowConnectRealtime = null;
+  //   if (meowConnectFriendHintRefreshTimer) clearTimeout(meowConnectFriendHintRefreshTimer);
+  //   meowConnectFriendHintRefreshTimer = null;
+  // }
+  //
+  // function scheduleMeowConnectCompletionUpload() {
+  //   if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
+  //   if (meowConnectCompletionUploadTimer) clearTimeout(meowConnectCompletionUploadTimer);
+  //   meowConnectCompletionUploadTimer = setTimeout(() => {
+  //     void syncMeowConnectAfterCompletionChange();
+  //   }, 1200);
+  // }
+  //
+  // async function syncMeowConnectAfterCompletionChange() {
+  //   if (!meowConnectFeatureEnabled || !meowConnectRealtimeEnabled || !hasMeowConnectConsent()) return;
+  //
+  //   try {
+  //     markMeowConnectConnecting('Syncing MeowConnect completion update.');
+  //     const result = await uploadMeowConnectSnapshotIfNeeded({ force: true });
+  //     const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled(result.snapshot.weeklyResetMs);
+  //     if (appliedClearHints > 0) {
+  //       await uploadMeowConnectSnapshotIfNeeded({ force: true });
+  //       window.dispatchEvent(new CustomEvent('raid-completed'));
+  //     }
+  //     const statusMessage = appliedClearHints > 0
+  //       ? `MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`
+  //       : result.uploaded
+  //         ? 'MeowConnect completion update synced.'
+  //         : 'MeowConnect completion update checked.';
+  //     //markMeowConnectActive(statusMessage);
+  //   } catch (error) {
+  //     //markMeowConnectFailure(error);
+  //     console.warn('MeowConnect completion sync failed:', error);
+  //   }
+  // }
+  //
+  // async function applyMeowConnectFriendClearHintsIfEnabled(weeklyResetMs?: number): Promise<number> {
+  //   if (!isMeowConnectFriendClearHintsEnabled()) return 0;
+  //
+  //   const localSnapshot = await loadMeowConnectLocalSnapshot();
+  //   const resetCycle = String(weeklyResetMs || localSnapshot.weeklyResetMs || 0);
+  //   const remoteSnapshots = await fetchMeowConnectRemoteSnapshots(resetCycle);
+  //   return applyFriendClearHintsToLocalSnapshot(localSnapshot, remoteSnapshots);
+  // }
+  //
+  // async function applyMeowConnectFriendClearHintsFromRealtime() {
+  //   if (!meowConnectFeatureEnabled || !hasMeowConnectConsent() || !isMeowConnectFriendClearHintsEnabled()) return;
+  //
+  //   try {
+  //     const appliedClearHints = await applyMeowConnectFriendClearHintsIfEnabled();
+  //     if (appliedClearHints <= 0) return;
+  //
+  //     await uploadMeowConnectSnapshotIfNeeded({ force: true });
+  //     window.dispatchEvent(new CustomEvent('raid-completed'));
+  //     markMeowConnectActive(`MeowConnect applied ${appliedClearHints} friend clear hint${appliedClearHints === 1 ? '' : 's'}.`);
+  //   } catch (error) {
+  //     markMeowConnectFailure(error);
+  //     console.warn('MeowConnect friend clear hint refresh failed:', error);
+  //   }
+  // }
 
   function toggleSidebar() {
     sidebarOpen = !sidebarOpen;
@@ -765,7 +785,7 @@
     {switchTab}
     isOpen={sidebarOpen}
     {discordAuthUser}
-    showMeowConnect={meowConnectFeatureEnabled}
+    showMeowConnect={false}
     showRaidManagement={raidManagementVisible}
   />
 
@@ -779,15 +799,15 @@
     <AppHeader
       {activeTab}
       bind:activeSettingsTab
-      bind:activeMeowConnectTab
-      {meowConnectFeatureEnabled}
+      //bind:activeMeowConnectTab
+      //{meowConnectFeatureEnabled}
       {showHeaderCountdown}
       {resetCountdown}
-      {meowConnectHeaderState}
-      {meowConnectHeaderMessage}
-      {meowConnectHeaderLabel}
-      {pendingMeowConnectRequests}
-      {pendingMeowConnectFriendRequests}
+      //{meowConnectHeaderState}
+      //{meowConnectHeaderMessage}
+      //{meowConnectHeaderLabel}
+      //{pendingMeowConnectRequests}
+      //{pendingMeowConnectFriendRequests}
       {showSetupGuideButton}
       {headerContent}
       {loaLogsReminderMessage}
@@ -797,7 +817,7 @@
       isUpdateChecking={$isUpdateChecking}
       {toggleSidebar}
       {switchTab}
-      {openMeowConnectRequests}
+      //{openMeowConnectRequests}
       {startSetupGuide}
       {dismissLoaLogsReminder}
       {checkForAppUpdates}
@@ -806,26 +826,26 @@
     <AppContent
       {activeTab}
       bind:activeSettingsTab
-      {activeMeowConnectTab}
-      {meowConnectFeatureEnabled}
+      //{activeMeowConnectTab}
+      //{meowConnectFeatureEnabled}
       {raidManagementVisible}
       {discordAuthUserId}
       {discordAuthUser}
       highlightCharId={$activeFilterCharId}
       {setHeaderContent}
-      {handlePendingRequestsChanged}
+      //{handlePendingRequestsChanged}
     />
   </div>
 
   <SetupGuide
     {activeTab}
     {activeSettingsTab}
-    {activeMeowConnectTab}
+    //{activeMeowConnectTab}
     {appReady}
     characterCount={$characters.length}
     {switchTab}
     setSettingsTab={switchSettingsTab}
-    setMeowConnectTab={switchMeowConnectTab}
+    //setMeowConnectTab={switchMeowConnectTab}
   />
 
   {#if haalsHourglassReminderCharacters.length > 0}

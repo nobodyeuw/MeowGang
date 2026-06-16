@@ -196,10 +196,11 @@ pub fn run() {
             handlers::encounter_sync_handlers::sync_encounters_to_completions,
             handlers::encounter_sync_handlers::get_encounters_preview,
             handlers::encounter_sync_handlers::test_boss_mapping,
-            // MeowConnect handlers
-            handlers::meow_connect_handlers::get_meow_connect_local_snapshot,
-            handlers::meow_connect_handlers::apply_meow_connect_clear_hints,
-            handlers::meow_connect_handlers::replace_meow_connect_group_raid_tags,
+            // Temporarily disabled due to Supabase realtime message limits
+            // // MeowConnect handlers
+            // handlers::meow_connect_handlers::get_meow_connect_local_snapshot,
+            // handlers::meow_connect_handlers::apply_meow_connect_clear_hints,
+            // handlers::meow_connect_handlers::replace_meow_connect_group_raid_tags,
             // Entity sync handlers
             handlers::entity_sync_handlers::sync_entity_data,
             handlers::entity_sync_handlers::sync_all_recent_entities,
@@ -597,7 +598,7 @@ fn initialize_local_database_runtime(db_manager: &DatabaseManager) -> Result<(),
     }
 
     let current_version = database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-const TARGET_VERSION: i32 = 18;
+const TARGET_VERSION: i32 = 20;
     crate::log_info!(
         "Current schema version: {}, target version: {}",
         current_version,

@@ -1,13 +1,13 @@
 # <img src="src/assets/app/LOAtracker_appicon.png" alt="MeowGang Tracker icon" width="36" align="left" /> MeowGang Tracker
 
-**A lightweight desktop companion for Lost Ark roster, raid, gold, task, and friend availability tracking.**
+**A lightweight desktop companion for Lost Ark roster, raid, gold, and task tracking.**
 
-[![Version](https://img.shields.io/badge/version-1.3.8-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.3.9-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
 
-MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It tracks characters, raid setup, weekly gold, daily and weekly tasks, LOA Logs completion data, market estimates, and MeowConnect friend availability in one local-first desktop app.
+MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It tracks characters, raid setup, weekly gold, daily and weekly tasks, LOA Logs completion data and market estimates in one local-first desktop app.
 
 [Download Latest Release](https://github.com/nobodyeuw/MeowGang/releases) | [Report Bug](https://github.com/nobodyeuw/MeowGang/issues)
 
@@ -21,44 +21,10 @@ MeowGang Tracker helps reduce the manual work of managing Lost Ark rosters. It t
 | **To Do** | Track daily, weekly, roster-wide, and raid-gate completion states with stable per-gate difficulty display. |
 | **Raid Settings** | Configure raid gates, planned difficulties, gold earning, bonus boxes, and static/friend reservations per character. |
 | **Tracking Settings** | Choose which daily, weekly, roster, and raid tasks each roster should track. |
-| **MeowConnect** | Share selected character, raid completion, reservation, and availability data with accepted friends through Supabase. |
-| **Raid Together** | Compare open runs with friends, inspect profile details by roster, and see shared available, reserved, and cleared raids. |
-| **MeowConnect Logs** | Review shared clears from manual completions and LOA Logs, with borrowed-character indicators and Lost Ark Bible preview links when available. |
 | **LOA Logs Integration** | Local encounters can auto-complete raid gates, update character data, and optionally help friends through MeowConnect clear hints. |
-| **Ship Shop & Sea Coins** | Track Ship Shop weekly and use the header reminder for daily Stronghold Sea Coin buy-outs. |
 | **Themes** | Switch between bundled visual themes from System Settings. |
 | **Local First** | Core roster, tracking, gold, and settings data are stored locally in SQLite. |
 | **Tauri Desktop App** | Built with Tauri 2, SvelteKit, TypeScript, and Rust for a small native Windows app. |
-
----
-
-## MeowConnect
-
-MeowConnect is optional and disabled unless the user opts in. Users can:
-
-- enable or disable MeowConnect locally
-- choose which characters are shared
-- sync selected character data, raid completions, and reservations
-- add accepted friends and compare raid availability
-- organize static/friend plans through groups and group tags
-- view recent shared clear logs from LOA Logs and manual completion tracking
-- preview Lost Ark Bible logs when an uploaded LOA Logs upstream id exists
-- optionally allow friends' LOA Logs evidence to fill missing local raid gate completions as `meow_connect`
-
-MeowConnect clear hints are opt-in from `System Settings > MeowConnect`. Existing completed manual or local LOA Logs rows keep priority.
-
----
-
-## Current Release
-
-### v1.3.4
-
-- Improved MeowConnect clear hints so matching raid clears can refresh Dashboard and To Do faster.
-- Added managed-roster support for MeowConnect logs and clear hints when multiple connected rosters appear in the same LOA Logs clear.
-- Fixed Chaos Gate and Field Boss availability so To Do shows countdowns outside the correct event window.
-- Fixed dashboard Field Boss completion syncing into To Do.
-- Improved roster-wide event task storage stability.
-- Improved To Do raid gate tooltips to show confirmed cleared difficulty when available.
 
 ---
 

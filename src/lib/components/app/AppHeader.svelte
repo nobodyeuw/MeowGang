@@ -1,7 +1,8 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
-  import type { MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
+  // import type { MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
   import AppHeaderAlerts from './AppHeaderAlerts.svelte';
   import AppHeaderSeaCoinReminder from './AppHeaderSeaCoinReminder.svelte';
   import AppHeaderStatus from './AppHeaderStatus.svelte';
@@ -10,15 +11,16 @@
 
   export let activeTab = 'dashboard';
   export let activeSettingsTab = 'roster';
-  export let activeMeowConnectTab: MeowConnectSection = 'together';
-  export let meowConnectFeatureEnabled = true;
+  // Temporarily disabled due to Supabase realtime message limits
+  // export let activeMeowConnectTab: MeowConnectSection = 'together';
+  // export let meowConnectFeatureEnabled = true;
   export let showHeaderCountdown = true;
   export let resetCountdown = '';
-  export let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
-  export let meowConnectHeaderMessage = '';
-  export let meowConnectHeaderLabel = 'Inactive';
-  export let pendingMeowConnectRequests = 0;
-  export let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
+  // export let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
+  // export let meowConnectHeaderMessage = '';
+  // export let meowConnectHeaderLabel = 'Inactive';
+  // export let pendingMeowConnectRequests = 0;
+  // export let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
   export let showSetupGuideButton = true;
   export let headerContent = '';
   export let loaLogsReminderMessage = '';
@@ -28,7 +30,7 @@
   export let isUpdateChecking = false;
   export let toggleSidebar: () => void;
   export let switchTab: (tab: string) => void;
-  export let openMeowConnectRequests: () => void;
+  // export let openMeowConnectRequests: () => void;
   export let startSetupGuide: () => void;
   export let dismissLoaLogsReminder: () => void;
   export let checkForAppUpdates: () => void | Promise<void>;
@@ -58,17 +60,10 @@
   <div class="header-title" data-tauri-drag-region>
     <AppHeaderStatus
       {activeTab}
-      {meowConnectFeatureEnabled}
       {showHeaderCountdown}
       {resetCountdown}
-      {meowConnectHeaderState}
-      {meowConnectHeaderMessage}
-      {meowConnectHeaderLabel}
-      {pendingMeowConnectRequests}
-      {pendingMeowConnectFriendRequests}
       {showSetupGuideButton}
       {switchTab}
-      {openMeowConnectRequests}
       {startSetupGuide}
     />
 
@@ -95,9 +90,9 @@
   <AppHeaderSubTabs
     {activeTab}
     bind:activeSettingsTab
-    bind:activeMeowConnectTab
-    {meowConnectFeatureEnabled}
-    {pendingMeowConnectRequests}
+    // bind:activeMeowConnectTab
+    // {meowConnectFeatureEnabled}
+    // {pendingMeowConnectRequests}
   />
 
   <AppWindowControls />

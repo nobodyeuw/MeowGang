@@ -11,42 +11,9 @@ export interface RaidGate {
 export interface Raid {
   id: string;
   name: string;
-  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare" | "Stage 1" | "Stage 2" | "Stage 3";
+  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare" | "Level 1" | "Level 2" | "Level 3";
   gates: RaidGate[];
 }
-
-// Prepared for the next raid release, but intentionally not included in `RAIDS`
-// until encounter names/boss mappings are known. Keeping it separate prevents the
-// frontend raid settings and auto-completion logic from exposing incomplete data.
-export const PENDING_CATHEDRAL_RAIDS: Raid[] = [
-  {
-    id: "horizon_cathedral",
-    name: "Cathedral",
-    difficulty: "Stage 1",
-    gates: [
-      { gate: "Gate 1", minIlvl: 1700, tradableGold: 0, boundGold: 13500, boxPrice: 0 },
-      { gate: "Gate 2", minIlvl: 1700, tradableGold: 0, boundGold: 16500, boxPrice: 0 }
-    ]
-  },
-  {
-    id: "horizon_cathedral",
-    name: "Cathedral",
-    difficulty: "Stage 2",
-    gates: [
-      { gate: "Gate 1", minIlvl: 1720, tradableGold: 0, boundGold: 16000, boxPrice: 0 },
-      { gate: "Gate 2", minIlvl: 1720, tradableGold: 0, boundGold: 24000, boxPrice: 0 }
-    ]
-  },
-  {
-    id: "horizon_cathedral",
-    name: "Cathedral",
-    difficulty: "Stage 3",
-    gates: [
-      { gate: "Gate 1", minIlvl: 1750, tradableGold: 0, boundGold: 20000, boxPrice: 0 },
-      { gate: "Gate 2", minIlvl: 1750, tradableGold: 0, boundGold: 30000, boxPrice: 0 }
-    ]
-  }
-];
 
 export const RAIDS: Raid[] = [
   {
@@ -212,6 +179,33 @@ export const RAIDS: Raid[] = [
     gates: [
       { gate: "Gate 1", minIlvl: 1740, tradableGold: 21000, boundGold: 0, boxPrice: 6720 },
       { gate: "Gate 2", minIlvl: 1740, tradableGold: 33000, boundGold: 0, boxPrice: 10560 }
+    ]
+  },
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Level 1",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 0, boundGold: 13500, boxPrice: 4320 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 0, boundGold: 16500, boxPrice: 5280 }
+    ]
+  },
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Level 2",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1720, tradableGold: 0, boundGold: 16000, boxPrice: 5120 },
+      { gate: "Gate 2", minIlvl: 1720, tradableGold: 0, boundGold: 24000, boxPrice: 7680 }
+    ]
+  },
+  {
+    id: "horizon_cathedral",
+    name: "Cathedral",
+    difficulty: "Level 3",
+    gates: [
+      { gate: "Gate 1", minIlvl: 1750, tradableGold: 0, boundGold: 20000, boxPrice: 6400 },
+      { gate: "Gate 2", minIlvl: 1750, tradableGold: 0, boundGold: 30000, boxPrice: 9600 }
     ]
   },
   {

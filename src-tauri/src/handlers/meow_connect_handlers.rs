@@ -223,46 +223,47 @@ pub async fn get_meow_connect_local_snapshot(
     })
 }
 
-#[tauri::command]
-pub async fn replace_meow_connect_group_raid_tags(
-    assignments: Vec<MeowConnectGroupRaidTagInput>,
-    db_manager: State<'_, crate::database::DatabaseManager>,
-) -> Result<(), String> {
-    let mut conn = db_manager
-        .pool
-        .get()
-        .map_err(|e| format!("Database connection failed: {}", e))?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-    let now = chrono::Utc::now().timestamp_millis();
-
-    tx.execute("DELETE FROM meow_group_raid_tags", [])
-        .map_err(|e| e.to_string())?;
-
-    for assignment in assignments {
-        let group_tag = assignment.group_tag.trim().to_uppercase();
-        if group_tag.is_empty() {
-            continue;
-        }
-
-        tx.execute(
-            "INSERT OR REPLACE INTO meow_group_raid_tags
-                (char_id, content_id, group_id, group_tag, group_name, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                assignment.char_id,
-                assignment.content_id,
-                assignment.group_id,
-                group_tag,
-                assignment.group_name.trim(),
-                now
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    tx.commit().map_err(|e| e.to_string())?;
-    Ok(())
-}
+// Temporarily disabled due to Supabase realtime message limits
+// #[tauri::command]
+// pub async fn replace_meow_connect_group_raid_tags(
+//     assignments: Vec<MeowConnectGroupRaidTagInput>,
+//     db_manager: State<'_, crate::database::DatabaseManager>,
+// ) -> Result<(), String> {
+//     let mut conn = db_manager
+//         .pool
+//         .get()
+//         .map_err(|e| format!("Database connection failed: {}", e))?;
+//     let tx = conn.transaction().map_err(|e| e.to_string())?;
+//     let now = chrono::Utc::now().timestamp_millis();
+//
+//     tx.execute("DELETE FROM meow_group_raid_tags", [])
+//         .map_err(|e| e.to_string())?;
+//
+//     for assignment in assignments {
+//         let group_tag = assignment.group_tag.trim().to_uppercase();
+//         if group_tag.is_empty() {
+//             continue;
+//         }
+//
+//         tx.execute(
+//             "INSERT OR REPLACE INTO meow_group_raid_tags
+//                 (char_id, content_id, group_id, group_tag, group_name, updated_at)
+//              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+//             params![
+//                 assignment.char_id,
+//                 assignment.content_id,
+//                 assignment.group_id,
+//                 group_tag,
+//                 assignment.group_name.trim(),
+//                 now
+//             ],
+//         )
+//         .map_err(|e| e.to_string())?;
+//     }
+//
+//     tx.commit().map_err(|e| e.to_string())?;
+//     Ok(())
+// }
 
 #[tauri::command]
 pub async fn apply_meow_connect_clear_hints(

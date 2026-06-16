@@ -1,19 +1,24 @@
-import type { AppTab, MeowConnectHeaderState } from '$lib/types/app-shell';
+import type { AppTab } from '$lib/types/app-shell';
+// Temporarily disabled due to Supabase realtime message limits
+// import type { MeowConnectHeaderState } from '$lib/types/app-shell';
 
-export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'meow-connect', 'raid-management', 'updates'];
+export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'raid-management', 'updates'];
+// Temporarily disabled due to Supabase realtime message limits
+// export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'meow-connect', 'raid-management', 'updates'];
 
 export function isAppTab(value: string): value is AppTab {
   return (VALID_APP_TABS as string[]).includes(value);
 }
 
-export function getMeowConnectHeaderLabel(state: MeowConnectHeaderState): string {
-  if (state === 'active') return 'Active';
-  if (state === 'connecting') return 'Connecting';
-  if (state === 'sleeping') return 'Sleeping';
-  if (state === 'offline') return 'Offline';
-  if (state === 'login_required') return 'Login required';
-  return 'Inactive';
-}
+// Temporarily disabled due to Supabase realtime message limits
+// export function getMeowConnectHeaderLabel(state: MeowConnectHeaderState): string {
+//   if (state === 'active') return 'Active';
+//   if (state === 'connecting') return 'Connecting';
+//   if (state === 'sleeping') return 'Sleeping';
+//   if (state === 'offline') return 'Offline';
+//   if (state === 'login_required') return 'Login required';
+//   return 'Inactive';
+// }
 
 export function getWeeklyResetCountdownTarget(now = new Date()): Date | null {
   const day = now.getUTCDay();

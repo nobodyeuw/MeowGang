@@ -441,15 +441,16 @@
     }
   }
 
-  async function toggleMeowConnect(char: any) {
-    const newStatus = !char.meow_connect_enabled;
-    try {
-      await updateCharacter(char.char_id, { meow_connect_enabled: newStatus });
-      markMeowConnectUnsyncedChanges(`${char.char_name} MeowConnect sharing changed.`);
-    } catch (err) {
-      console.error("FRONTEND: MeowConnect toggle failed:", err);
-    }
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // async function toggleMeowConnect(char: any) {
+  //   const newStatus = !char.meow_connect_enabled;
+  //   try {
+  //     await updateCharacter(char.char_id, { meow_connect_enabled: newStatus });
+  //     markMeowConnectUnsyncedChanges(`${char.char_name} MeowConnect sharing changed.`);
+  //   } catch (err) {
+  //     console.error("FRONTEND: MeowConnect toggle failed:", err);
+  //   }
+  // }
 
   function requestSoftRemoveCharacter(char: Character) {
     deleteConfirmCharacter = char;
@@ -533,7 +534,7 @@
       onDndFinalize={handleDndFinalize}
       onToggleGold={toggleGold}
       onToggleHideFromDashboard={toggleHideFromDashboard}
-      onToggleMeowConnect={toggleMeowConnect}
+      showMeowConnect={false}
       onRequestSoftRemove={requestSoftRemoveCharacter}
     />
   {/if}

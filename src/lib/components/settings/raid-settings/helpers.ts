@@ -155,7 +155,7 @@ export function getAvailableDifficulties(raidGroup: RaidGroup, itemLevel: number
     }
   });
 
-  const priority: Record<string, number> = { Hard: 3, Normal: 2, Solo: 1, Nightmare: 4 };
+  const priority: Record<string, number> = { Solo: 1, Normal: 2, Hard: 3, "Level 1": 4, "Level 2": 5, "Level 3": 6, Nightmare: 7 };
   return difficulties.sort((a, b) => (priority[b] || 0) - (priority[a] || 0));
 }
 

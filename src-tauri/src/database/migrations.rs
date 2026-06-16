@@ -214,6 +214,26 @@ pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i
         migrate_conf_tracking_nullable_roster_tasks(&tx)?;
     }
 
+    // Temporarily disabled due to Supabase realtime message limits
+    // Migration 19: Disable MeowConnect by converting meow_connect sync source to manual
+    if current_version < 19 {
+        // Change completion_source from 'meow_connect' to 'manual'
+        tx.execute(
+            "UPDATE completion_status SET completion_source = 'manual' WHERE completion_source = 'meow_connect'",
+            [],
+        )?;
+        // Disable meow_connect_enabled for all characters
+        tx.execute(
+            "UPDATE conf_character SET meow_connect_enabled = 0 WHERE meow_connect_enabled = 1",
+            [],
+        )?;
+    }
+
+    // Migration 20: Drop MeowConnect group raid tags table
+    if current_version < 20 {
+        tx.execute("DROP TABLE IF EXISTS meow_group_raid_tags", [])?;
+    }
+
     tx.commit()?;
     crate::database::data_manager::DataManager::set_schema_version(pool, target_version)?;
     crate::log_info!(

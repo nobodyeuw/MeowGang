@@ -13,7 +13,9 @@
   export let onDndFinalize: (event: CustomEvent<any>) => void;
   export let onToggleGold: (char: Character) => void;
   export let onToggleHideFromDashboard: (char: Character) => void;
-  export let onToggleMeowConnect: (char: Character) => void;
+  // Temporarily disabled due to Supabase realtime message limits
+  export let onToggleMeowConnect: (char: Character) => void = () => {};
+  export let showMeowConnect = false;
   export let onRequestSoftRemove: (char: Character) => void;
 
   const visibleIcon = iconAsset('visble.png');
@@ -85,6 +87,8 @@
             />
             <span>{char.hide_from_dashboard ? 'HIDDEN' : 'VISIBLE'}</span>
           </button>
+          <!-- Temporarily disabled due to Supabase realtime message limits -->
+          {#if showMeowConnect}
           <button
             class="toggle-btn connect"
             data-guide="meow-connect-toggle"
@@ -95,6 +99,7 @@
             <img class="connect-icon" src={meowConnectIcon} alt="" />
             <span>{char.meow_connect_enabled ? 'CONNECTED' : 'OFF'}</span>
           </button>
+          {/if}
           <button
             class="icon-btn remove-character"
             on:click|stopPropagation={() => onRequestSoftRemove(char)}

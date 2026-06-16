@@ -1,20 +1,21 @@
 <script lang="ts">
   import { appAsset } from '$lib/assets';
-  import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
-  import type { MeowConnectHeaderState } from '$lib/types/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import type { MeowConnectFriendConnection } from '$lib/services/meow-connect';
+  // import type { MeowConnectHeaderState } from '$lib/types/app-shell';
 
   export let activeTab = 'dashboard';
-  export let meowConnectFeatureEnabled = true;
+  // export let meowConnectFeatureEnabled = true;
   export let showHeaderCountdown = true;
   export let resetCountdown = '';
-  export let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
-  export let meowConnectHeaderMessage = '';
-  export let meowConnectHeaderLabel = 'Inactive';
-  export let pendingMeowConnectRequests = 0;
-  export let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
+  // export let meowConnectHeaderState: MeowConnectHeaderState = 'inactive';
+  // export let meowConnectHeaderMessage = '';
+  // export let meowConnectHeaderLabel = 'Inactive';
+  // export let pendingMeowConnectRequests = 0;
+  // export let pendingMeowConnectFriendRequests: MeowConnectFriendConnection[] = [];
   export let showSetupGuideButton = true;
   export let switchTab: (tab: string) => void;
-  export let openMeowConnectRequests: () => void;
+  // export let openMeowConnectRequests: () => void;
   export let startSetupGuide: () => void;
 
   const headerLogo = appAsset('LOAtracker_header.png');
@@ -40,7 +41,8 @@
     <div class="reset-countdown">{resetCountdown}</div>
   {/if}
 
-  {#if meowConnectFeatureEnabled}
+  <!-- Temporarily disabled due to Supabase realtime message limits -->
+  <!-- {#if meowConnectFeatureEnabled}
     <div
       class="meowconnect-header-status"
       class:active={meowConnectHeaderState === 'active'}
@@ -52,9 +54,9 @@
       <img src={meowConnectIcon} alt="" />
       <span>{meowConnectHeaderLabel}</span>
     </div>
-  {/if}
+  {/if} -->
 
-  {#if pendingMeowConnectRequests > 0}
+  <!-- {#if pendingMeowConnectRequests > 0}
     <button
       type="button"
       class="meowconnect-request-alert"
@@ -90,7 +92,7 @@
       </span>
       <span>{pendingMeowConnectRequests} request{pendingMeowConnectRequests === 1 ? '' : 's'}</span>
     </button>
-  {/if}
+  {/if} -->
 
   {#if showSetupGuideButton}
     <button class="setup-guide-button" type="button" on:click={startSetupGuide}>Set-Up Guide</button>

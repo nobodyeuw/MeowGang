@@ -353,12 +353,7 @@ impl CharacterRepository {
                     r.difficulty,
                     r.buy_box,
                     r.reserved_for_static,
-                    COALESCE((
-                        SELECT group_concat(DISTINCT NULLIF(t.group_tag, ''))
-                        FROM meow_group_raid_tags t
-                        WHERE t.char_id = r.char_id
-                          AND t.content_id = r.content_id
-                    ), '')
+                    '' as group_tags
              FROM conf_raid r
              WHERE r.char_id = ?1",
         )?;
@@ -599,12 +594,7 @@ impl CharacterRepository {
                     r.difficulty,
                     r.buy_box,
                     r.reserved_for_static,
-                    COALESCE((
-                        SELECT group_concat(DISTINCT NULLIF(t.group_tag, ''))
-                        FROM meow_group_raid_tags t
-                        WHERE t.char_id = r.char_id
-                          AND t.content_id = r.content_id
-                    ), '')
+                    '' as group_tags
              FROM conf_raid r
              WHERE r.char_id IN ({})",
             placeholders

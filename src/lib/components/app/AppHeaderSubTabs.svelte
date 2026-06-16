@@ -1,11 +1,12 @@
 <script lang="ts">
-  import type { MeowConnectSection } from '$lib/types/app-shell';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import type { MeowConnectSection } from '$lib/types/app-shell';
 
   export let activeTab = 'dashboard';
   export let activeSettingsTab = 'roster';
-  export let activeMeowConnectTab: MeowConnectSection = 'together';
-  export let meowConnectFeatureEnabled = true;
-  export let pendingMeowConnectRequests = 0;
+  // export let activeMeowConnectTab: MeowConnectSection = 'together';
+  // export let meowConnectFeatureEnabled = true;
+  // export let pendingMeowConnectRequests = 0;
 </script>
 
 {#if activeTab === 'settings'}
@@ -41,7 +42,8 @@
   </div>
 {/if}
 
-{#if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
+<!-- Temporarily disabled due to Supabase realtime message limits -->
+<!-- {#if activeTab === 'meow-connect' && meowConnectFeatureEnabled}
   <div class="settings-sub-tabs">
     <button
       class="settings-tab-button"
@@ -68,7 +70,7 @@
       {/if}
     </button>
   </div>
-{/if}
+{/if} -->
 
 <style>
   .settings-sub-tabs {

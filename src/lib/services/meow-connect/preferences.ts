@@ -32,8 +32,8 @@ export function setStoredMeowConnectConsent(accepted: boolean) {
 }
 
 export function hasStoredMeowConnectFeatureEnabled(): boolean {
-  if (typeof localStorage === 'undefined') return true;
-  return localStorage.getItem(FEATURE_ENABLED_STORAGE_KEY) !== '0';
+  if (typeof localStorage === 'undefined') return false; // Disabled by default
+  return localStorage.getItem(FEATURE_ENABLED_STORAGE_KEY) === '1'; // Only enable if explicitly set to '1'
 }
 
 export function setStoredMeowConnectFeatureEnabled(enabled: boolean) {

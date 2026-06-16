@@ -7,14 +7,15 @@
     setHeaderCountdownPreference
   } from '$lib/services/app-preferences';
   import { clearActiveRosterPreference } from '$lib/services/roster-preferences';
-  import {
-    isMeowConnectFeatureEnabled,
-    isMeowConnectFriendClearHintsEnabled,
-    isMeowConnectRealtimeEnabled,
-    setMeowConnectFeatureEnabled,
-    setMeowConnectFriendClearHintsEnabled,
-    setMeowConnectRealtimeEnabled
-  } from '$lib/services/meow-connect';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import {
+  //   isMeowConnectFeatureEnabled,
+  //   isMeowConnectFriendClearHintsEnabled,
+  //   isMeowConnectRealtimeEnabled,
+  //   setMeowConnectFeatureEnabled,
+  //   setMeowConnectFriendClearHintsEnabled,
+  //   setMeowConnectRealtimeEnabled
+  // } from '$lib/services/meow-connect';
   import {
     getDashboardStaticBadgesPreference,
     getDashboardViewPreference,
@@ -52,7 +53,8 @@
   import SystemFilePathsSection from '$lib/components/settings/system-settings/SystemFilePathsSection.svelte';
   import SystemGeneralSection from '$lib/components/settings/system-settings/SystemGeneralSection.svelte';
   import SystemLoggingSection from '$lib/components/settings/system-settings/SystemLoggingSection.svelte';
-  import SystemMeowConnectSection from '$lib/components/settings/system-settings/SystemMeowConnectSection.svelte';
+  // Temporarily disabled due to Supabase realtime message limits
+  // import SystemMeowConnectSection from '$lib/components/settings/system-settings/SystemMeowConnectSection.svelte';
   import SystemStartupSection from '$lib/components/settings/system-settings/SystemStartupSection.svelte';
 
   // State
@@ -75,9 +77,10 @@
   let showHaalsHourglassReminder = true;
   let showHeaderCountdown = true;
   let showDashboardStaticBadges = true;
-  let meowConnectEnabled = true;
-  let meowConnectRealtimeEnabled = true;
-  let meowConnectFriendClearHintsEnabled = false;
+  // Temporarily disabled due to Supabase realtime message limits
+  // let meowConnectEnabled = true;
+  // let meowConnectRealtimeEnabled = true;
+  // let meowConnectFriendClearHintsEnabled = false;
   let dashboardView: DashboardViewMode = 'compact';
   let appTheme: AppThemeId = 'outlaw';
   let isClearingUserData = false;
@@ -133,9 +136,10 @@
       showHaalsHourglassReminder = settings.showHaalsHourglassReminder ?? settings.show_haals_hourglass_reminder ?? true;
       showHeaderCountdown = getHeaderCountdownPreference();
       showDashboardStaticBadges = getDashboardStaticBadgesPreference();
-      meowConnectEnabled = isMeowConnectFeatureEnabled();
-      meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
-      meowConnectFriendClearHintsEnabled = isMeowConnectFriendClearHintsEnabled();
+      // Temporarily disabled due to Supabase realtime message limits
+      // meowConnectEnabled = isMeowConnectFeatureEnabled();
+      // meowConnectRealtimeEnabled = isMeowConnectRealtimeEnabled();
+      // meowConnectFriendClearHintsEnabled = isMeowConnectFriendClearHintsEnabled();
       dashboardView = getDashboardViewPreference();
       appTheme = getThemePreference();
 
@@ -337,26 +341,27 @@
     showSuccess(`Dashboard static badges ${newValue ? 'shown' : 'hidden'}!`);
   }
 
-  function toggleMeowConnectEnabled() {
-    const newValue = !meowConnectEnabled;
-    meowConnectEnabled = newValue;
-    setMeowConnectFeatureEnabled(newValue);
-    showSuccess(`MeowConnect ${newValue ? 'enabled' : 'disabled'}!`);
-  }
-
-  function toggleMeowConnectRealtime() {
-    const newValue = !meowConnectRealtimeEnabled;
-    meowConnectRealtimeEnabled = newValue;
-    setMeowConnectRealtimeEnabled(newValue);
-    showSuccess(`MeowConnect real-time sync ${newValue ? 'enabled' : 'disabled'}!`);
-  }
-
-  function toggleMeowConnectFriendClearHints() {
-    const newValue = !meowConnectFriendClearHintsEnabled;
-    meowConnectFriendClearHintsEnabled = newValue;
-    setMeowConnectFriendClearHintsEnabled(newValue);
-    showSuccess(`MeowConnect clear hints ${newValue ? 'enabled' : 'disabled'}!`);
-  }
+  // Temporarily disabled due to Supabase realtime message limits
+  // function toggleMeowConnectEnabled() {
+  //   const newValue = !meowConnectEnabled;
+  //   meowConnectEnabled = newValue;
+  //   setMeowConnectFeatureEnabled(newValue);
+  //   showSuccess(`MeowConnect ${newValue ? 'enabled' : 'disabled'}!`);
+  // }
+  //
+  // function toggleMeowConnectRealtime() {
+  //   const newValue = !meowConnectRealtimeEnabled;
+  //   meowConnectRealtimeEnabled = newValue;
+  //   setMeowConnectRealtimeEnabled(newValue);
+  //   showSuccess(`MeowConnect real-time sync ${newValue ? 'enabled' : 'disabled'}!`);
+  // }
+  //
+  // function toggleMeowConnectFriendClearHints() {
+  //   const newValue = !meowConnectFriendClearHintsEnabled;
+  //   meowConnectFriendClearHintsEnabled = newValue;
+  //   setMeowConnectFriendClearHintsEnabled(newValue);
+  //   showSuccess(`MeowConnect clear hints ${newValue ? 'enabled' : 'disabled'}!`);
+  // }
 
   function toggleSplitRatTodoView() {
     const newValue = !$splitRatTodoView;
@@ -548,14 +553,15 @@
         onRequestClearUserData={requestClearUserData}
       />
 
-      <SystemMeowConnectSection
+      <!-- Temporarily disabled due to Supabase realtime message limits -->
+      <!-- <SystemMeowConnectSection
         {meowConnectEnabled}
         {meowConnectRealtimeEnabled}
         {meowConnectFriendClearHintsEnabled}
         onToggleMeowConnectEnabled={toggleMeowConnectEnabled}
         onToggleMeowConnectRealtime={toggleMeowConnectRealtime}
         onToggleMeowConnectFriendClearHints={toggleMeowConnectFriendClearHints}
-      />
+      /> -->
 
       <SystemFilePathsSection
         {encountersDbPath}

@@ -1,13 +1,18 @@
 {
   "versions": [
     {
-      "version": "1.3.8",
-      "date": "2026-06-12",
+      "version": "1.3.9",
+      "date": "2026-06-16",
       "changes": [
         {
-          "type": "Fixed",
-          "description": "Meowtator request handling is easier for raid managers.",
-          "details": "Fixed raid train issues in the raid manager to have proper handling."
+          "type": "Added",
+          "description": "Horizon Cathedral raid support",
+          "details": "Added Level 1, Level 2, and Level 3 difficulties for the new Horizon Cathedral raid with appropriate gate rewards and item level requirements."
+        },
+        {
+          "type": "Removed",
+          "description": "Disabled MeowConnect feature",
+          "details": "Temporarily disabled MeowConnect to reduce Supabase realtime message usage. Removed UI components, disabled backend handlers, and cleaned up database tables while preserving meow_profiles for authentication."
         }
       ]
     }

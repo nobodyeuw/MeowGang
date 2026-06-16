@@ -5,7 +5,8 @@
   export let switchTab: (tab: string) => void;
   export let isOpen: boolean = false;
   export let discordAuthUser: string = '';
-  export let showMeowConnect: boolean = true;
+  // Temporarily disabled due to Supabase realtime message limits
+  export let showMeowConnect: boolean = false;
   export let showRaidManagement: boolean = false;
 
   const navIcons = {
