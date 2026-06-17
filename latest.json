@@ -1,7 +1,7 @@
 {
-  "version": "1.3.9",
-  "notes": "### v1.3.9\n\n#### Added\n- Horizon Cathedral raid support (Level 1, 2, 3)\n- Cathedral raid management integration\n\n#### Removed\n- MeowConnect feature temporarily disabled\n- MeowConnect UI components removed\n- MeowConnect backend handlers disabled\n- MeowConnect database tables cleaned up\n\n#### Database\n- Migration to drop meow_group_raid_tags table\n- Migration to convert meow_connect completion_source to manual\n- Force disabled meow_connect_enabled for all characters\n\n#### Technical\n- Updated schema version to 20\n- Removed meow-connect from AppTab type system\n- Disabled MeowConnect preferences and feature flags\n- Removed MeowConnect toggle from Roster Settings\n- Preserved meow_profiles table for authentication",
-  "pub_date": "2026-06-16T00:00:00.000Z",
+  "version": "1.3.10",
+  "notes": "### v1.3.10\n\n#### Added\n- Local time display with Discord timestamp below for Raid Management ongoing events\n- Improved leader display positioning in Raid Management preview\n\n#### Fixed\n- Raid Management sign-up counting to include leaders in total counts\n- Removed 'any' role option for raid-train runs to prevent confusion\n- Automatic conversion of 'any' role to 'dps' when switching to raid-train\n- Raid-train pre-registration prevents duplicate role assignments\n\n#### Technical\n- Added formatLocalDateTimeDisplay() helper for Discord timestamp conversion\n- Updated getSheetMembers to include leaders in role filtering\n- Reordered leader icon display to appear behind name in preview",
+  "pub_date": "2026-06-17T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3RNZmtZY05mVng2NHFjY0FjKzFtTGVGMG1HcHdJd2lXMXpLNktsaHhPR3JJTmlFVkd4Sm93cndjOG1ibW1FUTZLdDFVSUlPcjBEU3M4bXJnOFFNSEFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxNjIyMTkzCWZpbGU6TE9BIFRyYWNrZXJfMS4zLjlfeDY0LXNldHVwLmV4ZQp1a0xod29qUHUxR2ZxNkFWbkk2MnZNaUR6VkxxV0pWZHR1TWJGT2hVZk1HbjU5UGxpcGdKRWhhenlOY29oWnB2WWIzL2grU0xLdlhmK0RUNFZLQk5BUT09Cg==",
