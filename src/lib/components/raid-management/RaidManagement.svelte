@@ -116,6 +116,14 @@
   $: if (runType === 'learning' && preRegisterStatus === 'regular') {
     preRegisterStatus = 'experienced';
   }
+  $: if (runType === 'raid-train' && preRegisterRole === 'any') {
+    preRegisterRole = 'dps';
+  }
+  $: if (runType === 'raid-train') {
+    preRegisteredMembers = preRegisteredMembers.map(member => 
+      member.role === 'any' ? { ...member, role: 'dps' as RaidSignupRole } : member
+    );
+  }
   $: accessibleWhitelistMembers = whitelistMembers.filter(
     (member) => !accessMembers.some((access) => access.discordId === member.id)
   );
@@ -227,6 +235,21 @@
     return offsetDate.toISOString().slice(0, 16);
   }
 
+  function formatLocalDateTimeDisplay(value: string) {
+    const timestamp = parseDiscordTimestamp(value);
+    if (!timestamp) return value;
+    const date = new Date(timestamp);
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return date.toLocaleString('en-US', options);
+  }
+
   function dateToLocalDateTimeInput(date: Date) {
     const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return offsetDate.toISOString().slice(0, 16);
@@ -325,7 +348,7 @@
   }
 
   function isMainSignupMember(member: RaidSignupPreRegisteredMember) {
-    return !isFixedSignupMember(member) && member.status !== 'can_help' && member.status !== 'leader';
+    return !isFixedSignupMember(member) && member.status !== 'can_help';
   }
 
   function getSheetMainSignupCount(sheet: RaidSignupSheet) {
@@ -338,7 +361,7 @@
 
   function getSheetMembers(sheet: RaidSignupSheet, role: RaidSignupRole) {
     const members = (sheet.preRegisteredMembers || []).filter((member) =>
-      member.role === role && member.status !== 'can_help' && member.status !== 'leader'
+      member.role === role && member.status !== 'can_help'
     );
     // Deduplicate entries by userId within each role to prevent showing the same user multiple times
     const merged = new Map<string, RaidSignupPreRegisteredMember>();
@@ -1034,7 +1057,9 @@
               <select bind:value={preRegisterRole}>
                 <option value="dps">DPS</option>
                 <option value="support">SUP</option>
-                <option value="any">ANY</option>
+                {#if runType !== 'raid-train'}
+                  <option value="any">ANY</option>
+                {/if}
                 <option value="fixed">Fixed / Reserved</option>
               </select>
               <select bind:value={preRegisterStatus}>
@@ -1134,7 +1159,15 @@
                     <small>Event Info</small>
                     <p>Event ID: {sheet.eventId || sheet.id}</p>
                     <p>Raids: {getSheetRaidNames(sheet).join(', ') || 'No raid selected'}</p>
-                    <p>Start: {sheet.startsAt || 'No time set'}</p>
+                    {#if sheet.startsAt}
+                      <p>
+                        <span>{formatLocalDateTimeDisplay(sheet.startsAt)}</span>
+                        <br>
+                        <small><code>{sheet.startsAt}</code></small>
+                      </p>
+                    {:else}
+                      <p>No time set</p>
+                    {/if}
                   </div>
 
                   {#if sheet.note}
@@ -1175,8 +1208,8 @@
                     <small>Lobby Host / Sidereal</small>
                     {#if getSheetLeader(sheet)}
                       <p class="signup-member">
-                        <img src={getRoleIcon(getSheetLeader(sheet)?.role || 'dps')} alt="" />
                         {getSheetLeader(sheet)?.displayName}
+                        <img src={getRoleIcon(getSheetLeader(sheet)?.role || 'dps')} alt="" />
                         <img src={roleIcons.leader} alt="Leader" />
                       </p>
                     {:else}
@@ -1416,7 +1449,13 @@
                 </div>
                 <div>
                   <small>Start</small>
-                  <span>{sheet.startsAt || 'No time set'}</span>
+                  {#if sheet.startsAt}
+                    <span>{formatLocalDateTimeDisplay(sheet.startsAt)}</span>
+                    <br>
+                    <small><code>{sheet.startsAt}</code></small>
+                  {:else}
+                    <span>No time set</span>
+                  {/if}
                 </div>
                 <div class="event-actions">
                   <button type="button" title="Edit in builder" on:click={() => editSheet(sheet)}>

@@ -78,7 +78,7 @@ export interface RaidSignupRoleConfig {
 export const RAID_SIGNUP_ROLES: RaidSignupRoleConfig[] = [
   { role: 'dps', label: 'DPS', availableFor: ['learning', 'reclear', 'raid-train'] },
   { role: 'support', label: 'SUP', availableFor: ['learning', 'reclear', 'raid-train'] },
-  { role: 'any', label: 'ANY', availableFor: ['learning', 'reclear', 'raid-train'] }
+  { role: 'any', label: 'ANY', availableFor: ['learning', 'reclear'] }
 ];
 
 export const RAID_SIGNUP_RAIDS: RaidSignupSheetRaid[] = [
