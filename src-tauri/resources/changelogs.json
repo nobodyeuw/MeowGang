@@ -1,6 +1,27 @@
 {
   "versions": [
     {
+      "version": "1.3.11",
+      "date": "2026-06-18",
+      "changes": [
+        {
+          "type": "Fixed",
+          "description": "Meowtator Discord bot signup sheet display",
+          "details": "Fixed leader displayed twice in signup sheets by excluding leader status from role column filters, and fixed raid train duplicate user display by using userId_role deduplication key instead of just userId."
+        },
+        {
+          "type": "Added",
+          "description": "App signup notification support",
+          "details": "Added requester Discord ID tracking for signup sheets created from the app, with automatic DM notifications when sheets are published and automatic request status updates to 'closed'."
+        },
+        {
+          "type": "Fixed",
+          "description": "Raid ordering system",
+          "details": "Replaced item level-based sorting with explicit sortOrder field for consistent raid progression display across Settings/Tracking, Settings/Raids, ToDo, and Dashboard. Cathedral now correctly appears as the newest raid at the bottom."
+        }
+      ]
+    },
+    {
       "version": "1.3.10",
       "date": "2026-06-17",
       "changes": [
