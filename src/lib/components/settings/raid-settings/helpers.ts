@@ -50,15 +50,15 @@ export function buildRaidGroups(): RaidGroup[] {
 
   const sortedRaidGroups = Array.from(raidsMap.entries()).map(([baseName, raids]) => {
     const sortedRaids = raids.sort((a, b) => {
-      const aMinIlvl = a.gates[0]?.minIlvl || 0;
-      const bMinIlvl = b.gates[0]?.minIlvl || 0;
-      return bMinIlvl - aMinIlvl; // Sort by descending item level so newer raids appear first
+      const aMaxIlvl = Math.max(...a.gates.map(g => g.minIlvl || 0));
+      const bMaxIlvl = Math.max(...b.gates.map(g => g.minIlvl || 0));
+      return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
     });
     return { baseName, raids: sortedRaids };
   }).sort((a, b) => {
-    const aMinIlvl = a.raids[0]?.gates[0]?.minIlvl || 0;
-    const bMinIlvl = b.raids[0]?.gates[0]?.minIlvl || 0;
-    return bMinIlvl - aMinIlvl; // Sort by descending item level so newer raids appear first
+    const aMaxIlvl = Math.max(...a.raids[0].gates.map(g => g.minIlvl || 0));
+    const bMaxIlvl = Math.max(...b.raids[0].gates.map(g => g.minIlvl || 0));
+    return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
   });
 
   return sortedRaidGroups.map(({ raids, baseName }) => {
