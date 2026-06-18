@@ -222,7 +222,11 @@ export function buildDisplayRaids(options: {
   showStaticBadges: boolean;
   raidConfigs: CharacterCardRaidConfig[];
 }): CharacterCardDisplayRaid[] {
-  const raids = Object.values(options.groupedRaids).map((raid) => {
+  const raids = Object.values(options.groupedRaids)
+    .sort((a, b) => {
+      return getRaidSortOrder(a.content_id, a.difficulty) - getRaidSortOrder(b.content_id, b.difficulty);
+    })
+    .map((raid) => {
     const actualDifficulty = getCompletedRaidDetails(options.completionStatus, raid.content_id);
     const plannedDifficulty = normalizeDifficulty(raid.difficulty);
     const mismatch = plannedDifficulty !== 'Mixed' && actualDifficulty != null && actualDifficulty !== plannedDifficulty;
@@ -252,11 +256,7 @@ export function buildDisplayRaids(options: {
   }
 
   return raids
-    .filter((raid) => Number(raid.is_tracked) === 1)
-    .sort((a, b) => {
-      return getRaidSortOrder(a.content_id, a.difficulty) - getRaidSortOrder(b.content_id, b.difficulty); // Sort by explicit sortOrder
-    })
-    .slice(0, 3);
+    .filter((raid) => Number(raid.is_tracked) === 1);
 }
 
 export function buildTrackedWeeklyTasks(
