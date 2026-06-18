@@ -40,6 +40,8 @@ export interface RaidSignupSheet {
   preRegisteredMembers: RaidSignupPreRegisteredMember[];
   createdAt: number;
   updatedAt: number;
+  requestId?: string;
+  requesterDiscordId?: string;
 }
 
 export type RaidSignupPreRegisteredStatus = 'learner' | 'experienced' | 'can_help' | 'leader';

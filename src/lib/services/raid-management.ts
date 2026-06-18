@@ -385,23 +385,38 @@ export async function loadRaidManagementRequests(): Promise<RaidManagementReques
 export async function updateRaidManagementRequestStatus(
   requestId: string,
   status: 'accepted' | 'closed',
-  reviewerDiscordId = ''
+  reviewerDiscordId = '',
+  reviewNote = ''
 ): Promise<void> {
+  const payload: any = {
+    status,
+    reviewed_by_discord_id: reviewerDiscordId || null,
+    reviewed_at: new Date().toISOString()
+  };
+
+  if (reviewNote) {
+    payload.review_note = reviewNote;
+  }
+
   const { error } = await supabase
     .from(TICKET_TABLE)
-    .update({
-      status,
-      reviewed_by_discord_id: reviewerDiscordId || null
-    })
+    .update(payload)
     .eq('request_id', requestId);
 
   if (error && isMissingTicketTableError(error)) {
+    const fallbackPayload: any = {
+      status,
+      reviewed_by_discord_id: reviewerDiscordId || null,
+      reviewed_at: new Date().toISOString()
+    };
+
+    if (reviewNote) {
+      fallbackPayload.review_note = reviewNote;
+    }
+
     const { error: legacyError } = await supabase
       .from(LEGACY_TICKET_TABLE)
-      .update({
-        status,
-        reviewed_by_discord_id: reviewerDiscordId || null
-      })
+      .update(fallbackPayload)
       .eq('request_id', requestId);
 
     if (legacyError) {
@@ -616,7 +631,7 @@ export async function cancelRaidSignupSheet(sheetId: string): Promise<void> {
 
 export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<string> {
   await purgeRaidSignupSheetByEventId(sheet.eventId);
-  const sheetPayload = {
+  const sheetPayload: any = {
     event_id: sheet.eventId,
     title: sheet.title,
     run_type: sheet.runType,
@@ -628,6 +643,10 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
     status: 'published',
     note: sheet.note || ''
   };
+
+  if (sheet.requesterDiscordId) {
+    sheetPayload.requester_discord_id = sheet.requesterDiscordId;
+  }
 
   let { data, error } = await supabase
     .from('raid_signup_sheets')
@@ -714,6 +733,15 @@ export async function publishRaidSignupSheet(sheet: RaidSignupSheet): Promise<st
     .from('raid_signup_sheets')
     .update({ updated_at: new Date().toISOString() })
     .eq('sheet_id', sheetId);
+
+  // Automatically mark the associated request as done if it exists
+  if (sheet.requestId) {
+    try {
+      await updateRaidManagementRequestStatus(sheet.requestId, 'closed', sheet.requesterDiscordId || '', `Signup created: ${sheet.eventId}`);
+    } catch (error) {
+      console.warn('Failed to mark request as done after publishing sheet:', error);
+    }
+  }
 
   return sheetId;
 }

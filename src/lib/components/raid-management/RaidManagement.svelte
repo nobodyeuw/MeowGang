@@ -63,6 +63,8 @@
   let editingSheetId = '';
   let editingEventId = '';
   let editingPublished = false;
+  let currentRequestId = '';
+  let currentRequesterDiscordId = '';
 
   let title = '';
   let runType: RaidManagementRunType = 'learning';
@@ -529,6 +531,8 @@
   }
 
   function useRequest(request: RaidManagementRequest) {
+    currentRequestId = request.id;
+    currentRequesterDiscordId = request.discordId;
     title = request.title;
     runType = getRequestRunType(request);
     selectedRaidIds = [];
@@ -645,6 +649,8 @@
     editingSheetId = sheet.id;
     editingEventId = sheet.eventId || sheet.id;
     editingPublished = shared;
+    currentRequestId = sheet.requestId || '';
+    currentRequesterDiscordId = sheet.requesterDiscordId || '';
     customCompositionEnabled = false;
     builderErrors = {};
     publishMessage = shared
@@ -676,7 +682,9 @@
       note: note.trim(),
       preRegisteredMembers,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      requestId: currentRequestId,
+      requesterDiscordId: currentRequesterDiscordId
     };
   }
 
@@ -697,6 +705,8 @@
     editingSheetId = '';
     editingEventId = '';
     editingPublished = false;
+    currentRequestId = '';
+    currentRequesterDiscordId = '';
   }
 
   function createSheet() {
