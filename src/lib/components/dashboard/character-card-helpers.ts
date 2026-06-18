@@ -254,8 +254,6 @@ export function buildDisplayRaids(options: {
   return raids
     .filter((raid) => Number(raid.is_tracked) === 1)
     .sort((a, b) => {
-      const orderDiff = getConfiguredRaidOrder(options.raidConfigs, a.content_id) - getConfiguredRaidOrder(options.raidConfigs, b.content_id);
-      if (orderDiff !== 0) return orderDiff;
       return getRaidSortOrder(a.content_id, a.difficulty) - getRaidSortOrder(b.content_id, b.difficulty); // Sort by explicit sortOrder
     })
     .slice(0, 3);
