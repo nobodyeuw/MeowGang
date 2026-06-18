@@ -81,7 +81,7 @@ export function buildTrackingMatrixData(baseMatrix: any) {
   const raidsArray = Array.from(raidsMap.values()).sort((a, b) => {
     const aMinIlvl = a.gates[0]?.minIlvl || 0;
     const bMinIlvl = b.gates[0]?.minIlvl || 0;
-    return aMinIlvl - bMinIlvl;
+    return bMinIlvl - aMinIlvl; // Sort by descending item level so newer raids appear first
   }).map((raid: any) => {
     const characterStates = baseMatrix.characters.map((char: any) => {
       const backendState = baseMatrix.character_states?.find((state: any) =>

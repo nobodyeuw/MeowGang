@@ -52,13 +52,13 @@ export function buildRaidGroups(): RaidGroup[] {
     const sortedRaids = raids.sort((a, b) => {
       const aMinIlvl = a.gates[0]?.minIlvl || 0;
       const bMinIlvl = b.gates[0]?.minIlvl || 0;
-      return aMinIlvl - bMinIlvl;
+      return bMinIlvl - aMinIlvl; // Sort by descending item level so newer raids appear first
     });
     return { baseName, raids: sortedRaids };
   }).sort((a, b) => {
     const aMinIlvl = a.raids[0]?.gates[0]?.minIlvl || 0;
     const bMinIlvl = b.raids[0]?.gates[0]?.minIlvl || 0;
-    return aMinIlvl - bMinIlvl;
+    return bMinIlvl - aMinIlvl; // Sort by descending item level so newer raids appear first
   });
 
   return sortedRaidGroups.map(({ raids, baseName }) => {
