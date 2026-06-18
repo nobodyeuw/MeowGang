@@ -131,9 +131,8 @@ export function getTrackedTodoRaidCandidates(baseMatrix: TodoMatrixResponse): Ra
   const raidMap = new Map<string, Raid>();
   RAIDS.forEach((raid) => {
     const baseName = raid.name;
-    const raidMaxIlvl = Math.max(...raid.gates.map((g: any) => g.minIlvl || 0));
-    const existingMaxIlvl = raidMap.get(baseName) ? Math.max(...raidMap.get(baseName)!.gates.map((g: any) => g.minIlvl || 0)) : 0;
-    if (!raidMap.has(baseName) || raidMaxIlvl > existingMaxIlvl) {
+    const existingSortOrder = raidMap.get(baseName)?.sortOrder || 0;
+    if (!raidMap.has(baseName) || raid.sortOrder < existingSortOrder) {
       raidMap.set(baseName, raid);
     }
   });
@@ -147,9 +146,7 @@ export function getTrackedTodoRaidCandidates(baseMatrix: TodoMatrixResponse): Ra
       });
     })
     .sort((a, b) => {
-      const aMaxIlvl = Math.max(...a.gates.map((g: any) => g.minIlvl || 0));
-      const bMaxIlvl = Math.max(...b.gates.map((g: any) => g.minIlvl || 0));
-      return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
+      return a.sortOrder - b.sortOrder; // Sort by explicit sortOrder
     });
 }
 

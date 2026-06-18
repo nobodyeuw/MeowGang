@@ -69,9 +69,8 @@ export function buildTrackingMatrixData(baseMatrix: any) {
   const raidsMap = new Map<string, any>();
   [...RAIDS].forEach(raid => {
     const baseName = raid.name;
-    const raidMaxIlvl = Math.max(...raid.gates.map((g: any) => g.minIlvl || 0));
-    const existingMaxIlvl = raidsMap.get(baseName) ? Math.max(...raidsMap.get(baseName).gates.map((g: any) => g.minIlvl || 0)) : 0;
-    if (!raidsMap.has(baseName) || raidMaxIlvl > existingMaxIlvl) {
+    const existingSortOrder = raidsMap.get(baseName)?.sortOrder || 0;
+    if (!raidsMap.has(baseName) || raid.sortOrder < existingSortOrder) {
       raidsMap.set(baseName, raid);
     }
   });
@@ -79,9 +78,7 @@ export function buildTrackingMatrixData(baseMatrix: any) {
   const lowIlvlTrackingClears: Array<{ characterId: number; taskId: string }> = [];
 
   const raidsArray = Array.from(raidsMap.values()).sort((a, b) => {
-    const aMaxIlvl = Math.max(...a.gates.map((g: any) => g.minIlvl || 0));
-    const bMaxIlvl = Math.max(...b.gates.map((g: any) => g.minIlvl || 0));
-    return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
+    return a.sortOrder - b.sortOrder; // Sort by explicit sortOrder
   }).map((raid: any) => {
     const characterStates = baseMatrix.characters.map((char: any) => {
       const backendState = baseMatrix.character_states?.find((state: any) =>

@@ -150,9 +150,9 @@ export function getCompletedRaidDetails(
   return uniqueDifficulties[0];
 }
 
-export function getRaidMaxIlvl(contentId: string, difficulty: string): number {
+export function getRaidSortOrder(contentId: string, difficulty: string): number {
   const raid = getRaidDefinition(contentId, difficulty);
-  return Math.max(...(raid?.gates.map((gate) => gate.minIlvl) || [0]));
+  return raid?.sortOrder || 0;
 }
 
 export function getConfiguredRaidOrder(raidConfigs: CharacterCardRaidConfig[], contentId: string): number {
@@ -256,7 +256,7 @@ export function buildDisplayRaids(options: {
     .sort((a, b) => {
       const orderDiff = getConfiguredRaidOrder(options.raidConfigs, a.content_id) - getConfiguredRaidOrder(options.raidConfigs, b.content_id);
       if (orderDiff !== 0) return orderDiff;
-      return getRaidMaxIlvl(a.content_id, a.difficulty) - getRaidMaxIlvl(b.content_id, b.difficulty); // Sort by ascending max ilvl
+      return getRaidSortOrder(a.content_id, a.difficulty) - getRaidSortOrder(b.content_id, b.difficulty); // Sort by explicit sortOrder
     })
     .slice(0, 3);
 }
