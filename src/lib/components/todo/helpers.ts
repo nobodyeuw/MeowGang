@@ -130,8 +130,11 @@ export function buildTodoTasks(baseMatrix: TodoMatrixResponse, isRatView: boolea
 export function getTrackedTodoRaidCandidates(baseMatrix: TodoMatrixResponse): Raid[] {
   const raidMap = new Map<string, Raid>();
   RAIDS.forEach((raid) => {
-    if (!raidMap.has(raid.id)) {
-      raidMap.set(raid.id, raid);
+    const baseName = raid.name;
+    const raidMaxIlvl = Math.max(...raid.gates.map((g: any) => g.minIlvl || 0));
+    const existingMaxIlvl = raidMap.get(baseName) ? Math.max(...raidMap.get(baseName)!.gates.map((g: any) => g.minIlvl || 0)) : 0;
+    if (!raidMap.has(baseName) || raidMaxIlvl > existingMaxIlvl) {
+      raidMap.set(baseName, raid);
     }
   });
 

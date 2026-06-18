@@ -69,9 +69,9 @@ export function buildTrackingMatrixData(baseMatrix: any) {
   const raidsMap = new Map<string, any>();
   [...RAIDS].forEach(raid => {
     const baseName = raid.name;
-    const raidMinIlvl = raid.gates[0]?.minIlvl || 0;
-    const existingMinIlvl = raidsMap.get(baseName)?.gates[0]?.minIlvl || 0;
-    if (!raidsMap.has(baseName) || raidMinIlvl < existingMinIlvl) {
+    const raidMaxIlvl = Math.max(...raid.gates.map((g: any) => g.minIlvl || 0));
+    const existingMaxIlvl = raidsMap.get(baseName) ? Math.max(...raidsMap.get(baseName).gates.map((g: any) => g.minIlvl || 0)) : 0;
+    if (!raidsMap.has(baseName) || raidMaxIlvl > existingMaxIlvl) {
       raidsMap.set(baseName, raid);
     }
   });
