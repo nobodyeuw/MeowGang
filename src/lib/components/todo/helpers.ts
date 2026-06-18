@@ -144,9 +144,9 @@ export function getTrackedTodoRaidCandidates(baseMatrix: TodoMatrixResponse): Ra
       });
     })
     .sort((a, b) => {
-      const aMinIlvl = a.gates[0]?.minIlvl || 0;
-      const bMinIlvl = b.gates[0]?.minIlvl || 0;
-      return aMinIlvl - bMinIlvl;
+      const aMaxIlvl = Math.max(...a.gates.map((g: any) => g.minIlvl || 0));
+      const bMaxIlvl = Math.max(...b.gates.map((g: any) => g.minIlvl || 0));
+      return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
     });
 }
 

@@ -79,8 +79,8 @@ export function buildTrackingMatrixData(baseMatrix: any) {
   const lowIlvlTrackingClears: Array<{ characterId: number; taskId: string }> = [];
 
   const raidsArray = Array.from(raidsMap.values()).sort((a, b) => {
-    const aMaxIlvl = Math.max(...a.gates.map(g => g.minIlvl || 0));
-    const bMaxIlvl = Math.max(...b.gates.map(g => g.minIlvl || 0));
+    const aMaxIlvl = Math.max(...a.gates.map((g: any) => g.minIlvl || 0));
+    const bMaxIlvl = Math.max(...b.gates.map((g: any) => g.minIlvl || 0));
     return aMaxIlvl - bMaxIlvl; // Sort by ascending max item level so lowest ilvl raids appear first
   }).map((raid: any) => {
     const characterStates = baseMatrix.characters.map((char: any) => {
