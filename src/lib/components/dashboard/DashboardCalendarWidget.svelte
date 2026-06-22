@@ -390,7 +390,9 @@
   .calendar-reminder {
     position: absolute;
     top: 34px;
-    right: 0;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
     width: min(28rem, calc(100vw - 2rem));
     border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 38%, transparent);
     background: var(--md-sys-color-surface-container-high);
@@ -436,7 +438,9 @@
   .calendar-popover {
     position: absolute;
     top: 34px;
-    right: 0;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
     width: min(46rem, calc(100vw - 2rem));
     max-height: min(42rem, calc(100vh - 8rem));
     overflow: auto;

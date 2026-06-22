@@ -433,35 +433,33 @@
         </div>
       {/if}
     </div>
+
+    {#if goldEarnerCount > 0}
+      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
+        <div class="stat-card-main">
+          <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
+          <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
+        </div>
+        <div class="stat-label">Gold Earners</div>
+        {#if activePopover === 'gold-earners'}
+          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
+            <strong>if you click me again LOA Tracker will uninstall itself</strong>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <DashboardCalendarWidget
+      events={calendarEvents}
+      assignments={calendarAssignments}
+      reservations={raidReservations}
+      characters={calendarCharacters}
+      loading={calendarLoading}
+      characterDataMap={calendarCharacterDataMap}
+      inline={true}
+    />
   </div>
 {/if}
-
-<div class="header-stats">
-  {#if goldEarnerCount > 0}
-    <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
-      <div class="stat-card-main">
-        <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
-        <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
-      </div>
-      <div class="stat-label">Gold Earners</div>
-      {#if activePopover === 'gold-earners'}
-        <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
-          <strong>if you click me again LOA Tracker will uninstall itself</strong>
-        </div>
-      {/if}
-    </div>
-  {/if}
-
-  <DashboardCalendarWidget
-    events={calendarEvents}
-    assignments={calendarAssignments}
-    reservations={raidReservations}
-    characters={calendarCharacters}
-    loading={calendarLoading}
-    characterDataMap={calendarCharacterDataMap}
-    inline={true}
-  />
-</div>
 
 <style>
   .header-stats {

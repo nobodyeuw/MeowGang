@@ -26,6 +26,7 @@
     type CharacterCardTrackingEntry
   } from '$lib/components/dashboard/character-card-helpers';
   import {
+    clearDashboardCalendarAssignment,
     clearDashboardRaidReservation,
     clearDashboardRaidReservationNoDispatch,
     dispatchCalendarChanged,
@@ -172,10 +173,13 @@
     reservationDate = now.toISOString().slice(0, 10);
     reservationTime = now.toTimeString().slice(0, 5);
     reservationPickerOpen = false;
+    const menuWidth = 260;
+    const menuHeight = 390;
+    const padding = 10;
     raidActionMenu = {
       raid,
-      x: Math.min(event.clientX, window.innerWidth - 260),
-      y: Math.min(event.clientY, window.innerHeight - 260)
+      x: Math.min(Math.max(padding, event.clientX), window.innerWidth - menuWidth - padding),
+      y: Math.min(Math.max(padding, event.clientY), window.innerHeight - menuHeight - padding)
     };
   }
 
