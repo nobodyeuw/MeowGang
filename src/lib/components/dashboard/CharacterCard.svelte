@@ -98,7 +98,6 @@
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
   $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
-}
 
 type CombinedReservation = DashboardRaidReservation | {
   isAssignment: true;
