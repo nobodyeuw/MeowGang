@@ -110,7 +110,7 @@ type CombinedReservation = DashboardRaidReservation | {
   charName: string;
 };
 
-$: allReservations: CombinedReservation[] = [
+$: allReservations = [
     ...characterReservations,
     ...characterAssignments.map((a) => ({
       isAssignment: true,
