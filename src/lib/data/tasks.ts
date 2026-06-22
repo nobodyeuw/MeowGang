@@ -23,7 +23,8 @@ export const GAME_TASKS: Record<string, GameTask> = {
     category: "roster",
     reset_schedule: "daily",
     logic_type: "calendar"
-    },\n  "ship_shop": {
+  },
+  "ship_shop": {
     id: "ship_shop",
     name: "Ship Shop",
     category: "roster",
