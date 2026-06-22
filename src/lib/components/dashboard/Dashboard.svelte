@@ -285,64 +285,70 @@
       <p>Loading characters...</p>
     </div>
   {:else}
-    <WeeklyGoldProgressCard
-      {progressPercentage}
-      {earnedGoldPercentage}
-      {actualGoldDisplay}
-      {estimatedGoldDisplay}
-      {remainingGoldDisplay}
-      {actualBoundGoldDisplay}
-      {actualTradableGoldDisplay}
-      {mismatchGoldLost}
-      {mismatchGoldBonus}
-    />
+    <div class="dashboard-layout">
+      <div class="dashboard-main">
+        <WeeklyGoldProgressCard
+          {progressPercentage}
+          {earnedGoldPercentage}
+          {actualGoldDisplay}
+          {estimatedGoldDisplay}
+          {remainingGoldDisplay}
+          {actualBoundGoldDisplay}
+          {actualTradableGoldDisplay}
+          {mismatchGoldLost}
+          {mismatchGoldBonus}
+        />
 
-    <DashboardCalendarWidget
-      events={calendarEvents}
-      assignments={calendarAssignments}
-      reservations={raidReservations}
-      characters={visibleCharacters}
-      loading={calendarLoading}
-      characterDataMap={characterDataMap}
-    />
+        <DashboardRosterSections
+          rosters={$rosters}
+          {charactersByRoster}
+          {dashboardView}
+          {characterDataMap}
+          showDashboardStaticBadges={showDashboardStaticBadges}
+          {calendarEvents}
+          {calendarAssignments}
+          {raidReservations}
+        />
+      </div>
 
-    <DashboardStatsBar
-      {totalRaidsCompleted}
-      {totalRaidsPossible}
-      {totalAdditionalRaidsCompleted}
-      {totalAdditionalRaidsPossible}
-      {totalDailiesCompleted}
-      {totalDailiesPossible}
-      {totalDailiesTracked}
-      {totalWeekliesCompleted}
-      {totalWeekliesPossible}
-      {totalCalendarEventsCompleted}
-      {totalCalendarEventsPossible}
-      {totalArgeosTracked}
-      {totalArgeosAvailableToday}
-      {totalArgeosDoneToday}
-      {totalArgeosFullyDone}
-      {argeosStatusKind}
-      {raidDetails}
-      {additionalRaidDetails}
-      {dailyDetails}
-      {weeklyTaskDetails}
-      {calendarEventDetails}
-      {argeosDetails}
-      goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
-      visibleCharacterCount={visibleCharacters.length}
-    />
+      <div class="dashboard-sidebar">
+        <DashboardStatsBar
+          {totalRaidsCompleted}
+          {totalRaidsPossible}
+          {totalAdditionalRaidsCompleted}
+          {totalAdditionalRaidsPossible}
+          {totalDailiesCompleted}
+          {totalDailiesPossible}
+          {totalDailiesTracked}
+          {totalWeekliesCompleted}
+          {totalWeekliesPossible}
+          {totalCalendarEventsCompleted}
+          {totalCalendarEventsPossible}
+          {totalArgeosTracked}
+          {totalArgeosAvailableToday}
+          {totalArgeosDoneToday}
+          {totalArgeosFullyDone}
+          {argeosStatusKind}
+          {raidDetails}
+          {additionalRaidDetails}
+          {dailyDetails}
+          {weeklyTaskDetails}
+          {calendarEventDetails}
+          {argeosDetails}
+          goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
+          visibleCharacterCount={visibleCharacters.length}
+        />
 
-    <DashboardRosterSections
-      rosters={$rosters}
-      {charactersByRoster}
-      {dashboardView}
-      {characterDataMap}
-      showDashboardStaticBadges={showDashboardStaticBadges}
-      {calendarEvents}
-      {calendarAssignments}
-      {raidReservations}
-    />
+        <DashboardCalendarWidget
+          events={calendarEvents}
+          assignments={calendarAssignments}
+          reservations={raidReservations}
+          characters={visibleCharacters}
+          loading={calendarLoading}
+          characterDataMap={characterDataMap}
+        />
+      </div>
+    </div>
   {/if}
 </div>
 
@@ -368,6 +374,33 @@
     justify-content: center;
     padding: 4rem 2rem;
     text-align: center;
+  }
+
+  .dashboard-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-layout {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+
+    .dashboard-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .dashboard-sidebar {
+      width: 300px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: flex-end;
+    }
   }
 
   .loading-spinner {

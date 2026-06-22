@@ -344,7 +344,7 @@
   .dashboard-calendar {
     position: relative;
     width: var(--dashboard-frame-width);
-    margin: 0 auto 0.55rem;
+    margin: 0;
     display: flex;
     justify-content: flex-end;
     z-index: 12;
@@ -642,3 +642,4 @@
     }
   }
 </style>
+
