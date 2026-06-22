@@ -20,6 +20,7 @@
   export let characters: Character[] = [];
   export let loading = false;
   export let characterDataMap: Record<string, DashboardCharacterData> = {};
+  export let inline = false; // If true, widget sits inline with other elements
 
   let open = false;
   let reminderDismissed = false;
@@ -37,6 +38,7 @@
   $: filteredReservations = selectedDayKey
     ? reservations.filter((reservation) => reservation.scheduledAt && dayKey(reservation.scheduledAt) === selectedDayKey)
     : reservations;
+  $: widthVar = inline ? '' : ' dashboard-calendar-full-width';
 
   function assignedCharacterName(event: DashboardCalendarEvent): string {
     return assignments.find((assignment) => assignment.eventKey === event.id)?.charName || '';
@@ -205,7 +207,7 @@
   }
 </script>
 
-<div class="dashboard-calendar">
+<div class="dashboard-calendar{widthVar}">
   <button
     type="button"
     class="calendar-toggle"
@@ -343,11 +345,14 @@
 <style>
   .dashboard-calendar {
     position: relative;
+    z-index: 12;
+  }
+
+  .dashboard-calendar-full-width {
     width: var(--dashboard-frame-width);
-    margin: 0;
+    margin: 0 auto 0.55rem;
     display: flex;
     justify-content: flex-end;
-    z-index: 12;
   }
 
   .calendar-toggle {
@@ -642,4 +647,3 @@
     }
   }
 </style>
-

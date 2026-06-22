@@ -18,7 +18,7 @@ DashboardDailyDetail,
     DashboardRosterFocusEntry,
     DashboardRosterEventDetail,
     DashboardWeeklyTaskDetail
-  } from '$lib/components/dashboard/types';
+  } from '$lib/components/dashboard/types';  import type { Character } from '$lib/store';  import type { DashboardCharacterData } from '$lib/components/dashboard/types';  import type { DashboardCalendarEvent, DashboardCalendarAssignment, DashboardRaidReservation } from '$lib/services/dashboard-calendar';  import DashboardCalendarWidget from '$lib/components/dashboard/DashboardCalendarWidget.svelte';
 
   type PopoverKind = 'raids' | 'dailies' | 'weeklies' | 'calendar' | 'gold-earners';
 
@@ -41,6 +41,12 @@ export let raidDetails: DashboardRaidDetail[] = [];
   export let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
   export let calendarEventDetails: DashboardRosterEventDetail[] = [];
   export let argeosDetails: DashboardRosterEventDetail[] = [];
+  export let calendarEvents: DashboardCalendarEvent[] = [];
+  export let calendarAssignments: DashboardCalendarAssignment[] = [];
+  export let raidReservations: DashboardRaidReservation[] = [];
+  export let calendarCharacters: Character[] = [];
+  export let calendarLoading = false;
+  export let calendarCharacterDataMap: Record<string, DashboardCharacterData> = {};
 
   let activePopover: PopoverKind | null = null;
   let popoverTop = 0;
@@ -69,7 +75,6 @@ gold: iconAsset('gold.png'),
   $: currentCalendarEventLabel = calendarAvailability.gate || calendarAvailability.boss
     ? getCurrentCalendarEventLabel()
     : soonCalendarEventNames || 'Chaos Gate | Field Boss';
-});
 
   onDestroy(() => {
     document.removeEventListener('click', handleOutsideClick);
@@ -470,6 +475,16 @@ gold: iconAsset('gold.png'),
         {/if}
       </div>
     {/if}
+
+    <DashboardCalendarWidget
+      events={calendarEvents}
+      assignments={calendarAssignments}
+      reservations={raidReservations}
+      characters={calendarCharacters}
+      loading={calendarLoading}
+      characterDataMap={calendarCharacterDataMap}
+      inline={true}
+    />
   </div>
 {/if}
 
@@ -772,6 +787,7 @@ gold: iconAsset('gold.png'),
     color: var(--md-sys-color-on-surface-variant);
   }
 </style>
+
 
 
 

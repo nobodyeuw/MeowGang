@@ -156,7 +156,8 @@
       dailyDetails = stats.dailyDetails;
       weeklyTaskDetails = stats.weeklyTaskDetails;
       calendarEventDetails = stats.calendarEventDetails;
-} catch (error) {
+      argeosDetails = stats.argeosDetails;
+    } catch (error) {
       console.error('Failed to calculate global stats:', error);
     }
   }
@@ -284,64 +285,54 @@
       <p>Loading characters...</p>
     </div>
   {:else}
-    <div class="dashboard-layout">
-      <div class="dashboard-main">
-        <WeeklyGoldProgressCard
-          {progressPercentage}
-          {earnedGoldPercentage}
-          {actualGoldDisplay}
-          {estimatedGoldDisplay}
-          {remainingGoldDisplay}
-          {actualBoundGoldDisplay}
-          {actualTradableGoldDisplay}
-          {mismatchGoldLost}
-          {mismatchGoldBonus}
-        />
+    <WeeklyGoldProgressCard
+      {progressPercentage}
+      {earnedGoldPercentage}
+      {actualGoldDisplay}
+      {estimatedGoldDisplay}
+      {remainingGoldDisplay}
+      {actualBoundGoldDisplay}
+      {actualTradableGoldDisplay}
+      {mismatchGoldLost}
+      {mismatchGoldBonus}
+    />
 
-        <DashboardRosterSections
-          rosters={$rosters}
-          {charactersByRoster}
-          {dashboardView}
-          {characterDataMap}
-          showDashboardStaticBadges={showDashboardStaticBadges}
-          {calendarEvents}
-          {calendarAssignments}
-          {raidReservations}
-        />
-      </div>
+<DashboardStatsBar
+      {totalRaidsCompleted}
+      {totalRaidsPossible}
+      {totalAdditionalRaidsCompleted}
+      {totalAdditionalRaidsPossible}
+      {totalDailiesCompleted}
+      {totalDailiesPossible}
+      {totalDailiesTracked}
+      {totalWeekliesCompleted}
+      {totalWeekliesPossible}
+      {totalCalendarEventsCompleted}
+      {totalCalendarEventsPossible}
+      {totalArgeosTracked}
+      {totalArgeosAvailableToday}
+      {totalArgeosDoneToday}
+      {totalArgeosFullyDone}
+      {argeosStatusKind}
+      {raidDetails}
+      {additionalRaidDetails}
+      {dailyDetails}
+      {weeklyTaskDetails}
+      {calendarEventDetails}
+      {argeosDetails}      {calendarEvents}      {calendarAssignments}      {raidReservations}      calendarCharacters={visibleCharacters}      calendarLoading={calendarLoading}      calendarCharacterDataMap={characterDataMap}      goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
+      visibleCharacterCount={visibleCharacters.length}
+    />
 
-      <div class="dashboard-sidebar">
-        <DashboardStatsBar
-          {totalRaidsCompleted}
-          {totalRaidsPossible}
-          {totalAdditionalRaidsCompleted}
-          {totalAdditionalRaidsPossible}
-          {totalDailiesCompleted}
-          {totalDailiesPossible}
-          {totalDailiesTracked}
-          {totalWeekliesCompleted}
-          {totalWeekliesPossible}
-          {totalCalendarEventsCompleted}
-          {totalCalendarEventsPossible}
-{raidDetails}
-          {additionalRaidDetails}
-          {dailyDetails}
-          {weeklyTaskDetails}
-          {calendarEventDetails}
-goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
-          visibleCharacterCount={visibleCharacters.length}
-        />
-
-        <DashboardCalendarWidget
-          events={calendarEvents}
-          assignments={calendarAssignments}
-          reservations={raidReservations}
-          characters={visibleCharacters}
-          loading={calendarLoading}
-          characterDataMap={characterDataMap}
-        />
-      </div>
-    </div>
+    <DashboardRosterSections
+      rosters={$rosters}
+      {charactersByRoster}
+      {dashboardView}
+      {characterDataMap}
+      showDashboardStaticBadges={showDashboardStaticBadges}
+      {calendarEvents}
+      {calendarAssignments}
+      {raidReservations}
+    />
   {/if}
 </div>
 
@@ -369,33 +360,6 @@ goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
     text-align: center;
   }
 
-  .dashboard-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  @media (min-width: 1024px) {
-    .dashboard-layout {
-      flex-direction: row;
-      align-items: flex-start;
-    }
-
-    .dashboard-main {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .dashboard-sidebar {
-      width: 300px;
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      align-items: flex-end;
-    }
-  }
-
   .loading-spinner {
     width: 40px;
     height: 40px;
@@ -417,8 +381,4 @@ goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
     }
   }
 </style>
-
-
-
-
 
