@@ -98,14 +98,31 @@
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
   $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
-  $: allReservations = [...characterReservations, ...characterAssignments.map(a => ({
-    ...a,
-    contentId: a.eventKey.split('-')[0] || 'unknown',
-    difficulty: '',
-    scheduledAt: null,
-    recurringWeekly: false,
-    isAssignment: true
-  }))];
+
+  type CombinedReservation = DashboardRaidReservation | {
+    isAssignment: true;
+    eventKey: string;
+    contentId: string;
+    difficulty: string;
+    scheduledAt: null;
+    recurringWeekly: boolean;
+    charId: number;
+    charName: string;
+  };
+
+  $: allReservations: CombinedReservation[] = [
+    ...characterReservations,
+    ...characterAssignments.map((a) => ({
+      isAssignment: true,
+      eventKey: a.eventKey,
+      contentId: a.eventKey.split('-')[0] || 'unknown',
+      difficulty: '',
+      scheduledAt: null,
+      recurringWeekly: false,
+      charId: a.charId,
+      charName: a.charName
+    }))
+  ];
 
   // Chaos and Guardian status
   $: chaosRested = restedValues.find(r => r.content_id === 'chaos')?.current_value || 0;
@@ -274,6 +291,16 @@
 
   function getReservationKey(reservation: DashboardRaidReservation): string {
     return `${reservation.contentId}-${reservation.difficulty}`;
+  }
+
+  function getReservationKeyForCombined(reservation: CombinedReservation): string {
+    if ('isAssignment' in reservation && reservation.isAssignment) {
+      return `assignment-${reservation.eventKey}`;
+    }
+    if ('contentId' in reservation && 'difficulty' in reservation) {
+      return `${reservation.contentId}-${reservation.difficulty}`;
+    }
+    return '';
   }
 
   function getRaidAssignment(raid: any): DashboardCalendarAssignment | undefined {
@@ -749,11 +776,16 @@
   {/if}
 
   {#if clearReservationDialogOpen}
-    <div class="clear-reservation-dialog-overlay" on:click={() => clearReservationDialogOpen = false}>
-      <div class="clear-reservation-dialog" on:click|stopPropagation>
+    <button
+      type="button"
+      class="clear-reservation-dialog-overlay"
+      aria-label="Close dialog"
+      on:click={() => clearReservationDialogOpen = false}
+    >
+      <div class="clear-reservation-dialog" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="dialog-title">
         <header>
-          <strong>Clear Reservations</strong>
-          <button type="button" on:click={() => clearReservationDialogOpen = false}>✕</button>
+          <strong id="dialog-title">Clear Reservations</strong>
+          <button type="button" on:click={() => clearReservationDialogOpen = false} aria-label="Close dialog">✕</button>
         </header>
         <p>Select reservations to clear for {character.char_name}:</p>
         <div class="reservations-list">
@@ -764,8 +796,8 @@
               <label class="reservation-item">
                 <input
                   type="checkbox"
-                  checked={reservationsToClear.has(reservation.isAssignment ? `assignment-${reservation.eventKey}` : getReservationKey(reservation))}
-                  on:change={() => toggleReservationToClear(reservation.isAssignment ? `assignment-${reservation.eventKey}` : getReservationKey(reservation))}
+                  checked={reservationsToClear.has(getReservationKeyForCombined(reservation))}
+                  on:change={() => toggleReservationToClear(getReservationKeyForCombined(reservation))}
                 />
                 <span>
                   <strong>{reservation.isAssignment ? 'Planned signup' : getRaidName(reservation.contentId)}</strong>
@@ -791,7 +823,7 @@
           </button>
         </footer>
       </div>
-    </div>
+    </button>
   {/if}
 </div>
 
@@ -1851,6 +1883,11 @@
     justify-content: center;
     z-index: 1000;
     padding: 1rem;
+    border: none;
+    cursor: default;
+    appearance: none;
+    font: inherit;
+    color: inherit;
   }
 
   .clear-reservation-dialog {
