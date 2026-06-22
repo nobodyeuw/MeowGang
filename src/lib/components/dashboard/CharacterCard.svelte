@@ -98,19 +98,20 @@
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
   $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
+}
 
-  type CombinedReservation = DashboardRaidReservation | {
-    isAssignment: true;
-    eventKey: string;
-    contentId: string;
-    difficulty: string;
-    scheduledAt: null;
-    recurringWeekly: boolean;
-    charId: number;
-    charName: string;
-  };
+type CombinedReservation = DashboardRaidReservation | {
+  isAssignment: true;
+  eventKey: string;
+  contentId: string;
+  difficulty: string;
+  scheduledAt: null;
+  recurringWeekly: boolean;
+  charId: number;
+  charName: string;
+};
 
-  $: allReservations: CombinedReservation[] = [
+$: allReservations: CombinedReservation[] = [
     ...characterReservations,
     ...characterAssignments.map((a) => ({
       isAssignment: true,
@@ -800,7 +801,7 @@
                   on:change={() => toggleReservationToClear(getReservationKeyForCombined(reservation))}
                 />
                 <span>
-                  <strong>{reservation.isAssignment ? 'Planned signup' : getRaidName(reservation.contentId)}</strong>
+                  <strong>{reservation.isAssignment ? 'Planned signup' : getRaidName(reservation.contentId, reservation.difficulty)}</strong>
                   {#if !reservation.isAssignment}
                     <small>{reservation.difficulty}{reservation.scheduledAt ? ` - ${new Date(reservation.scheduledAt).toLocaleDateString()}` : ''}{reservation.recurringWeekly ? ' (weekly)' : ''}</small>
                   {:else}
