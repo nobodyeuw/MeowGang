@@ -303,6 +303,7 @@
       reservations={raidReservations}
       characters={visibleCharacters}
       loading={calendarLoading}
+      characterDataMap={characterDataMap}
     />
 
     <DashboardStatsBar

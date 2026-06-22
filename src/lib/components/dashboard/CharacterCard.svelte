@@ -96,6 +96,7 @@
   $: trackedWeeklyTaskCount = trackedWeeklyTasks.length;
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
   $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
+  $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
 
   // Chaos and Guardian status
   $: chaosRested = restedValues.find(r => r.content_id === 'chaos')?.current_value || 0;
@@ -257,8 +258,7 @@
   }
 
   function getRaidAssignment(raid: any): DashboardCalendarAssignment | undefined {
-    return calendarAssignments.find((assignment) =>
-      assignment.charId === character.char_id &&
+    return characterAssignments.find((assignment) =>
       assignment.raidContentId === raid.content_id
     );
   }
@@ -1831,7 +1831,7 @@
   }
 
   .clear-reservation-dialog {
-    background: var(--surface-variant);
+    background: #1e1e1e;
     border-radius: 12px;
     padding: 1.5rem;
     max-width: 500px;

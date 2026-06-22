@@ -12,12 +12,14 @@
     type DashboardCalendarEvent,
     type DashboardRaidReservation
   } from '$lib/services/dashboard-calendar';
+  import type { DashboardCharacterData } from '$lib/components/dashboard/types';
 
   export let events: DashboardCalendarEvent[] = [];
   export let assignments: DashboardCalendarAssignment[] = [];
   export let reservations: DashboardRaidReservation[] = [];
   export let characters: Character[] = [];
   export let loading = false;
+  export let characterDataMap: Record<string, DashboardCharacterData> = {};
 
   let open = false;
   let reminderDismissed = false;
@@ -38,6 +40,22 @@
 
   function assignedCharacterName(event: DashboardCalendarEvent): string {
     return assignments.find((assignment) => assignment.eventKey === event.id)?.charName || '';
+  }
+
+  function isRaidCompletedForCharacter(charId: number, contentId: string): boolean {
+    const charData = characterDataMap[String(charId)];
+    if (!charData) return false;
+    return charData.completionStatus.some(
+      (entry) => entry.content_id === contentId && entry.is_completed === 1
+    );
+  }
+
+  function getAvailableCharactersForEvent(event: DashboardCalendarEvent): Character[] {
+    // If the event has raidContentId, filter characters who haven't completed that raid
+    if (event.raidContentId) {
+      return characters.filter((character) => !isRaidCompletedForCharacter(character.char_id, event.raidContentId));
+    }
+    return characters;
   }
 
   async function assignCharacter(event: DashboardCalendarEvent, charIdValue: string) {
@@ -250,9 +268,12 @@
                   on:change={(changeEvent) => assignCharacter(event, (changeEvent.currentTarget as HTMLSelectElement).value)}
                 >
                   <option value="">Not assigned</option>
-                  {#each characters as character}
+                  {#each getAvailableCharactersForEvent(event) as character}
                     <option value={character.char_id}>{character.char_name}</option>
                   {/each}
+                  {#if getAssignmentForEvent(event.id) && !getAvailableCharactersForEvent(event).find(c => c.char_id === getAssignmentForEvent(event.id)?.charId)}
+                    <option value={getAssignmentForEvent(event.id)?.charId}>{getAssignmentForEvent(event.id)?.charName} (already completed)</option>
+                  {/if}
                 </select>
               </label>
               {#if assignedCharacterName(event)}
@@ -263,6 +284,24 @@
         </div>
       {:else if totalCalendarItems === 0}
         <p class="empty">No active signup sheets or dated reservations found.</p>
+      {/if}
+
+      {#if filteredReservations.some((reservation) => !reservation.scheduledAt)}
+        <h4>Local Reservations</h4>
+        <div class="event-list">
+          {#each filteredReservations.filter((reservation) => !reservation.scheduledAt) as reservation}
+            <article class="calendar-event">
+              <div class="event-main">
+                <strong>{getRaidName(reservation.contentId)}</strong>
+                <span>{reservation.difficulty}</span>
+                <small>{reservation.recurringWeekly ? 'Weekly/static reservation' : 'One-time reservation'}</small>
+              </div>
+              <div>
+                <small>Character: {characters.find((char) => char.char_id === reservation.charId)?.char_name || 'Unknown'}</small>
+              </div>
+            </article>
+          {/each}
+        </div>
       {/if}
     </div>
   {/if}
