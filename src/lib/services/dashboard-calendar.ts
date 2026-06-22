@@ -62,7 +62,7 @@ function writeJson<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function dispatchCalendarChanged() {
+export function dispatchCalendarChanged() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent('dashboard-calendar:changed'));
 }
@@ -258,6 +258,15 @@ export function clearDashboardRaidReservation(charId: number, contentId: string,
     getDashboardRaidReservations().filter((reservation) => reservation.id !== id)
   );
   dispatchCalendarChanged();
+}
+
+export function clearDashboardRaidReservationNoDispatch(charId: number, contentId: string, difficulty: string) {
+  const id = `${charId}:${contentId}:${difficulty}`;
+  void invoke('clear_dashboard_raid_reservation', { charId, contentId, difficulty });
+  writeJson(
+    RESERVATIONS_STORAGE_KEY,
+    getDashboardRaidReservations().filter((reservation) => reservation.id !== id)
+  );
 }
 
 export function cleanupExpiredDashboardRaidReservations(now = Date.now()) {

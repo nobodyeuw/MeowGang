@@ -27,6 +27,8 @@
   } from '$lib/components/dashboard/character-card-helpers';
   import {
     clearDashboardRaidReservation,
+    clearDashboardRaidReservationNoDispatch,
+    dispatchCalendarChanged,
     getReservationForRaid,
     saveDashboardCalendarAssignment,
     saveDashboardRaidReservation,
@@ -234,11 +236,12 @@
   function clearSelectedReservations() {
     for (const reservationKey of reservationsToClear) {
       const [contentId, difficulty] = reservationKey.split('-');
-      clearDashboardRaidReservation(character.char_id, contentId, difficulty);
+      clearDashboardRaidReservationNoDispatch(character.char_id, contentId, difficulty);
     }
     clearReservationDialogOpen = false;
     reservationsToClear.clear();
     closeRaidActionMenu();
+    dispatchCalendarChanged();
   }
 
   function toggleReservationToClear(reservationKey: string) {
