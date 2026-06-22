@@ -216,6 +216,7 @@
   function openWeeklyRosters() {
     const seen = new Set<string>();
     return weeklyTaskDetails
+      .filter((task) => task != null)
       .flatMap((task) => (task.openRosters || []).map((roster) => ({ ...roster, taskName: task.name })))
       .filter((entry) => {
         const key = `${entry.rosterId}:${entry.taskName}`;
@@ -335,11 +336,13 @@
             <strong>You cleared {totalWeekliesCompleted} out of {totalWeekliesPossible} tracked weeklies.</strong>
             <div class="task-summary">
               {#each weeklyTaskDetails as task}
-                <div class="task-summary-row">
-                  <img src={task.icon} alt={task.name} />
-                  <span>{task.completed}/{task.total}</span>
-                  <small>{task.name}</small>
-                </div>
+                {#if task}
+                  <div class="task-summary-row">
+                    <img src={task.icon} alt={task.name} />
+                    <span>{task.completed}/{task.total}</span>
+                    <small>{task.name}</small>
+                  </div>
+                {/if}
               {/each}
             </div>
             {#if openWeeklyCharacters().length > 0}
@@ -443,22 +446,20 @@
   </div>
 {/if}
 
-    {#if goldEarnerCount > 0}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
-        <div class="stat-card-main">
-          <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
-          <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
-        </div>
-        <div class="stat-label">Gold Earners</div>
-        {#if activePopover === 'gold-earners'}
-          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
-            <strong>if you click me again LOA Tracker will uninstall itself</strong>
-          </div>
-        {/if}
+  {#if goldEarnerCount > 0}
+    <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
+      <div class="stat-card-main">
+        <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
+        <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
       </div>
-    {/if}
-  </div>
-{/if}
+      <div class="stat-label">Gold Earners</div>
+      {#if activePopover === 'gold-earners'}
+        <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
+          <strong>if you click me again LOA Tracker will uninstall itself</strong>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
 <style>
   .header-stats {
