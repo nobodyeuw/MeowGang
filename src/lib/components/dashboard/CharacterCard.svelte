@@ -192,6 +192,8 @@
     if (!raidActionMenu) return;
     await saveDashboardCalendarAssignment(event, character, raidActionMenu.raid.content_id);
     closeRaidActionMenu();
+    // Ensure the component reactivity updates
+    dispatchCalendarChanged();
   }
 
   function openReserveRaidOncePicker() {
