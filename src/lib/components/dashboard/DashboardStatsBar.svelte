@@ -706,10 +706,6 @@
     grid-template-columns: 16px minmax(0, 1fr) auto;
   }
 
-  .roster-event-row {
-    grid-template-columns: 16px minmax(0, 1fr) auto auto;
-  }
-
   .popover-task-icon {
     width: 15px;
     height: 15px;
