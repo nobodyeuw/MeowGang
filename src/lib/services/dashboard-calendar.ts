@@ -143,6 +143,20 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
     }
   }
 
+  // Remove assignments for events that no longer exist (user signed off)
+  const currentAssignments = getDashboardCalendarAssignments();
+  const validEventKeys = new Set(events.map((event) => event.id));
+  const assignmentsToRemove = currentAssignments.filter((assignment) => !validEventKeys.has(assignment.eventKey));
+  if (assignmentsToRemove.length > 0) {
+    for (const assignment of assignmentsToRemove) {
+      void invoke('clear_dashboard_calendar_assignment', { eventKey: assignment.eventKey });
+    }
+    writeJson(
+      ASSIGNMENTS_STORAGE_KEY,
+      currentAssignments.filter((assignment) => validEventKeys.has(assignment.eventKey))
+    );
+  }
+
   return events.sort((a, b) => a.startsAt - b.startsAt || a.title.localeCompare(b.title));
 }
 
