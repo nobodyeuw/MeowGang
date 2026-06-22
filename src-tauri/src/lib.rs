@@ -145,6 +145,13 @@ pub fn run() {
             handlers::data_manager_handlers::migrate_database,
             handlers::data_manager_handlers::get_app_bootstrap_snapshot,
             handlers::data_manager_handlers::get_dashboard_snapshot,
+            handlers::dashboard_calendar_handlers::get_dashboard_calendar_assignments,
+            handlers::dashboard_calendar_handlers::save_dashboard_calendar_assignment,
+            handlers::dashboard_calendar_handlers::clear_dashboard_calendar_assignment,
+            handlers::dashboard_calendar_handlers::get_dashboard_raid_reservations,
+            handlers::dashboard_calendar_handlers::save_dashboard_raid_reservation,
+            handlers::dashboard_calendar_handlers::clear_dashboard_raid_reservation,
+            handlers::dashboard_calendar_handlers::cleanup_dashboard_raid_reservations,
             // Roster handlers
             handlers::roster_handlers::scrape_roster,
             handlers::roster_handlers::get_rosters,
@@ -598,7 +605,7 @@ fn initialize_local_database_runtime(db_manager: &DatabaseManager) -> Result<(),
     }
 
     let current_version = database::data_manager::DataManager::get_schema_version(&db_manager.pool).unwrap_or(1);
-const TARGET_VERSION: i32 = 20;
+    const TARGET_VERSION: i32 = 21;
     crate::log_info!(
         "Current schema version: {}, target version: {}",
         current_version,

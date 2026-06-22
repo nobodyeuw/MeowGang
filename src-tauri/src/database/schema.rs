@@ -188,6 +188,36 @@ pub const TABLES: &[(&str, &str)] = &[
             FOREIGN KEY(character_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
         )",
     ),
+    (
+        "dashboard_calendar_assignments",
+        "CREATE TABLE IF NOT EXISTS dashboard_calendar_assignments (
+            event_key TEXT NOT NULL,
+            sheet_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            section_code TEXT,
+            char_id INTEGER NOT NULL,
+            char_name TEXT NOT NULL,
+            raid_content_id TEXT,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY(event_key),
+            FOREIGN KEY(char_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
+        )",
+    ),
+    (
+        "dashboard_raid_reservations",
+        "CREATE TABLE IF NOT EXISTS dashboard_raid_reservations (
+            id TEXT NOT NULL,
+            char_id INTEGER NOT NULL,
+            content_id TEXT NOT NULL,
+            difficulty TEXT NOT NULL,
+            label TEXT NOT NULL,
+            reserved_at INTEGER NOT NULL,
+            scheduled_at INTEGER,
+            recurring_weekly INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(id),
+            FOREIGN KEY(char_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
+        )",
+    ),
 ];
 
 /// Indexes used by repositories and dashboard/bootstrap snapshots.
@@ -225,4 +255,8 @@ pub const INDEXES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS idx_character_gems_char ON character_gems(character_id)",
     "CREATE INDEX IF NOT EXISTS idx_character_gems_slot ON character_gems(character_id, slot_index)",
     "CREATE INDEX IF NOT EXISTS idx_progression_goals_char ON progression_goals(character_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dashboard_calendar_assignments_char ON dashboard_calendar_assignments(char_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dashboard_calendar_assignments_sheet ON dashboard_calendar_assignments(sheet_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dashboard_raid_reservations_char ON dashboard_raid_reservations(char_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dashboard_raid_reservations_raid ON dashboard_raid_reservations(content_id, difficulty)",
 ];

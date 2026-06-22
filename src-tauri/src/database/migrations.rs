@@ -234,6 +234,45 @@ pub fn migrate_database(pool: &Pool<SqliteConnectionManager>, current_version: i
         tx.execute("DROP TABLE IF EXISTS meow_group_raid_tags", [])?;
     }
 
+    if current_version < 21 {
+        tx.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS dashboard_calendar_assignments (
+                event_key TEXT NOT NULL,
+                sheet_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                section_code TEXT,
+                char_id INTEGER NOT NULL,
+                char_name TEXT NOT NULL,
+                raid_content_id TEXT,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY(event_key),
+                FOREIGN KEY(char_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS dashboard_raid_reservations (
+                id TEXT NOT NULL,
+                char_id INTEGER NOT NULL,
+                content_id TEXT NOT NULL,
+                difficulty TEXT NOT NULL,
+                label TEXT NOT NULL,
+                reserved_at INTEGER NOT NULL,
+                scheduled_at INTEGER,
+                recurring_weekly INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id),
+                FOREIGN KEY(char_id) REFERENCES conf_character(char_id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_dashboard_calendar_assignments_char
+              ON dashboard_calendar_assignments(char_id);
+            CREATE INDEX IF NOT EXISTS idx_dashboard_calendar_assignments_sheet
+              ON dashboard_calendar_assignments(sheet_id);
+            CREATE INDEX IF NOT EXISTS idx_dashboard_raid_reservations_char
+              ON dashboard_raid_reservations(char_id);
+            CREATE INDEX IF NOT EXISTS idx_dashboard_raid_reservations_raid
+              ON dashboard_raid_reservations(content_id, difficulty);
+            "#,
+        )?;
+    }
+
     tx.commit()?;
     crate::database::data_manager::DataManager::set_schema_version(pool, target_version)?;
     crate::log_info!(

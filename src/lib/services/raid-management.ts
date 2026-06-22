@@ -824,23 +824,31 @@ export async function updateRaidSignupSheet(sheet: RaidSignupSheet): Promise<voi
   }
 
   const mergedMembers = mergePreRegisteredMembersByUserId(sheet.preRegisteredMembers || []);
-  for (const member of mergedMembers) {
-    const { error: entryError } = await supabase
+  const { error: deleteEntriesError } = await supabase
+    .from('raid_signup_entries')
+    .delete()
+    .eq('sheet_id', sheet.id);
+
+  if (deleteEntriesError) {
+    throw new Error(deleteEntriesError.message);
+  }
+
+  if (mergedMembers.length > 0) {
+    const { error: entriesError } = await supabase
       .from('raid_signup_entries')
-      .upsert(
-        {
+      .insert(
+        mergedMembers.map((member) => ({
           sheet_id: sheet.id,
           discord_id: member.discordId,
           display_name: member.displayName || member.discordId,
           role: member.role,
           status: member.status,
           raid_sections: member.raidSections || []
-        },
-        { onConflict: 'sheet_id,discord_id,role' }
+        }))
       );
 
-    if (entryError) {
-      throw new Error(entryError.message);
+    if (entriesError) {
+      throw new Error(entriesError.message);
     }
   }
 }

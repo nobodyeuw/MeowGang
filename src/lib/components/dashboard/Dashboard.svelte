@@ -14,6 +14,18 @@
     type DashboardViewMode
   } from '$lib/services/dashboard-preferences';
   import { buildDashboardStats } from '$lib/services/dashboard';
+  import DashboardCalendarWidget from '$lib/components/dashboard/DashboardCalendarWidget.svelte';
+  import {
+    cleanupExpiredDashboardRaidReservations,
+    getDashboardCalendarAssignments,
+    getDashboardRaidReservations,
+    loadDashboardCalendarAssignments,
+    loadDashboardRaidReservations,
+    loadUserDashboardCalendarEvents,
+    type DashboardCalendarAssignment,
+    type DashboardCalendarEvent,
+    type DashboardRaidReservation
+  } from '$lib/services/dashboard-calendar';
   import type {
     DashboardCharacterData,
     DashboardDailyDetail,
@@ -24,6 +36,7 @@
 
   // Props for header communication
   export let setHeaderContent: (content: string) => void;
+  export let discordId = '';
 
   // State
   let visibleCharacters: Character[] = [];
@@ -60,6 +73,11 @@
   let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
   let calendarEventDetails: DashboardRosterEventDetail[] = [];
   let argeosDetails: DashboardRosterEventDetail[] = [];
+  let calendarEvents: DashboardCalendarEvent[] = [];
+  let calendarAssignments: DashboardCalendarAssignment[] = [];
+  let raidReservations: DashboardRaidReservation[] = [];
+  let calendarLoading = false;
+  let loadedCalendarDiscordId = '';
   $: argeosStatusKind = resolveArgeosStatusKind(
     totalArgeosTracked,
     totalArgeosAvailableToday,
@@ -78,6 +96,29 @@
     // Update header
     if (setHeaderContent) {
       setHeaderContent('');
+    }
+  }
+
+  async function loadDashboardCalendar() {
+    cleanupExpiredDashboardRaidReservations();
+    calendarAssignments = await loadDashboardCalendarAssignments();
+    raidReservations = await loadDashboardRaidReservations();
+
+    if (!discordId) {
+      calendarEvents = [];
+      return;
+    }
+
+    calendarLoading = true;
+    try {
+      calendarEvents = await loadUserDashboardCalendarEvents(discordId);
+      calendarAssignments = await loadDashboardCalendarAssignments();
+      raidReservations = await loadDashboardRaidReservations();
+    } catch (error) {
+      console.warn('Failed to load dashboard calendar events:', error);
+      calendarEvents = [];
+    } finally {
+      calendarLoading = false;
     }
   }
 
@@ -127,6 +168,7 @@
 
     (async () => {
       await loadAllCharacters();
+      await loadDashboardCalendar();
     })();
     
     // Listen for raid settings updates
@@ -154,6 +196,16 @@
       dashboardView = nextView === 'cards' ? 'cards' : 'compact';
     };
 
+    const handleCalendarChanged = async () => {
+      try {
+        calendarAssignments = await loadDashboardCalendarAssignments();
+        raidReservations = await loadDashboardRaidReservations();
+      } catch {
+        calendarAssignments = getDashboardCalendarAssignments();
+        raidReservations = getDashboardRaidReservations();
+      }
+    };
+
     const handleStaticBadgesChanged = (event: Event) => {
       showDashboardStaticBadges = (event as CustomEvent<boolean>).detail;
     };
@@ -164,6 +216,7 @@
     window.addEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
     window.addEventListener('dashboard-view:changed', handleDashboardViewChanged);
     window.addEventListener('dashboard-static-badges:changed', handleStaticBadgesChanged);
+    window.addEventListener('dashboard-calendar:changed', handleCalendarChanged);
     
     // Cleanup on unmount
     return () => {
@@ -173,8 +226,17 @@
       window.removeEventListener('roster-event-progress-updated', handleRosterEventProgressUpdated);
       window.removeEventListener('dashboard-view:changed', handleDashboardViewChanged);
       window.removeEventListener('dashboard-static-badges:changed', handleStaticBadgesChanged);
+      window.removeEventListener('dashboard-calendar:changed', handleCalendarChanged);
     };
   });
+
+  $: if (!loading) {
+    const normalizedDiscordId = String(discordId || '').trim();
+    if (normalizedDiscordId !== loadedCalendarDiscordId) {
+      loadedCalendarDiscordId = normalizedDiscordId;
+      void loadDashboardCalendar();
+    }
+  }
 
   $: if (!loading && $characters) {
     visibleCharacters = $characters.filter(char => !char.hide_from_dashboard);
@@ -235,6 +297,14 @@
       {mismatchGoldBonus}
     />
 
+    <DashboardCalendarWidget
+      events={calendarEvents}
+      assignments={calendarAssignments}
+      reservations={raidReservations}
+      characters={visibleCharacters}
+      loading={calendarLoading}
+    />
+
     <DashboardStatsBar
       {totalRaidsCompleted}
       {totalRaidsPossible}
@@ -268,6 +338,9 @@
       {dashboardView}
       {characterDataMap}
       showDashboardStaticBadges={showDashboardStaticBadges}
+      {calendarEvents}
+      {calendarAssignments}
+      {raidReservations}
     />
   {/if}
 </div>

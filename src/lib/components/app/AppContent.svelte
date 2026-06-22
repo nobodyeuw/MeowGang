@@ -21,7 +21,7 @@
 
 <main class="content" class:outer-scroll={activeTab !== 'todo' && activeTab !== 'settings'}>
   {#if activeTab === 'dashboard'}
-    <Dashboard {setHeaderContent} />
+    <Dashboard {setHeaderContent} discordId={discordAuthUserId} />
   {:else if activeTab === 'todo'}
     <Todo highlightCharId={highlightCharId} />
   {:else if activeTab === 'settings'}

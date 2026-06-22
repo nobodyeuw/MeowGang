@@ -3,6 +3,7 @@
 pub mod auth_handlers;
 pub mod character_handlers;
 pub mod data_manager_handlers;
+pub mod dashboard_calendar_handlers;
 pub mod encounter_sync_handlers;
 pub mod entity_sync_handlers;
 pub mod market_handlers;

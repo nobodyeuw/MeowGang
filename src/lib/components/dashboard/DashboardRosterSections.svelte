@@ -3,12 +3,20 @@
   import { getGameClassDisplayName, getGameClassIconId } from '$lib/data/classes';
   import CharacterCard from '$lib/components/dashboard/CharacterCard.svelte';
   import type { DashboardCharacterData } from '$lib/components/dashboard/types';
+  import type {
+    DashboardCalendarAssignment,
+    DashboardCalendarEvent,
+    DashboardRaidReservation
+  } from '$lib/services/dashboard-calendar';
 
   export let rosters: Array<{ id: string; roster_name: string }> = [];
   export let charactersByRoster: Record<string, Character[]> = {};
   export let dashboardView: 'cards' | 'compact' = 'compact';
   export let characterDataMap: Record<string, DashboardCharacterData> = {};
   export let showDashboardStaticBadges = true;
+  export let calendarEvents: DashboardCalendarEvent[] = [];
+  export let calendarAssignments: DashboardCalendarAssignment[] = [];
+  export let raidReservations: DashboardRaidReservation[] = [];
 
   function getRosterName(rosterId: string): string {
     return rosters.find((roster) => roster.id === rosterId)?.roster_name || rosterId;
@@ -37,6 +45,9 @@
             raidConfigs={characterDataMap[String(character.char_id)]?.raidConfigs || []}
             trackingStatus={characterDataMap[String(character.char_id)]?.trackingStatus || []}
             showStaticBadges={showDashboardStaticBadges}
+            {calendarEvents}
+            {calendarAssignments}
+            {raidReservations}
           />
         {/each}
       </div>
