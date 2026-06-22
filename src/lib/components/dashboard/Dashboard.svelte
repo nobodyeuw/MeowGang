@@ -156,8 +156,7 @@
       dailyDetails = stats.dailyDetails;
       weeklyTaskDetails = stats.weeklyTaskDetails;
       calendarEventDetails = stats.calendarEventDetails;
-      argeosDetails = stats.argeosDetails;
-    } catch (error) {
+} catch (error) {
       console.error('Failed to calculate global stats:', error);
     }
   }
@@ -324,18 +323,12 @@
           {totalWeekliesPossible}
           {totalCalendarEventsCompleted}
           {totalCalendarEventsPossible}
-          {totalArgeosTracked}
-          {totalArgeosAvailableToday}
-          {totalArgeosDoneToday}
-          {totalArgeosFullyDone}
-          {argeosStatusKind}
-          {raidDetails}
+{raidDetails}
           {additionalRaidDetails}
           {dailyDetails}
           {weeklyTaskDetails}
           {calendarEventDetails}
-          {argeosDetails}
-          goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
+goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
           visibleCharacterCount={visibleCharacters.length}
         />
 
@@ -424,3 +417,8 @@
     }
   }
 </style>
+
+
+
+
+

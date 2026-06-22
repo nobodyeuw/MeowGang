@@ -12,8 +12,7 @@
   import { activeFilterCharId, activeRosterId } from '$lib/store';
   import { updateTodoRosterEventStatus } from '$lib/services/todo';
   import type {
-    ArgeosStatusKind,
-    DashboardDailyDetail,
+DashboardDailyDetail,
     DashboardFocusEntry,
     DashboardRaidDetail,
     DashboardRosterFocusEntry,
@@ -21,7 +20,7 @@
     DashboardWeeklyTaskDetail
   } from '$lib/components/dashboard/types';
 
-  type PopoverKind = 'raids' | 'dailies' | 'weeklies' | 'calendar' | 'argeos' | 'gold-earners';
+  type PopoverKind = 'raids' | 'dailies' | 'weeklies' | 'calendar' | 'gold-earners';
 
   export let totalRaidsCompleted = 0;
   export let totalRaidsPossible = 0;
@@ -34,14 +33,9 @@
   export let totalWeekliesPossible = 0;
   export let totalCalendarEventsCompleted = 0;
   export let totalCalendarEventsPossible = 0;
-  export let totalArgeosTracked = 0;
-  export let totalArgeosAvailableToday = 0;
-  export let totalArgeosDoneToday = 0;
-  export let totalArgeosFullyDone = 0;
-  export let goldEarnerCount = 0;
+export let goldEarnerCount = 0;
   export let visibleCharacterCount = 0;
-  export let argeosStatusKind: ArgeosStatusKind = 'empty';
-  export let raidDetails: DashboardRaidDetail[] = [];
+export let raidDetails: DashboardRaidDetail[] = [];
   export let additionalRaidDetails: DashboardRaidDetail[] = [];
   export let dailyDetails: DashboardDailyDetail[] = [];
   export let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
@@ -55,8 +49,7 @@
     raid: iconAsset('kazeros-raid.webp'),
     daily: iconAsset('icons8-last-24-hours-80.png'),
     weekly: iconAsset('calendar_7743808.png'),
-    argeos: iconAsset('event_quest.webp'),
-    gold: iconAsset('gold.png'),
+gold: iconAsset('gold.png'),
     gate: iconAsset('chaos_gate.png'),
     boss: iconAsset('boss.png')
   };
@@ -76,27 +69,7 @@
   $: currentCalendarEventLabel = calendarAvailability.gate || calendarAvailability.boss
     ? getCurrentCalendarEventLabel()
     : soonCalendarEventNames || 'Chaos Gate | Field Boss';
-  $: resolvedArgeosStatusKind =
-    totalArgeosTracked > 0 && totalArgeosFullyDone >= totalArgeosTracked
-      ? 'done'
-      : totalArgeosAvailableToday > 0
-        ? 'open'
-        : totalArgeosDoneToday > 0
-          ? 'today'
-          : argeosStatusKind;
-
-  $: showStats =
-    totalRaidsPossible > 0 ||
-    totalAdditionalRaidsPossible > 0 ||
-    totalDailiesTracked > 0 ||
-    totalWeekliesPossible > 0 ||
-    totalArgeosTracked > 0 ||
-    goldEarnerCount > 0 ||
-    visibleCharacterCount > 0;
-
-  onMount(() => {
-    document.addEventListener('click', handleOutsideClick);
-  });
+});
 
   onDestroy(() => {
     document.removeEventListener('click', handleOutsideClick);
@@ -799,3 +772,13 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 </style>
+
+
+
+
+
+
+
+
+
+

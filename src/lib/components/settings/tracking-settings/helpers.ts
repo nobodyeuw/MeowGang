@@ -5,7 +5,7 @@ import { RAIDS } from '$lib/data/raids';
 const COLLAPSE_UNTRACKED_ROWS_STORAGE_KEY = 'trackingSettings.collapseUntrackedRows';
 
 export function isRosterEventTask(taskId: string): boolean {
-  return taskId === 'event_argeos_winter';
+  return false;
 }
 
 export function loadCollapseUntrackedRows(): boolean {
@@ -125,3 +125,4 @@ export function buildTrackingMatrixData(baseMatrix: any) {
     lowIlvlTrackingClears
   };
 }
+
