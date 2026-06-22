@@ -433,19 +433,10 @@
         </div>
       {/if}
     </div>
-
-    <DashboardCalendarWidget
-      events={calendarEvents}
-      assignments={calendarAssignments}
-      reservations={raidReservations}
-      characters={calendarCharacters}
-      loading={calendarLoading}
-      characterDataMap={calendarCharacterDataMap}
-      inline={true}
-    />
   </div>
 {/if}
 
+<div class="header-stats">
   {#if goldEarnerCount > 0}
     <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
       <div class="stat-card-main">
@@ -460,6 +451,17 @@
       {/if}
     </div>
   {/if}
+
+  <DashboardCalendarWidget
+    events={calendarEvents}
+    assignments={calendarAssignments}
+    reservations={raidReservations}
+    characters={calendarCharacters}
+    loading={calendarLoading}
+    characterDataMap={calendarCharacterDataMap}
+    inline={true}
+  />
+</div>
 
 <style>
   .header-stats {

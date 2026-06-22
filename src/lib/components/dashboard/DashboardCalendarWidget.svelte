@@ -4,6 +4,7 @@
   import {
     clearDashboardCalendarAssignment,
     dismissCalendarReminderToday,
+    dispatchCalendarChanged,
     getAssignmentForEvent,
     getTodayCalendarEvents,
     saveDashboardCalendarAssignment,
@@ -101,6 +102,7 @@
       return;
     }
     await saveDashboardCalendarAssignment(event, character);
+    dispatchCalendarChanged();
   }
 
   function dismissReminder() {
@@ -115,10 +117,10 @@
   function getWednesdayOfWeek(date: Date): Date {
     const d = new Date(date);
     const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    // Calculate days to add to get to Wednesday
-    // Wednesday is day 3, so: if day < 3, add (3 - day), if day > 3, add (10 - day)
-    const daysToAdd = day <= 3 ? 3 - day : 10 - day;
-    d.setDate(d.getDate() + daysToAdd);
+    // Calculate days to subtract to get to Wednesday (ongoing week)
+    // Wednesday is day 3, so: if day >= 3, subtract (day - 3), if day < 3, subtract (day + 4)
+    const daysToSubtract = day >= 3 ? day - 3 : day + 4;
+    d.setDate(d.getDate() - daysToSubtract);
     d.setHours(0, 0, 0, 0);
     return d;
   }

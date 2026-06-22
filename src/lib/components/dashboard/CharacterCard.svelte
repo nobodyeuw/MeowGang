@@ -97,6 +97,14 @@
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
   $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
+  $: allReservations = [...characterReservations, ...characterAssignments.map(a => ({
+    ...a,
+    contentId: a.eventKey.split('-')[0] || 'unknown',
+    difficulty: '',
+    scheduledAt: null,
+    recurringWeekly: false,
+    isAssignment: true
+  }))];
 
   // Chaos and Guardian status
   $: chaosRested = restedValues.find(r => r.content_id === 'chaos')?.current_value || 0;
@@ -236,8 +244,13 @@
 
   function clearSelectedReservations() {
     for (const reservationKey of reservationsToClear) {
-      const [contentId, difficulty] = reservationKey.split('-');
-      clearDashboardRaidReservationNoDispatch(character.char_id, contentId, difficulty);
+      if (reservationKey.startsWith('assignment-')) {
+        const eventKey = reservationKey.replace('assignment-', '');
+        clearDashboardCalendarAssignment(eventKey);
+      } else {
+        const [contentId, difficulty] = reservationKey.split('-');
+        clearDashboardRaidReservationNoDispatch(character.char_id, contentId, difficulty);
+      }
     }
     clearReservationDialogOpen = false;
     reservationsToClear.clear();
@@ -738,19 +751,23 @@
         </header>
         <p>Select reservations to clear for {character.char_name}:</p>
         <div class="reservations-list">
-          {#if characterReservations.length === 0}
+          {#if allReservations.length === 0}
             <p class="empty">No reservations found.</p>
           {:else}
-            {#each characterReservations as reservation}
+            {#each allReservations as reservation}
               <label class="reservation-item">
                 <input
                   type="checkbox"
-                  checked={reservationsToClear.has(getReservationKey(reservation))}
-                  on:change={() => toggleReservationToClear(getReservationKey(reservation))}
+                  checked={reservationsToClear.has(reservation.isAssignment ? `assignment-${reservation.eventKey}` : getReservationKey(reservation))}
+                  on:change={() => toggleReservationToClear(reservation.isAssignment ? `assignment-${reservation.eventKey}` : getReservationKey(reservation))}
                 />
                 <span>
-                  <strong>{getRaidName(reservation.contentId)}</strong>
-                  <small>{reservation.difficulty}{reservation.scheduledAt ? ` - ${new Date(reservation.scheduledAt).toLocaleDateString()}` : ''}{reservation.recurringWeekly ? ' (weekly)' : ''}</small>
+                  <strong>{reservation.isAssignment ? 'Planned signup' : getRaidName(reservation.contentId)}</strong>
+                  {#if !reservation.isAssignment}
+                    <small>{reservation.difficulty}{reservation.scheduledAt ? ` - ${new Date(reservation.scheduledAt).toLocaleDateString()}` : ''}{reservation.recurringWeekly ? ' (weekly)' : ''}</small>
+                  {:else}
+                    <small>{reservation.charName} - {reservation.eventKey}</small>
+                  {/if}
                 </span>
               </label>
             {/each}
