@@ -203,7 +203,14 @@
           <span class="weekday">{weekday}</span>
         {/each}
         {#each calendarDays as day}
-          <div class="calendar-day" class:today={day.isToday} class:selected={selectedDayKey === day.key} on:click={() => selectedDayKey = selectedDayKey === day.key ? null : day.key}>
+          <button
+            type="button"
+            class="calendar-day"
+            class:today={day.isToday}
+            class:selected={selectedDayKey === day.key}
+            aria-pressed={selectedDayKey === day.key}
+            on:click={() => selectedDayKey = selectedDayKey === day.key ? null : day.key}
+          >
             <strong>{day.date.getDate()}</strong>
             <div class="day-items">
               {#each day.items.slice(0, 3) as item}
@@ -216,7 +223,7 @@
                 <em>+{day.items.length - 3} more</em>
               {/if}
             </div>
-          </div>
+          </button>
         {/each}
       </div>
 
@@ -405,6 +412,7 @@
   }
 
   .calendar-day {
+    appearance: none;
     min-height: 5rem;
     min-width: 0;
     border-radius: 6px;
@@ -416,10 +424,8 @@
     gap: 0.28rem;
     cursor: pointer;
     transition: all 0.15s ease;
-  }
-
-  .calendar-day.outside {
-    opacity: 0.42;
+    font: inherit;
+    text-align: left;
   }
 
   .calendar-day.today {
