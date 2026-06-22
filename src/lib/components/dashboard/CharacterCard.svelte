@@ -776,13 +776,8 @@ $: allReservations = [
   {/if}
 
   {#if clearReservationDialogOpen}
-    <button
-      type="button"
-      class="clear-reservation-dialog-overlay"
-      aria-label="Close dialog"
-      on:click={() => clearReservationDialogOpen = false}
-    >
-      <div class="clear-reservation-dialog" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <div class="clear-reservation-dialog-overlay" on:click={() => clearReservationDialogOpen = false} on:keydown={(e) => e.key === 'Escape' && clearReservationDialogOpen = false}>
+      <div class="clear-reservation-dialog" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
         <header>
           <strong id="dialog-title">Clear Reservations</strong>
           <button type="button" on:click={() => clearReservationDialogOpen = false} aria-label="Close dialog">✕</button>
@@ -823,7 +818,7 @@ $: allReservations = [
           </button>
         </footer>
       </div>
-    </button>
+    </div>
   {/if}
 </div>
 
@@ -1883,11 +1878,6 @@ $: allReservations = [
     justify-content: center;
     z-index: 1000;
     padding: 1rem;
-    border: none;
-    cursor: default;
-    appearance: none;
-    font: inherit;
-    color: inherit;
   }
 
   .clear-reservation-dialog {
