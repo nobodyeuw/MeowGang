@@ -23,15 +23,7 @@ export const GAME_TASKS: Record<string, GameTask> = {
     category: "roster",
     reset_schedule: "daily",
     logic_type: "calendar"
-  },
-  "event_argeos_winter": {
-    id: "event_argeos_winter",
-    name: "Argeos Winter Event",
-    category: "roster",
-    reset_schedule: "weekly",
-    logic_type: "normal"
-  },
-  "ship_shop": {
+    },\n  "ship_shop": {
     id: "ship_shop",
     name: "Ship Shop",
     category: "roster",
@@ -145,3 +137,5 @@ export function isBossAvailable(dayName: string): boolean {
   const day = getDayByName(dayName);
   return day ? day.boss_available : false;
 }
+
+

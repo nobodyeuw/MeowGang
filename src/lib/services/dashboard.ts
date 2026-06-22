@@ -150,30 +150,7 @@ export async function buildDashboardStats(
       }
     }
 
-    const argeosProgress = await loadRosterEventProgress(roster.id, 'event_argeos_winter');
-    const argeosIsTracked = isRosterTaskTracked(snapshot, 'event_argeos_winter');
-    const argeosHasProgress = argeosProgress.completed_this_week > 0 || argeosProgress.completed_today;
-
-    if (argeosIsTracked || argeosHasProgress) {
-      argeosDetails.push({
-        taskId: 'event_argeos_winter',
-        name: GAME_TASKS.event_argeos_winter?.name || 'Stoopid Argeos',
-        icon: getTaskIcon('event_argeos_winter'),
-        rosterId: roster.id,
-        rosterName: roster.roster_name,
-        completedToday: argeosProgress.completed_today,
-        completedThisWeek: argeosProgress.completed_this_week,
-        weeklyLimit: argeosProgress.weekly_limit,
-        available: argeosProgress.available
-      });
-      argeosTracked++;
-
-      if (argeosProgress.available) argeosAvailableToday++;
-      if (argeosProgress.completed_today) argeosDoneToday++;
-      if (argeosProgress.completed_this_week >= argeosProgress.weekly_limit) argeosFullyDone++;
-    }
-
-    if (isRosterTaskTracked(snapshot, 'ship_shop')) {
+if (isRosterTaskTracked(snapshot, 'ship_shop')) {
       const rosterCompletionStatus = snapshot.roster_completion_status || Object.values(snapshot.completion_by_character || {}).flat();
       const shipShopDetail = getWeeklyDetail('ship_shop');
       const shipShopCompleted = rosterCompletionStatus.some(
@@ -341,3 +318,5 @@ export async function buildDashboardStats(
     argeosDetails
   };
 }
+
+
