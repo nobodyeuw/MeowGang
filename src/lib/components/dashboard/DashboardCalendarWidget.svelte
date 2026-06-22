@@ -388,11 +388,10 @@
   }
 
   .calendar-reminder {
-    position: absolute;
-    top: 34px;
-    right: auto;
+    position: fixed;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     width: min(28rem, calc(100vw - 2rem));
     border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 38%, transparent);
     background: var(--md-sys-color-surface-container-high);
@@ -404,6 +403,7 @@
     gap: 0.65rem;
     justify-content: space-between;
     align-items: center;
+    z-index: 100;
   }
 
   .calendar-reminder div,
@@ -436,13 +436,12 @@
   }
 
   .calendar-popover {
-    position: absolute;
-    top: 34px;
-    right: auto;
+    position: fixed;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     width: min(46rem, calc(100vw - 2rem));
-    max-height: min(42rem, calc(100vh - 8rem));
+    max-height: min(42rem, calc(100vh - 2rem));
     overflow: auto;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
     background: var(--md-sys-color-surface-container);
@@ -450,6 +449,7 @@
     border-radius: 8px;
     box-shadow: var(--app-shadow-md);
     padding: 0.75rem;
+    z-index: 100;
   }
 
   .calendar-popover header {
