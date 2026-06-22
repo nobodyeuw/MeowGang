@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { iconAsset } from '$lib/assets';
   import type { Character } from '$lib/store';
   import { getGameClassInfo } from '$lib/data';
@@ -24,6 +25,15 @@
     type CharacterCardRaidConfig,
     type CharacterCardTrackingEntry
   } from '$lib/components/dashboard/character-card-helpers';
+  import {
+    clearDashboardRaidReservation,
+    getReservationForRaid,
+    saveDashboardCalendarAssignment,
+    saveDashboardRaidReservation,
+    type DashboardCalendarAssignment,
+    type DashboardCalendarEvent,
+    type DashboardRaidReservation
+  } from '$lib/services/dashboard-calendar';
   
   export let character: Character;
   export let classIcon: string = '';
@@ -34,9 +44,18 @@
   export let raidConfigs: CharacterCardRaidConfig[] = [];
   export let trackingStatus: CharacterCardTrackingEntry[] = [];
   export let showStaticBadges = true;
+  export let calendarEvents: DashboardCalendarEvent[] = [];
+  export let calendarAssignments: DashboardCalendarAssignment[] = [];
+  export let raidReservations: DashboardRaidReservation[] = [];
 
   const goldIcon = iconAsset('gold.png');
   const raidIcon = iconAsset('kazeros-raid.webp');
+  let raidActionMenu: { raid: any; x: number; y: number } | null = null;
+  let reservationPickerOpen = false;
+  let reservationDate = '';
+  let reservationTime = '';
+  let clearReservationDialogOpen = false;
+  let reservationsToClear = new Set<string>();
 
   // Reactive values
   $: classInfo = getGameClassInfo(character.class_id);
@@ -74,6 +93,7 @@
   $: compactWeeklyTasks = !isMinimalCard && displayRaids.length > 0 ? trackedWeeklyTasks : [];
   $: trackedWeeklyTaskCount = trackedWeeklyTasks.length;
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
+  $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
 
   // Chaos and Guardian status
   $: chaosRested = restedValues.find(r => r.content_id === 'chaos')?.current_value || 0;
@@ -111,9 +131,7 @@
 
   async function completeDashboardTask(contentId: string, completed: boolean, event?: MouseEvent) {
     event?.preventDefault();
-    if (completed) return;
-
-    await updateTodoTaskStatus(character.char_id, contentId, true);
+    await updateTodoTaskStatus(character.char_id, contentId, !completed);
     dispatchDashboardCompletionUpdate();
   }
 
@@ -125,6 +143,10 @@
 
   async function completeDashboardRaidGate(raid: any, event?: MouseEvent) {
     event?.preventDefault();
+    if (raid.completed) {
+      await undoDashboardRaidGate(raid, event as MouseEvent);
+      return;
+    }
     const nextGate = getNextOpenGate(completionStatus, raid.content_id, raid.difficulty);
     if (!nextGate) return;
 
@@ -133,8 +155,128 @@
     dispatchDashboardCompletionUpdate();
   }
 
-  async function undoDashboardRaidGate(raid: any, event: MouseEvent) {
+  function openRaidActionMenu(raid: any, event: MouseEvent) {
     event.preventDefault();
+    const now = new Date();
+    reservationDate = now.toISOString().slice(0, 10);
+    reservationTime = now.toTimeString().slice(0, 5);
+    reservationPickerOpen = false;
+    raidActionMenu = {
+      raid,
+      x: Math.min(event.clientX, window.innerWidth - 260),
+      y: Math.min(event.clientY, window.innerHeight - 260)
+    };
+  }
+
+  function closeRaidActionMenu() {
+    raidActionMenu = null;
+    reservationPickerOpen = false;
+  }
+
+  async function assignRaidToEvent(event: DashboardCalendarEvent) {
+    if (!raidActionMenu) return;
+    await saveDashboardCalendarAssignment(event, character, raidActionMenu.raid.content_id);
+    closeRaidActionMenu();
+  }
+
+  function openReserveRaidOncePicker() {
+    if (!raidActionMenu) return;
+    reservationPickerOpen = true;
+  }
+
+  async function reserveRaidOnce() {
+    if (!raidActionMenu) return;
+    const parsed = Date.parse(`${reservationDate}T${reservationTime}`);
+    if (!Number.isFinite(parsed)) {
+      window.alert('Could not read that date/time.');
+      return;
+    }
+    await saveDashboardRaidReservation({
+      charId: character.char_id,
+      contentId: raidActionMenu.raid.content_id,
+      difficulty: raidActionMenu.raid.difficulty,
+      label: new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date(parsed)),
+      scheduledAt: parsed,
+      recurringWeekly: false
+    });
+    closeRaidActionMenu();
+  }
+
+  async function reserveRaidWeekly() {
+    if (!raidActionMenu) return;
+    const label = window.prompt('Static weekly reservation label', 'Static')?.trim();
+    if (!label) return;
+    await saveDashboardRaidReservation({
+      charId: character.char_id,
+      contentId: raidActionMenu.raid.content_id,
+      difficulty: raidActionMenu.raid.difficulty,
+      label,
+      recurringWeekly: true
+    });
+    closeRaidActionMenu();
+  }
+
+  function clearRaidReservation() {
+    if (!raidActionMenu) return;
+    clearReservationDialogOpen = true;
+    reservationsToClear.clear();
+    // Pre-select the current reservation
+    const reservationKey = `${raidActionMenu.raid.content_id}-${raidActionMenu.raid.difficulty}`;
+    reservationsToClear.add(reservationKey);
+  }
+
+  function clearSelectedReservations() {
+    for (const reservationKey of reservationsToClear) {
+      const [contentId, difficulty] = reservationKey.split('-');
+      clearDashboardRaidReservation(character.char_id, contentId, difficulty);
+    }
+    clearReservationDialogOpen = false;
+    reservationsToClear.clear();
+    closeRaidActionMenu();
+  }
+
+  function toggleReservationToClear(reservationKey: string) {
+    if (reservationsToClear.has(reservationKey)) {
+      reservationsToClear.delete(reservationKey);
+    } else {
+      reservationsToClear.add(reservationKey);
+    }
+  }
+
+  function getReservationKey(reservation: DashboardRaidReservation): string {
+    return `${reservation.contentId}-${reservation.difficulty}`;
+  }
+
+  function getRaidAssignment(raid: any): DashboardCalendarAssignment | undefined {
+    return calendarAssignments.find((assignment) =>
+      assignment.charId === character.char_id &&
+      assignment.raidContentId === raid.content_id
+    );
+  }
+
+  function getRaidReservation(raid: any): DashboardRaidReservation | undefined {
+    return getReservationForRaid(character.char_id, raid.content_id, raid.difficulty)
+      || raidReservations.find((reservation) =>
+        reservation.charId === character.char_id &&
+        reservation.contentId === raid.content_id &&
+        reservation.difficulty === raid.difficulty
+      );
+  }
+
+  onMount(() => {
+    const handleWindowClick = () => closeRaidActionMenu();
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  });
+
+  async function undoDashboardRaidGate(raid: any, event?: MouseEvent) {
+    event?.preventDefault();
     const gateToUndo = getLastCompletedGate(completionStatus, raid.content_id, raid.difficulty);
     if (!gateToUndo) return;
 
@@ -204,7 +346,7 @@
               class:inactive={!chaosAvailable}
               title={chaosIconTitle}
               on:click={(event) => completeDashboardTask('chaos', chaosCompleted, event)}
-              on:contextmenu={(event) => undoDashboardTask('chaos', event)}
+              on:contextmenu={(event) => event.preventDefault()}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon('chaos')} alt="Chaos" />
@@ -227,7 +369,7 @@
               class:inactive={!guardianAvailable}
               title={guardianIconTitle}
               on:click={(event) => completeDashboardTask('guardian', guardianCompleted, event)}
-              on:contextmenu={(event) => undoDashboardTask('guardian', event)}
+              on:contextmenu={(event) => event.preventDefault()}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon('guardian')} alt="Guardian" />
@@ -250,7 +392,7 @@
               class:inactive={weeklyTask.completed}
               title={`${weeklyTask.name}: ${weeklyTask.completed ? 'done' : 'open'}`}
               on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
-              on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
+              on:contextmenu={(event) => event.preventDefault()}
             >
               <span class="compact-daily-icon">
                 <img src={getTaskIcon(weeklyTask.content_id)} alt={weeklyTask.name} />
@@ -269,7 +411,7 @@
               class:inactive={task.completed}
               title={`${task.name}: ${task.completed ? 'done' : 'open'}`}
               on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
-              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
+              on:contextmenu={(event) => event.preventDefault()}
             >
               <img src={getTaskIcon(task.content_id)} alt={task.name} />
             </button>
@@ -291,7 +433,7 @@
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardRaidGate(raid, event)}
-              on:contextmenu={(event) => undoDashboardRaidGate(raid, event)}
+              on:contextmenu={(event) => openRaidActionMenu(raid, event)}
               on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
@@ -315,6 +457,14 @@
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
+                {#if getRaidAssignment(raid)}
+                  <span class="planned-badge">Plan</span>
+                {/if}
+                {#if getRaidReservation(raid)}
+                  <span class="calendar-reservation-badge">
+                    {getRaidReservation(raid)?.recurringWeekly ? getRaidReservation(raid)?.label : 'Reserved'}
+                  </span>
+                {/if}
               </div>
             </div>
           {/each}
@@ -326,7 +476,7 @@
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
-              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
+              on:contextmenu={(event) => event.preventDefault()}
               on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(task.content_id, task.completed)}
             >
               <div class="raid-content">
@@ -382,7 +532,7 @@
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
-              on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
+              on:contextmenu={(event) => event.preventDefault()}
               on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(weeklyTask.content_id, weeklyTask.completed)}
             >
               <div class="activity-icon">
@@ -404,7 +554,7 @@
           role="button"
           tabindex="0"
           on:click={(event) => completeDashboardTask(weeklyTask.content_id, weeklyTask.completed, event)}
-          on:contextmenu={(event) => undoDashboardTask(weeklyTask.content_id, event)}
+          on:contextmenu={(event) => event.preventDefault()}
           on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(weeklyTask.content_id, weeklyTask.completed)}
         >
           <div class="activity-icon">
@@ -420,7 +570,7 @@
           role="button"
           tabindex="0"
           on:click={(event) => completeDashboardTask('chaos', chaosCompleted, event)}
-          on:contextmenu={(event) => undoDashboardTask('chaos', event)}
+          on:contextmenu={(event) => event.preventDefault()}
           on:keydown={(event) => event.key === 'Enter' && completeDashboardTask('chaos', chaosCompleted)}
         >
           <div class="activity-icon">
@@ -442,7 +592,7 @@
           role="button"
           tabindex="0"
           on:click={(event) => completeDashboardTask('guardian', guardianCompleted, event)}
-          on:contextmenu={(event) => undoDashboardTask('guardian', event)}
+          on:contextmenu={(event) => event.preventDefault()}
           on:keydown={(event) => event.key === 'Enter' && completeDashboardTask('guardian', guardianCompleted)}
         >
           <div class="activity-icon">
@@ -474,7 +624,7 @@
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardRaidGate(raid, event)}
-              on:contextmenu={(event) => undoDashboardRaidGate(raid, event)}
+              on:contextmenu={(event) => openRaidActionMenu(raid, event)}
               on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
             >
               <div class="raid-content">
@@ -495,6 +645,14 @@
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
+                {#if getRaidAssignment(raid)}
+                  <span class="planned-badge">Plan</span>
+                {/if}
+                {#if getRaidReservation(raid)}
+                  <span class="calendar-reservation-badge">
+                    {getRaidReservation(raid)?.recurringWeekly ? getRaidReservation(raid)?.label : 'Reserved'}
+                  </span>
+                {/if}
               </div>
             </div>
           {/each}
@@ -506,7 +664,7 @@
               role="button"
               tabindex="0"
               on:click={(event) => completeDashboardTask(task.content_id, task.completed, event)}
-              on:contextmenu={(event) => undoDashboardTask(task.content_id, event)}
+              on:contextmenu={(event) => event.preventDefault()}
               on:keydown={(event) => event.key === 'Enter' && completeDashboardTask(task.content_id, task.completed)}
             >
               <div class="raid-content">
@@ -518,6 +676,96 @@
         </div>
       </div>
     {/if}
+  {/if}
+
+  {#if raidActionMenu}
+    <div
+      class="raid-action-menu"
+      style={`left: ${raidActionMenu.x}px; top: ${raidActionMenu.y}px;`}
+      role="menu"
+      tabindex="-1"
+      on:click|stopPropagation
+      on:keydown|stopPropagation
+    >
+      <strong>{getRaidDisplayName(raidActionMenu.raid.content_id, raidActionMenu.raid.difficulty)}</strong>
+      <span class="raid-action-hint">Assign or reserve {character.char_name}</span>
+
+      {#if calendarEvents.length > 0}
+        <div class="raid-action-group">
+          <small>Existing planned MeowGang raid</small>
+          {#each calendarEvents as event}
+            <button type="button" on:click={() => assignRaidToEvent(event)}>
+              <span>{event.sectionLabel || event.raidName}</span>
+              <small>{event.startsAtLabel}</small>
+            </button>
+          {/each}
+        </div>
+      {:else}
+        <p>No active planned raids found for your Discord account.</p>
+      {/if}
+
+      <div class="raid-action-group">
+        <small>Local reservation</small>
+        <button type="button" on:click={openReserveRaidOncePicker}>Reserve date/time</button>
+        {#if reservationPickerOpen}
+          <div class="reservation-picker">
+            <label>
+              <span>Day</span>
+              <input type="date" bind:value={reservationDate} />
+            </label>
+            <label>
+              <span>Server time</span>
+              <input type="time" bind:value={reservationTime} step="300" />
+            </label>
+            <button type="button" on:click={reserveRaidOnce}>Save reservation</button>
+          </div>
+        {/if}
+        <button type="button" on:click={reserveRaidWeekly}>Reserve weekly/static</button>
+        <button type="button" class="danger" on:click={clearRaidReservation}>Clear reservation</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if clearReservationDialogOpen}
+    <div class="clear-reservation-dialog-overlay" on:click={() => clearReservationDialogOpen = false}>
+      <div class="clear-reservation-dialog" on:click|stopPropagation>
+        <header>
+          <strong>Clear Reservations</strong>
+          <button type="button" on:click={() => clearReservationDialogOpen = false}>✕</button>
+        </header>
+        <p>Select reservations to clear for {character.char_name}:</p>
+        <div class="reservations-list">
+          {#if characterReservations.length === 0}
+            <p class="empty">No reservations found.</p>
+          {:else}
+            {#each characterReservations as reservation}
+              <label class="reservation-item">
+                <input
+                  type="checkbox"
+                  checked={reservationsToClear.has(getReservationKey(reservation))}
+                  on:change={() => toggleReservationToClear(getReservationKey(reservation))}
+                />
+                <span>
+                  <strong>{getRaidName(reservation.contentId)}</strong>
+                  <small>{reservation.difficulty}{reservation.scheduledAt ? ` - ${new Date(reservation.scheduledAt).toLocaleDateString()}` : ''}{reservation.recurringWeekly ? ' (weekly)' : ''}</small>
+                </span>
+              </label>
+            {/each}
+          {/if}
+        </div>
+        <footer>
+          <button type="button" on:click={() => clearReservationDialogOpen = false}>Cancel</button>
+          <button
+            type="button"
+            class="danger"
+            on:click={clearSelectedReservations}
+            disabled={reservationsToClear.size === 0}
+          >
+            Clear {reservationsToClear.size} reservation{reservationsToClear.size === 1 ? '' : 's'}
+          </button>
+        </footer>
+      </div>
+    </div>
   {/if}
 </div>
 
@@ -1236,6 +1484,126 @@
     text-transform: uppercase;
   }
 
+  .planned-badge,
+  .calendar-reservation-badge {
+    flex-shrink: 0;
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+    font-size: 0.56rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .planned-badge {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+    color: var(--md-sys-color-primary);
+  }
+
+  .calendar-reservation-badge {
+    background: color-mix(in srgb, var(--app-color-static) 16%, transparent);
+    color: var(--app-color-on-static);
+  }
+
+  .raid-action-menu {
+    position: fixed;
+    z-index: 80;
+    width: min(260px, calc(100vw - 1rem));
+    max-height: min(390px, calc(100vh - 1rem));
+    overflow: auto;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--app-shadow-md);
+    padding: 0.6rem;
+    display: grid;
+    gap: 0.45rem;
+    text-decoration: none;
+  }
+
+  .raid-action-menu > strong {
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .raid-action-hint,
+  .raid-action-menu p,
+  .raid-action-group small,
+  .raid-action-group button small {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.64rem;
+    line-height: 1.25;
+  }
+
+  .raid-action-menu p {
+    margin: 0;
+  }
+
+  .raid-action-group {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .raid-action-group button {
+    appearance: none;
+    width: 100%;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 65%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 82%, transparent);
+    color: inherit;
+    border-radius: 5px;
+    padding: 0.35rem 0.45rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.68rem;
+    text-align: left;
+    display: grid;
+    gap: 0.08rem;
+  }
+
+  .raid-action-group button:hover {
+    border-color: var(--md-sys-color-primary);
+  }
+
+  .raid-action-group button.danger {
+    color: var(--md-sys-color-error);
+  }
+
+  .reservation-picker {
+    display: grid;
+    grid-template-columns: 1fr 0.8fr;
+    gap: 0.35rem;
+    padding: 0.4rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 42%, transparent);
+  }
+
+  .reservation-picker label {
+    display: grid;
+    gap: 0.18rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.62rem;
+  }
+
+  .reservation-picker input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 65%, transparent);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+    font: inherit;
+    font-size: 0.68rem;
+    padding: 0.25rem;
+  }
+
+  .reservation-picker button {
+    grid-column: 1 / -1;
+  }
+
   .compact-raid-name > span:first-child {
     min-width: 0;
     overflow: hidden;
@@ -1446,5 +1814,135 @@
     .compact-raid-row {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+  }
+
+  .clear-reservation-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .clear-reservation-dialog {
+    background: var(--surface-variant);
+    border-radius: 12px;
+    padding: 1.5rem;
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: var(--app-shadow-lg);
+  }
+
+  .clear-reservation-dialog header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .clear-reservation-dialog header button {
+    background: transparent;
+    border: none;
+    color: var(--md-sys-color-on-surface);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+  }
+
+  .clear-reservation-dialog p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .reservations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+  }
+
+  .reservations-list .empty {
+    color: var(--md-sys-color-on-surface-variant);
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+  }
+
+  .reservation-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 50%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 30%, transparent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reservation-item:hover {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent);
+  }
+
+  .reservation-item input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    cursor: pointer;
+  }
+
+  .reservation-item span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+  }
+
+  .reservation-item span strong {
+    font-size: 0.9rem;
+  }
+
+  .reservation-item span small {
+    font-size: 0.75rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .clear-reservation-dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 30%, transparent);
+  }
+
+  .clear-reservation-dialog footer button {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 50%, transparent);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .clear-reservation-dialog footer button.danger {
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+    border-color: var(--md-sys-color-error);
+  }
+
+  .clear-reservation-dialog footer button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
