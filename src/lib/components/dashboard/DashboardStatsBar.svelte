@@ -12,13 +12,17 @@
   import { activeFilterCharId, activeRosterId } from '$lib/store';
   import { updateTodoRosterEventStatus } from '$lib/services/todo';
   import type {
-DashboardDailyDetail,
+    DashboardDailyDetail,
     DashboardFocusEntry,
     DashboardRaidDetail,
     DashboardRosterFocusEntry,
     DashboardRosterEventDetail,
     DashboardWeeklyTaskDetail
-  } from '$lib/components/dashboard/types';  import type { Character } from '$lib/store';  import type { DashboardCharacterData } from '$lib/components/dashboard/types';  import type { DashboardCalendarEvent, DashboardCalendarAssignment, DashboardRaidReservation } from '$lib/services/dashboard-calendar';  import DashboardCalendarWidget from '$lib/components/dashboard/DashboardCalendarWidget.svelte';
+  } from '$lib/components/dashboard/types';
+  import type { Character } from '$lib/store';
+  import type { DashboardCharacterData } from '$lib/components/dashboard/types';
+  import type { DashboardCalendarEvent, DashboardCalendarAssignment, DashboardRaidReservation } from '$lib/services/dashboard-calendar';
+  import DashboardCalendarWidget from '$lib/components/dashboard/DashboardCalendarWidget.svelte';
 
   type PopoverKind = 'raids' | 'dailies' | 'weeklies' | 'calendar' | 'gold-earners';
 
@@ -33,14 +37,13 @@ DashboardDailyDetail,
   export let totalWeekliesPossible = 0;
   export let totalCalendarEventsCompleted = 0;
   export let totalCalendarEventsPossible = 0;
-export let goldEarnerCount = 0;
+  export let goldEarnerCount = 0;
   export let visibleCharacterCount = 0;
-export let raidDetails: DashboardRaidDetail[] = [];
+  export let raidDetails: DashboardRaidDetail[] = [];
   export let additionalRaidDetails: DashboardRaidDetail[] = [];
   export let dailyDetails: DashboardDailyDetail[] = [];
   export let weeklyTaskDetails: DashboardWeeklyTaskDetail[] = [];
   export let calendarEventDetails: DashboardRosterEventDetail[] = [];
-  export let argeosDetails: DashboardRosterEventDetail[] = [];
   export let calendarEvents: DashboardCalendarEvent[] = [];
   export let calendarAssignments: DashboardCalendarAssignment[] = [];
   export let raidReservations: DashboardRaidReservation[] = [];
@@ -55,7 +58,7 @@ export let raidDetails: DashboardRaidDetail[] = [];
     raid: iconAsset('kazeros-raid.webp'),
     daily: iconAsset('icons8-last-24-hours-80.png'),
     weekly: iconAsset('calendar_7743808.png'),
-gold: iconAsset('gold.png'),
+    gold: iconAsset('gold.png'),
     gate: iconAsset('chaos_gate.png'),
     boss: iconAsset('boss.png')
   };
@@ -75,6 +78,18 @@ gold: iconAsset('gold.png'),
   $: currentCalendarEventLabel = calendarAvailability.gate || calendarAvailability.boss
     ? getCurrentCalendarEventLabel()
     : soonCalendarEventNames || 'Chaos Gate | Field Boss';
+
+  $: showStats =
+    totalRaidsPossible > 0 ||
+    totalAdditionalRaidsPossible > 0 ||
+    totalDailiesTracked > 0 ||
+    totalWeekliesPossible > 0 ||
+    goldEarnerCount > 0 ||
+    visibleCharacterCount > 0;
+
+  onMount(() => {
+    document.addEventListener('click', handleOutsideClick);
+  });
 
   onDestroy(() => {
     document.removeEventListener('click', handleOutsideClick);
@@ -416,50 +431,17 @@ gold: iconAsset('gold.png'),
       {/if}
     </div>
 
-    {#if totalArgeosTracked > 0}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('argeos', event)} on:keydown={(event) => handleCardKeydown('argeos', event)}>
-        <div class="stat-card-main">
-          <div class="stat-icon"><img src={statIcons.argeos} alt="Stoopid Argeos" /></div>
-          <div class="stat-content">
-            <div class="stat-status" class:done={resolvedArgeosStatusKind === 'done'} class:idle={resolvedArgeosStatusKind === 'today'}>
-              {#if resolvedArgeosStatusKind === 'done'}
-                <span class="stat-status-text">All done</span>
-              {:else if resolvedArgeosStatusKind === 'today'}
-                <span class="stat-status-text">Done today</span>
-              {:else if resolvedArgeosStatusKind === 'open'}
-                <span class="stat-open-count">{totalArgeosAvailableToday}</span>
-                <span class="stat-open-label">open</span>
-              {:else}
-                <span class="stat-status-text">Not tracked</span>
-              {/if}
-            </div>
-          </div>
-        </div>
-        <div class="stat-label event-name">Stoopid Argeos</div>
-        {#if activePopover === 'argeos'}
-          <div class="stat-popover" style={`--popover-top: ${popoverTop}px`}>
-            <strong>{totalArgeosFullyDone} out of {totalArgeosTracked} rosters fully done.</strong>
-            <div class="popover-list">
-              {#each argeosDetails as detail}
-                <div class="popover-row static-row roster-event-row">
-                  <img src={detail.icon} alt={detail.name} class="popover-task-icon" />
-                  <span>{detail.rosterName}</span>
-                  <small>{detail.completedThisWeek}/{detail.weeklyLimit}</small>
-                  <button
-                    type="button"
-                    class="mini-action"
-                    disabled={detail.completedToday || !detail.available}
-                    on:click={(event) => markRosterEvent(detail, event)}
-                  >
-                    {detail.completedToday ? 'Completed' : detail.available ? 'Available' : 'Not today'}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
+    <DashboardCalendarWidget
+      events={calendarEvents}
+      assignments={calendarAssignments}
+      reservations={raidReservations}
+      characters={calendarCharacters}
+      loading={calendarLoading}
+      characterDataMap={calendarCharacterDataMap}
+      inline={true}
+    />
+  </div>
+{/if}
 
     {#if goldEarnerCount > 0}
       <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
@@ -475,16 +457,6 @@ gold: iconAsset('gold.png'),
         {/if}
       </div>
     {/if}
-
-    <DashboardCalendarWidget
-      events={calendarEvents}
-      assignments={calendarAssignments}
-      reservations={raidReservations}
-      characters={calendarCharacters}
-      loading={calendarLoading}
-      characterDataMap={calendarCharacterDataMap}
-      inline={true}
-    />
   </div>
 {/if}
 
@@ -787,14 +759,3 @@ gold: iconAsset('gold.png'),
     color: var(--md-sys-color-on-surface-variant);
   }
 </style>
-
-
-
-
-
-
-
-
-
-
-

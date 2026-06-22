@@ -138,5 +138,3 @@ export function isBossAvailable(dayName: string): boolean {
   const day = getDayByName(dayName);
   return day ? day.boss_available : false;
 }
-
-

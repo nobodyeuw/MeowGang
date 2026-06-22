@@ -52,7 +52,6 @@ export interface DashboardStatsResult {
   dailyDetails: DashboardDailyDetail[];
   weeklyTaskDetails: DashboardWeeklyTaskDetail[];
   calendarEventDetails: DashboardRosterEventDetail[];
-  argeosDetails: DashboardRosterEventDetail[];
 }
 
 export function loadDashboardSnapshot(rosterId: string): Promise<DashboardSnapshot> {
@@ -79,10 +78,6 @@ export async function buildDashboardStats(
   let weekliesPossible = 0;
   let calendarEventsCompleted = 0;
   let calendarEventsPossible = 0;
-  let argeosTracked = 0;
-  let argeosAvailableToday = 0;
-  let argeosDoneToday = 0;
-  let argeosFullyDone = 0;
   const currentCalendarEventIds = getCurrentCalendarEventIds();
   const characterDataMap: Record<string, DashboardCharacterData> = {};
   const allRaidConfigsByCharacter: Record<string, RaidConfigEntry[]> = {};
@@ -92,7 +87,6 @@ export async function buildDashboardStats(
   const dailyDetails: DashboardDailyDetail[] = [];
   const weeklyDetailMap = new Map<string, DashboardWeeklyTaskDetail>();
   const calendarEventDetails: DashboardRosterEventDetail[] = [];
-  const argeosDetails: DashboardRosterEventDetail[] = [];
 
   const getRosterName = (rosterId: string) => rosters.find((roster) => roster.id === rosterId)?.roster_name || rosterId;
   const makeFocusEntry = (character: Character): DashboardFocusEntry => ({
@@ -296,10 +290,6 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
     totalWeekliesPossible: weekliesPossible,
     totalCalendarEventsCompleted: calendarEventsCompleted,
     totalCalendarEventsPossible: calendarEventsPossible,
-    totalArgeosTracked: argeosTracked,
-    totalArgeosAvailableToday: argeosAvailableToday,
-    totalArgeosDoneToday: argeosDoneToday,
-    totalArgeosFullyDone: argeosFullyDone,
     progressPercentage,
     earnedGoldPercentage,
     actualGoldDisplay: goldProgress.actualGold,
@@ -314,8 +304,7 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
     additionalRaidDetails,
     dailyDetails,
     weeklyTaskDetails: Array.from(weeklyDetailMap.values()),
-    calendarEventDetails,
-    argeosDetails
+    calendarEventDetails
   };
 }
 

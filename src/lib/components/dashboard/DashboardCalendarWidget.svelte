@@ -20,6 +20,7 @@
   export let characters: Character[] = [];
   export let loading = false;
   export let characterDataMap: Record<string, DashboardCharacterData> = {};
+  export let inline = false;
   export let inline = false; // If true, widget sits inline with other elements
 
   let open = false;
@@ -38,6 +39,7 @@
   $: filteredReservations = selectedDayKey
     ? reservations.filter((reservation) => reservation.scheduledAt && dayKey(reservation.scheduledAt) === selectedDayKey)
     : reservations;
+  $: widthVar = inline ? '' : ' dashboard-calendar-full-width';
   $: widthVar = inline ? '' : ' dashboard-calendar-full-width';
 
   function assignedCharacterName(event: DashboardCalendarEvent): string {

@@ -309,17 +309,12 @@
       {totalWeekliesPossible}
       {totalCalendarEventsCompleted}
       {totalCalendarEventsPossible}
-      {totalArgeosTracked}
-      {totalArgeosAvailableToday}
-      {totalArgeosDoneToday}
-      {totalArgeosFullyDone}
-      {argeosStatusKind}
-      {raidDetails}
+{raidDetails}
       {additionalRaidDetails}
       {dailyDetails}
       {weeklyTaskDetails}
       {calendarEventDetails}
-      {argeosDetails}      {calendarEvents}      {calendarAssignments}      {raidReservations}      calendarCharacters={visibleCharacters}      calendarLoading={calendarLoading}      calendarCharacterDataMap={characterDataMap}      goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
+{calendarEvents}      {calendarAssignments}      {raidReservations}      calendarCharacters={visibleCharacters}      calendarLoading={calendarLoading}      calendarCharacterDataMap={characterDataMap}      goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
       visibleCharacterCount={visibleCharacters.length}
     />
 
@@ -381,4 +376,6 @@
     }
   }
 </style>
+
+
 
