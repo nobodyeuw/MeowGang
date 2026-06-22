@@ -42,6 +42,28 @@
     return assignments.find((assignment) => assignment.eventKey === event.id)?.charName || '';
   }
 
+  function extractContentIdFromRaidName(raidName: string): string | null {
+    // Match raid name to content_id using the RAIDS data
+    const raid = RAIDS.find((r) => r.name.toLowerCase() === raidName.toLowerCase());
+    if (raid) return raid.id;
+
+    // Try to extract from common patterns
+    const lowerName = raidName.toLowerCase();
+    if (lowerName.includes('echidna')) return 'overture_echidna';
+    if (lowerName.includes('behemoth')) return 'overture_behemoth';
+    if (lowerName.includes('aegir')) return 'act_1_aegir';
+    if (lowerName.includes('brelshaza')) return 'act_2_brelshaza';
+    if (lowerName.includes('mordum')) return 'act_3_mordum';
+    if (lowerName.includes('armoche')) return 'act_4_armoche';
+    if (lowerName.includes('kayangel')) return 'act_4_kayangel';
+    if (lowerName.includes('kakul')) return 'act_4_kakul_saydon';
+    if (lowerName.includes('kazeros')) return 'act_5_kazeros';
+    if (lowerName.includes('serca')) return 'act_6_serca';
+    if (lowerName.includes('cathedral')) return 'act_6_cathedral';
+
+    return null;
+  }
+
   function isRaidCompletedForCharacter(charId: number, contentId: string): boolean {
     const charData = characterDataMap[String(charId)];
     if (!charData) return false;
@@ -51,10 +73,21 @@
   }
 
   function getAvailableCharactersForEvent(event: DashboardCalendarEvent): Character[] {
-    // If the event has raidContentId, filter characters who haven't completed that raid
-    if (event.raidContentId) {
-      return characters.filter((character) => !isRaidCompletedForCharacter(character.char_id, event.raidContentId));
+    // For custom raids, show all characters with tracked raids available
+    if (event.raidName.toLowerCase().includes('custom')) {
+      return characters.filter((character) => {
+        const charData = characterDataMap[String(character.char_id)];
+        if (!charData) return false;
+        return charData.trackingStatus.some((entry) => entry.is_tracked === 1);
+      });
     }
+
+    // For regular raids, filter by completion status using content_id matching
+    const contentId = event.raidContentId || extractContentIdFromRaidName(event.raidName);
+    if (contentId) {
+      return characters.filter((character) => !isRaidCompletedForCharacter(character.char_id, contentId));
+    }
+
     return characters;
   }
 
