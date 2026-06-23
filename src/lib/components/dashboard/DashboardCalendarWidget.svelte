@@ -5,8 +5,11 @@
     clearDashboardCalendarAssignment,
     dismissCalendarReminderToday,
     dispatchCalendarChanged,
+    formatReservationScheduleLabel,
     getAssignmentForEvent,
+    getReservationOccurrenceTimestamp,
     getTodayCalendarEvents,
+    reservationMatchesDayKey,
     saveDashboardCalendarAssignment,
     wasCalendarReminderDismissedToday,
     type DashboardCalendarAssignment,
@@ -36,9 +39,11 @@
   $: filteredEvents = selectedDayKey
     ? events.filter((event) => dayKey(event.startsAt) === selectedDayKey)
     : events;
-  $: filteredReservations = selectedDayKey
-    ? reservations.filter((reservation) => reservation.scheduledAt && dayKey(reservation.scheduledAt) === selectedDayKey)
-    : reservations;
+  $: filteredReservations = reservations.filter((reservation) =>
+    reservationMatchesDayKey(reservation, selectedDayKey || '', visibleWeekStart)
+  );
+  $: datedReservations = filteredReservations.filter((reservation) => reservation.scheduledAt);
+  $: undatedReservations = filteredReservations.filter((reservation) => !reservation.scheduledAt);
   $: widthVar = inline ? '' : ' dashboard-calendar-full-width';
 
   function assignedCharacterName(event: DashboardCalendarEvent): string {
@@ -183,14 +188,16 @@
 
     for (const reservation of allReservations) {
       if (!reservation.scheduledAt) continue;
-      const day = dayMap.get(dayKey(reservation.scheduledAt));
-      if (!day) continue;
-      day.items.push({
-        id: `reservation-${reservation.id}`,
-        time: formatTime(reservation.scheduledAt),
-        label: `${reservation.label || getRaidName(reservation.contentId)} - ${getRaidName(reservation.contentId)}`,
-        kind: 'reservation'
-      });
+      for (const day of days) {
+        const occurrence = getReservationOccurrenceTimestamp(reservation, day.date);
+        if (!occurrence) continue;
+        day.items.push({
+          id: `reservation-${reservation.id}-${day.key}`,
+          time: formatTime(occurrence),
+          label: `${reservation.label || getRaidName(reservation.contentId)} · ${getRaidName(reservation.contentId)}`,
+          kind: 'reservation'
+        });
+      }
     }
 
     for (const day of days) {
@@ -241,7 +248,7 @@
           <span>
             {loading
               ? 'Loading signups...'
-              : `${filteredEvents.length} signup${filteredEvents.length === 1 ? '' : 's'} | ${filteredReservations.filter((reservation) => reservation.scheduledAt).length} reservation${filteredReservations.filter((reservation) => reservation.scheduledAt).length === 1 ? '' : 's'}`}
+              : `${filteredEvents.length} signup${filteredEvents.length === 1 ? '' : 's'} | ${datedReservations.length} reservation${datedReservations.length === 1 ? '' : 's'}`}
           </span>
         </div>
         <button type="button" on:click={() => open = false}>Close</button>
@@ -319,19 +326,43 @@
             </article>
           {/each}
         </div>
-      {:else if totalCalendarItems === 0}
+      {:else if totalCalendarItems === 0 && undatedReservations.length === 0}
         <p class="empty">No active signup sheets or dated reservations found.</p>
       {/if}
 
-      {#if filteredReservations.some((reservation) => !reservation.scheduledAt)}
+      {#if datedReservations.length > 0}
         <h4>Local Reservations</h4>
+        {#if selectedDayKey}
+          <div class="filter-info">
+            <span>Filtered by {selectedDayKey}</span>
+            <button type="button" on:click={() => selectedDayKey = null}>Clear filter</button>
+          </div>
+        {/if}
         <div class="event-list">
-          {#each filteredReservations.filter((reservation) => !reservation.scheduledAt) as reservation}
-            <article class="calendar-event">
+          {#each datedReservations as reservation}
+            <article class="calendar-event reservation-event">
               <div class="event-main">
                 <strong>{getRaidName(reservation.contentId)}</strong>
                 <span>{reservation.difficulty}</span>
-                <small>{reservation.recurringWeekly ? 'Weekly/static reservation' : 'One-time reservation'}</small>
+                <small>{formatReservationScheduleLabel(reservation)}</small>
+              </div>
+              <div>
+                <small>Character: {characters.find((char) => char.char_id === reservation.charId)?.char_name || 'Unknown'}</small>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+
+      {#if undatedReservations.length > 0}
+        <h4>Undated Reservations</h4>
+        <div class="event-list">
+          {#each undatedReservations as reservation}
+            <article class="calendar-event reservation-event">
+              <div class="event-main">
+                <strong>{getRaidName(reservation.contentId)}</strong>
+                <span>{reservation.difficulty}</span>
+                <small>{formatReservationScheduleLabel(reservation)}</small>
               </div>
               <div>
                 <small>Character: {characters.find((char) => char.char_id === reservation.charId)?.char_name || 'Unknown'}</small>

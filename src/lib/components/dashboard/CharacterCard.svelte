@@ -30,7 +30,7 @@
     clearDashboardRaidReservation,
     clearDashboardRaidReservationNoDispatch,
     dispatchCalendarChanged,
-    getReservationForRaid,
+    getDashboardRaidReservations,
     saveDashboardCalendarAssignment,
     saveDashboardRaidReservation,
     type DashboardCalendarAssignment,
@@ -59,6 +59,18 @@
   let reservationTime = '';
   let clearReservationDialogOpen = false;
   let reservationsToClear = new Set<string>();
+  let reservationRefreshKey = 0;
+
+  function bumpReservationRefresh() {
+    reservationRefreshKey += 1;
+  }
+
+  function readEffectiveReservations(): DashboardRaidReservation[] {
+    const byId = new Map<string, DashboardRaidReservation>();
+    for (const reservation of raidReservations) byId.set(reservation.id, reservation);
+    for (const reservation of getDashboardRaidReservations()) byId.set(reservation.id, reservation);
+    return Array.from(byId.values());
+  }
 
   // Reactive values
   $: classInfo = getGameClassInfo(character.class_id);
@@ -96,7 +108,9 @@
   $: compactWeeklyTasks = !isMinimalCard && displayRaids.length > 0 ? trackedWeeklyTasks : [];
   $: trackedWeeklyTaskCount = trackedWeeklyTasks.length;
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
-  $: characterReservations = raidReservations.filter((reservation) => reservation.charId === character.char_id);
+  $: characterReservations = (reservationRefreshKey, readEffectiveReservations().filter(
+    (reservation) => reservation.charId === character.char_id
+  ));
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
 
 type CombinedReservation = DashboardRaidReservation | {
@@ -218,10 +232,31 @@ $: allReservations = [
     reservationPickerOpen = true;
   }
 
+  function openReserveRaidWeeklyPicker() {
+    if (!raidActionMenu) return;
+    reservationPickerOpen = true;
+  }
+
+  function parseReservationTimestamp(): number | null {
+    const parsed = Date.parse(`${reservationDate}T${reservationTime}`);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function formatReservationLabel(timestamp: number, recurringWeekly: boolean) {
+    const schedule = new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(timestamp));
+    return recurringWeekly ? `Weekly · ${schedule}` : schedule;
+  }
+
   async function reserveRaidOnce() {
     if (!raidActionMenu) return;
-    const parsed = Date.parse(`${reservationDate}T${reservationTime}`);
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseReservationTimestamp();
+    if (!parsed) {
       window.alert('Could not read that date/time.');
       return;
     }
@@ -229,30 +264,30 @@ $: allReservations = [
       charId: character.char_id,
       contentId: raidActionMenu.raid.content_id,
       difficulty: raidActionMenu.raid.difficulty,
-      label: new Intl.DateTimeFormat(undefined, {
-        weekday: 'short',
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).format(new Date(parsed)),
+      label: formatReservationLabel(parsed, false),
       scheduledAt: parsed,
       recurringWeekly: false
     });
+    bumpReservationRefresh();
     closeRaidActionMenu();
   }
 
   async function reserveRaidWeekly() {
     if (!raidActionMenu) return;
-    const label = window.prompt('Static weekly reservation label', 'Static')?.trim();
-    if (!label) return;
+    const parsed = parseReservationTimestamp();
+    if (!parsed) {
+      window.alert('Choose a day and time for the weekly reservation.');
+      return;
+    }
     await saveDashboardRaidReservation({
       charId: character.char_id,
       contentId: raidActionMenu.raid.content_id,
       difficulty: raidActionMenu.raid.difficulty,
-      label,
+      label: formatReservationLabel(parsed, true),
+      scheduledAt: parsed,
       recurringWeekly: true
     });
+    bumpReservationRefresh();
     closeRaidActionMenu();
   }
 
@@ -277,6 +312,7 @@ $: allReservations = [
     }
     clearReservationDialogOpen = false;
     reservationsToClear.clear();
+    bumpReservationRefresh();
     closeRaidActionMenu();
     dispatchCalendarChanged();
   }
@@ -310,12 +346,10 @@ $: allReservations = [
   }
 
   function getRaidReservation(raid: any): DashboardRaidReservation | undefined {
-    return getReservationForRaid(character.char_id, raid.content_id, raid.difficulty)
-      || raidReservations.find((reservation) =>
-        reservation.charId === character.char_id &&
-        reservation.contentId === raid.content_id &&
-        reservation.difficulty === raid.difficulty
-      );
+    reservationRefreshKey;
+    return characterReservations.find((reservation) =>
+      reservation.contentId === raid.content_id && reservation.difficulty === raid.difficulty
+    );
   }
 
   onMount(() => {
@@ -756,6 +790,7 @@ $: allReservations = [
       <div class="raid-action-group">
         <small>Local reservation</small>
         <button type="button" on:click={openReserveRaidOncePicker}>Reserve date/time</button>
+        <button type="button" on:click={openReserveRaidWeeklyPicker}>Reserve weekly/static</button>
         {#if reservationPickerOpen}
           <div class="reservation-picker">
             <label>
@@ -766,17 +801,23 @@ $: allReservations = [
               <span>Server time</span>
               <input type="time" bind:value={reservationTime} step="300" />
             </label>
-            <button type="button" on:click={reserveRaidOnce}>Save reservation</button>
+            <div class="reservation-picker-actions">
+              <button type="button" on:click={reserveRaidOnce}>Save once</button>
+              <button type="button" on:click={reserveRaidWeekly}>Save weekly</button>
+            </div>
           </div>
         {/if}
-        <button type="button" on:click={reserveRaidWeekly}>Reserve weekly/static</button>
         <button type="button" class="danger" on:click={clearRaidReservation}>Clear reservation</button>
       </div>
     </div>
   {/if}
 
   {#if clearReservationDialogOpen}
-    <div class="clear-reservation-dialog-overlay" on:click={() => clearReservationDialogOpen = false} on:keydown={(e) => e.key === 'Escape' && clearReservationDialogOpen = false}>
+    <div
+      class="clear-reservation-dialog-overlay"
+      on:click={() => clearReservationDialogOpen = false}
+      on:keydown={(e) => { if (e.key === 'Escape') clearReservationDialogOpen = false; }}
+    >
       <div class="clear-reservation-dialog" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
         <header>
           <strong id="dialog-title">Clear Reservations</strong>
@@ -1655,6 +1696,17 @@ $: allReservations = [
 
   .reservation-picker button {
     grid-column: 1 / -1;
+  }
+
+  .reservation-picker-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    grid-column: 1 / -1;
+  }
+
+  .reservation-picker-actions button {
+    grid-column: auto;
   }
 
   .compact-raid-name > span:first-child {

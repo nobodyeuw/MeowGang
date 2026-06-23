@@ -196,14 +196,18 @@
       dashboardView = nextView === 'cards' ? 'cards' : 'compact';
     };
 
-    const handleCalendarChanged = async () => {
-      try {
-        calendarAssignments = await loadDashboardCalendarAssignments();
-        raidReservations = await loadDashboardRaidReservations();
-      } catch {
-        calendarAssignments = getDashboardCalendarAssignments();
-        raidReservations = getDashboardRaidReservations();
-      }
+    const handleCalendarChanged = () => {
+      calendarAssignments = getDashboardCalendarAssignments();
+      raidReservations = getDashboardRaidReservations();
+      void (async () => {
+        try {
+          calendarAssignments = await loadDashboardCalendarAssignments();
+          raidReservations = await loadDashboardRaidReservations();
+        } catch {
+          calendarAssignments = getDashboardCalendarAssignments();
+          raidReservations = getDashboardRaidReservations();
+        }
+      })();
     };
 
     const handleStaticBadgesChanged = (event: Event) => {
@@ -309,12 +313,18 @@
       {totalWeekliesPossible}
       {totalCalendarEventsCompleted}
       {totalCalendarEventsPossible}
-{raidDetails}
+      {raidDetails}
       {additionalRaidDetails}
       {dailyDetails}
       {weeklyTaskDetails}
       {calendarEventDetails}
-{calendarEvents}      {calendarAssignments}      {raidReservations}      calendarCharacters={visibleCharacters}      calendarLoading={calendarLoading}      calendarCharacterDataMap={characterDataMap}      goldEarnerCount={visibleCharacters.filter(c => c.earns_gold).length}
+      {calendarEvents}
+      {calendarAssignments}
+      {raidReservations}
+      calendarCharacters={visibleCharacters}
+      calendarLoading={calendarLoading}
+      calendarCharacterDataMap={characterDataMap}
+      goldEarnerCount={visibleCharacters.filter((character) => character.earns_gold).length}
       visibleCharacterCount={visibleCharacters.length}
     />
 

@@ -311,3 +311,69 @@ export function dismissCalendarReminderToday() {
   const next = Array.from(new Set([...readJson<string[]>(DISMISSED_REMINDER_STORAGE_KEY, []), todayKey]));
   writeJson(DISMISSED_REMINDER_STORAGE_KEY, next.slice(-14));
 }
+
+export function dayKeyFromTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function getReservationOccurrenceTimestamp(
+  reservation: DashboardRaidReservation,
+  weekDay: Date
+): number | null {
+  if (!reservation.scheduledAt) return null;
+
+  if (reservation.recurringWeekly) {
+    const template = new Date(reservation.scheduledAt);
+    if (weekDay.getDay() !== template.getDay()) return null;
+    const occurrence = new Date(weekDay);
+    occurrence.setHours(template.getHours(), template.getMinutes(), 0, 0);
+    return occurrence.getTime();
+  }
+
+  return dayKeyFromTimestamp(reservation.scheduledAt) === dayKeyFromTimestamp(weekDay.getTime())
+    ? reservation.scheduledAt
+    : null;
+}
+
+export function reservationMatchesDayKey(
+  reservation: DashboardRaidReservation,
+  selectedDayKey: string,
+  weekStart: Date
+): boolean {
+  if (!reservation.scheduledAt) return !selectedDayKey;
+
+  if (!selectedDayKey) {
+    for (let index = 0; index < 7; index += 1) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + index);
+      if (getReservationOccurrenceTimestamp(reservation, date)) return true;
+    }
+    return false;
+  }
+
+  const [year, month, day] = selectedDayKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return Boolean(getReservationOccurrenceTimestamp(reservation, date));
+}
+
+export function formatReservationScheduleLabel(reservation: DashboardRaidReservation): string {
+  if (!reservation.scheduledAt) {
+    return reservation.recurringWeekly ? 'Weekly/static reservation' : 'One-time reservation';
+  }
+
+  const schedule = formatDateTime(reservation.scheduledAt);
+  return reservation.recurringWeekly ? `Every week · ${schedule}` : schedule;
+}
+
+export function mergeDashboardRaidReservations(
+  remoteReservations: DashboardRaidReservation[] = [],
+  localReservations: DashboardRaidReservation[] = getDashboardRaidReservations()
+): DashboardRaidReservation[] {
+  const byId = new Map<string, DashboardRaidReservation>();
+  for (const reservation of remoteReservations) byId.set(reservation.id, reservation);
+  for (const reservation of localReservations) byId.set(reservation.id, reservation);
+  return Array.from(byId.values()).sort((a, b) =>
+    (a.scheduledAt || a.reservedAt) - (b.scheduledAt || b.reservedAt)
+  );
+}
