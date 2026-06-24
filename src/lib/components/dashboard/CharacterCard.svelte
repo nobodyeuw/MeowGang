@@ -4,6 +4,7 @@
   import { iconAsset } from '$lib/assets';
   import type { Character } from '$lib/store';
   import { getGameClassInfo } from '$lib/data';
+  import { RAIDS } from '$lib/data/raids';
   import { activeFilterCharId, activeRosterId } from '$lib/store';
   import { updateTodoRaidGateStatus, updateTodoTaskStatus } from '$lib/services/todo';
   import {
@@ -108,9 +109,11 @@
   $: compactWeeklyTasks = !isMinimalCard && displayRaids.length > 0 ? trackedWeeklyTasks : [];
   $: trackedWeeklyTaskCount = trackedWeeklyTasks.length;
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
-  $: characterReservations = (reservationRefreshKey, readEffectiveReservations().filter(
+  $: characterReservations = readEffectiveReservations().filter(
     (reservation) => reservation.charId === character.char_id
-  ));
+  );
+  // Trigger reactivity when reservationRefreshKey changes
+  $: if (reservationRefreshKey) characterReservations;
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
 
 type CombinedReservation = DashboardRaidReservation | {
@@ -118,7 +121,7 @@ type CombinedReservation = DashboardRaidReservation | {
   eventKey: string;
   contentId: string;
   difficulty: string;
-  scheduledAt: null;
+  scheduledAt?: null;
   recurringWeekly: boolean;
   charId: number;
   charName: string;
@@ -126,7 +129,7 @@ type CombinedReservation = DashboardRaidReservation | {
 
 $: allReservations = [
     ...characterReservations,
-    ...characterAssignments.map((a) => ({
+    ...characterAssignments.map((a): CombinedReservation => ({
       isAssignment: true,
       eventKey: a.eventKey,
       contentId: a.eventKey.split('-')[0] || 'unknown',
@@ -228,11 +231,6 @@ $: allReservations = [
   }
 
   function openReserveRaidOncePicker() {
-    if (!raidActionMenu) return;
-    reservationPickerOpen = true;
-  }
-
-  function openReserveRaidWeeklyPicker() {
     if (!raidActionMenu) return;
     reservationPickerOpen = true;
   }
@@ -350,6 +348,61 @@ $: allReservations = [
     return characterReservations.find((reservation) =>
       reservation.contentId === raid.content_id && reservation.difficulty === raid.difficulty
     );
+  }
+
+  function extractContentIdFromRaidName(raidName: string): string | null {
+    const raid = RAIDS.find((r) => r.name.toLowerCase() === raidName.toLowerCase());
+    if (raid) return raid.id;
+
+    const lowerName = raidName.toLowerCase();
+    if (lowerName.includes('echidna')) return 'overture_echidna';
+    if (lowerName.includes('behemoth')) return 'behemoth';
+    if (lowerName.includes('aegir')) return 'act_1_aegir';
+    if (lowerName.includes('brelshaza')) return 'act_2_brelshaza';
+    if (lowerName.includes('mordum')) return 'act_3_mordum';
+    if (lowerName.includes('armoche')) return 'act_4_armoche';
+    if (lowerName.includes('kayangel')) return 'act_4_kayangel';
+    if (lowerName.includes('kakul')) return 'act_4_kakul_saydon';
+    if (lowerName.includes('kazeros')) return 'denouement_final_day';
+    if (lowerName.includes('serca')) return 'shadow_serca';
+    if (lowerName.includes('cathedral')) return 'horizon_cathedral';
+    return null;
+  }
+
+  function getFilteredCalendarEvents(currentRaidContentId: string): DashboardCalendarEvent[] {
+    const filteredEvents: DashboardCalendarEvent[] = [];
+
+    for (const event of calendarEvents) {
+      // For raid-train parent events, find matching child events
+      if (event.runType === 'raid-train' && !(event as any).isChildOfRaidTrain) {
+        // First check if child events are stored as a property on the parent
+        const childEvents = (event as any).childEvents || calendarEvents.filter((e) => (e as any).parentEventId === event.id);
+        const matchingChildren = childEvents.filter((child: DashboardCalendarEvent) => {
+          // For custom raids, show all events
+          if (child.raidName.toLowerCase().includes('custom')) {
+            return true;
+          }
+          const eventContentId = extractContentIdFromRaidName(child.raidName);
+          return eventContentId === currentRaidContentId;
+        });
+
+        // Add matching child events individually so they can be assigned to
+        filteredEvents.push(...matchingChildren);
+      } else if (!(event as any).isChildOfRaidTrain) {
+        // For non-raid-train events, filter normally
+        // For custom raids, show all events since they don't map to specific content IDs
+        if (event.raidName.toLowerCase().includes('custom')) {
+          filteredEvents.push(event);
+        } else {
+          const eventContentId = extractContentIdFromRaidName(event.raidName);
+          if (eventContentId === currentRaidContentId) {
+            filteredEvents.push(event);
+          }
+        }
+      }
+    }
+
+    return filteredEvents;
   }
 
   onMount(() => {
@@ -773,10 +826,10 @@ $: allReservations = [
       <strong>{getRaidDisplayName(raidActionMenu.raid.content_id, raidActionMenu.raid.difficulty)}</strong>
       <span class="raid-action-hint">Assign or reserve {character.char_name}</span>
 
-      {#if calendarEvents.length > 0}
+      {#if getFilteredCalendarEvents(raidActionMenu.raid.content_id).length > 0}
         <div class="raid-action-group">
           <small>Existing planned MeowGang raid</small>
-          {#each calendarEvents as event}
+          {#each getFilteredCalendarEvents(raidActionMenu.raid.content_id) as event}
             <button type="button" on:click={() => assignRaidToEvent(event)}>
               <span>{event.sectionLabel || event.raidName}</span>
               <small>{event.startsAtLabel}</small>
@@ -790,7 +843,6 @@ $: allReservations = [
       <div class="raid-action-group">
         <small>Local reservation</small>
         <button type="button" on:click={openReserveRaidOncePicker}>Reserve date/time</button>
-        <button type="button" on:click={openReserveRaidWeeklyPicker}>Reserve weekly/static</button>
         {#if reservationPickerOpen}
           <div class="reservation-picker">
             <label>
@@ -815,6 +867,8 @@ $: allReservations = [
   {#if clearReservationDialogOpen}
     <div
       class="clear-reservation-dialog-overlay"
+      role="button"
+      aria-label="Close dialog"
       on:click={() => clearReservationDialogOpen = false}
       on:keydown={(e) => { if (e.key === 'Escape') clearReservationDialogOpen = false; }}
     >
@@ -836,8 +890,8 @@ $: allReservations = [
                   on:change={() => toggleReservationToClear(getReservationKeyForCombined(reservation))}
                 />
                 <span>
-                  <strong>{reservation.isAssignment ? 'Planned signup' : getRaidName(reservation.contentId, reservation.difficulty)}</strong>
-                  {#if !reservation.isAssignment}
+                  <strong>{('isAssignment' in reservation && reservation.isAssignment) ? 'Planned signup' : getRaidName(reservation.contentId, reservation.difficulty)}</strong>
+                  {#if !('isAssignment' in reservation && reservation.isAssignment)}
                     <small>{reservation.difficulty}{reservation.scheduledAt ? ` - ${new Date(reservation.scheduledAt).toLocaleDateString()}` : ''}{reservation.recurringWeekly ? ' (weekly)' : ''}</small>
                   {:else}
                     <small>{reservation.charName} - {reservation.eventKey}</small>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Character } from '$lib/store';
   import { RAIDS } from '$lib/data/raids';
+  import { appAsset } from '$lib/assets';
   import {
     clearDashboardCalendarAssignment,
     dismissCalendarReminderToday,
@@ -18,6 +19,8 @@
   } from '$lib/services/dashboard-calendar';
   import type { DashboardCharacterData } from '$lib/components/dashboard/types';
 
+  const calendarIcon = appAsset('calendar.png');
+
   export let events: DashboardCalendarEvent[] = [];
   export let assignments: DashboardCalendarAssignment[] = [];
   export let reservations: DashboardRaidReservation[] = [];
@@ -30,15 +33,16 @@
   let reminderDismissed = false;
   let visibleWeekStart = getWednesdayOfWeek(new Date());
   let selectedDayKey: string | null = null;
+  let expandedRaidTrains = new Set<string>();
 
   $: todayEvents = getTodayCalendarEvents(events);
   $: showTodayReminder = todayEvents.length > 0 && !reminderDismissed;
   $: calendarDays = buildCalendarDays(visibleWeekStart, events, assignments, reservations);
-  $: totalCalendarItems = events.length + reservations.filter((reservation) => reservation.scheduledAt).length;
+  $: totalCalendarItems = events.filter((event) => !(event as any).isChildOfRaidTrain).length + reservations.filter((reservation) => reservation.scheduledAt).length;
   $: weekLabel = formatWeekLabel(visibleWeekStart);
   $: filteredEvents = selectedDayKey
-    ? events.filter((event) => dayKey(event.startsAt) === selectedDayKey)
-    : events;
+    ? events.filter((event) => dayKey(event.startsAt) === selectedDayKey && !(event as any).isChildOfRaidTrain)
+    : events.filter((event) => !(event as any).isChildOfRaidTrain);
   $: filteredReservations = reservations.filter((reservation) =>
     reservationMatchesDayKey(reservation, selectedDayKey || '', visibleWeekStart)
   );
@@ -50,6 +54,35 @@
     return assignments.find((assignment) => assignment.eventKey === event.id)?.charName || '';
   }
 
+  function toggleRaidTrainExpansion(eventId: string) {
+    if (expandedRaidTrains.has(eventId)) {
+      expandedRaidTrains.delete(eventId);
+    } else {
+      expandedRaidTrains.add(eventId);
+    }
+    expandedRaidTrains = new Set(expandedRaidTrains); // Trigger reactivity
+  }
+
+  function handleRaidTrainKeydown(eventId: string, event: KeyboardEvent) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleRaidTrainExpansion(eventId);
+    }
+  }
+
+  function isRaidTrain(event: DashboardCalendarEvent): boolean {
+    return event.runType === 'raid-train' && !(event as any).isChildOfRaidTrain;
+  }
+
+  function getChildEvents(event: DashboardCalendarEvent): DashboardCalendarEvent[] {
+    // First check if child events are stored as a property on the parent
+    if ((event as any).childEvents) {
+      return (event as any).childEvents;
+    }
+    // Otherwise find child events from the main events array
+    return events.filter(e => (e as any).parentEventId === event.id);
+  }
+
   function extractContentIdFromRaidName(raidName: string): string | null {
     // Match raid name to content_id using the RAIDS data
     const raid = RAIDS.find((r) => r.name.toLowerCase() === raidName.toLowerCase());
@@ -58,16 +91,16 @@
     // Try to extract from common patterns
     const lowerName = raidName.toLowerCase();
     if (lowerName.includes('echidna')) return 'overture_echidna';
-    if (lowerName.includes('behemoth')) return 'overture_behemoth';
+    if (lowerName.includes('behemoth')) return 'behemoth';
     if (lowerName.includes('aegir')) return 'act_1_aegir';
     if (lowerName.includes('brelshaza')) return 'act_2_brelshaza';
     if (lowerName.includes('mordum')) return 'act_3_mordum';
     if (lowerName.includes('armoche')) return 'act_4_armoche';
     if (lowerName.includes('kayangel')) return 'act_4_kayangel';
     if (lowerName.includes('kakul')) return 'act_4_kakul_saydon';
-    if (lowerName.includes('kazeros')) return 'act_5_kazeros';
-    if (lowerName.includes('serca')) return 'act_6_serca';
-    if (lowerName.includes('cathedral')) return 'act_6_cathedral';
+    if (lowerName.includes('kazeros')) return 'denouement_final_day';
+    if (lowerName.includes('serca')) return 'shadow_serca';
+    if (lowerName.includes('cathedral')) return 'horizon_cathedral';
 
     return null;
   }
@@ -90,13 +123,57 @@
       });
     }
 
+    // For raid-train child events, use the child's raid name
+    if (event.sectionCode) {
+      const contentId = extractContentIdFromRaidName(event.raidName);
+      if (contentId) {
+        return characters.filter((character) =>
+          !isRaidCompletedForCharacter(character.char_id, contentId) &&
+          !isCharacterAssignedToRaidInCycle(character.char_id, contentId, event.id)
+        );
+      }
+    }
+
     // For regular raids, filter by completion status using content_id matching
-    const contentId = event.raidContentId || extractContentIdFromRaidName(event.raidName);
+    const contentId = extractContentIdFromRaidName(event.raidName);
     if (contentId) {
-      return characters.filter((character) => !isRaidCompletedForCharacter(character.char_id, contentId));
+      return characters.filter((character) =>
+        !isRaidCompletedForCharacter(character.char_id, contentId) &&
+        !isCharacterAssignedToRaidInCycle(character.char_id, contentId, event.id)
+      );
     }
 
     return characters;
+  }
+
+  function isCharacterAssignedToRaidInCycle(charId: number, contentId: string, currentEventId: string): boolean {
+    // Check all calendar assignments for this character
+    for (const assignment of assignments) {
+      if (assignment.charId !== charId) continue;
+      if (assignment.eventKey === currentEventId) continue; // Skip current event
+
+      // Check if this assignment is for the same content_id
+      const assignedEvent = events.find(e => e.id === assignment.eventKey);
+      if (!assignedEvent) continue;
+
+      // For raid-train child events, we need to check the child's raid name
+      if (assignedEvent.sectionCode && assignedEvent.runType === 'raid-train') {
+        const assignedContentId = extractContentIdFromRaidName(assignedEvent.raidName);
+        if (assignedContentId === contentId) return true;
+      } else {
+        // For regular events, check the event's raid name
+        const assignedContentId = extractContentIdFromRaidName(assignedEvent.raidName);
+        if (assignedContentId === contentId) return true;
+      }
+    }
+
+    // Check all reservations for this character
+    for (const reservation of reservations) {
+      if (reservation.charId !== charId) continue;
+      if (reservation.contentId === contentId) return true;
+    }
+
+    return false;
   }
 
   async function assignCharacter(event: DashboardCalendarEvent, charIdValue: string) {
@@ -152,6 +229,13 @@
   }
 
   function signupCalendarLabel(event: DashboardCalendarEvent, allAssignments: DashboardCalendarAssignment[]): string {
+    if (isRaidTrain(event)) {
+      const childEvents = getChildEvents(event);
+      const assignedCount = childEvents.filter(child =>
+        allAssignments.some(assignment => assignment.eventKey === child.id)
+      ).length;
+      return assignedCount > 0 ? `${event.title} (${assignedCount}/${childEvents.length})` : event.title;
+    }
     const assignment = allAssignments.find((entry) => entry.eventKey === event.id);
     return assignment?.charName || event.title;
   }
@@ -178,6 +262,8 @@
     for (const event of signupEvents) {
       const day = dayMap.get(dayKey(event.startsAt));
       if (!day) continue;
+      // Skip child events of raid-trains - they'll be shown via the parent
+      if ((event as any).isChildOfRaidTrain) continue;
       day.items.push({
         id: `signup-${event.id}`,
         time: formatTime(event.startsAt),
@@ -224,7 +310,7 @@
     on:click={() => open = !open}
     title="Open planned MeowGang raid calendar"
   >
-    <span aria-hidden="true">Cal</span>
+    <img src={calendarIcon} alt="Calendar" aria-hidden="true" />
     {#if totalCalendarItems > 0}
       <strong>{totalCalendarItems}</strong>
     {/if}
@@ -299,31 +385,79 @@
         {/if}
         <div class="event-list">
           {#each filteredEvents as event}
-            <article class="calendar-event">
-              <div class="event-main">
-                <strong>{event.title}</strong>
-                <span>{event.startsAtLabel} | {event.sectionLabel || event.raidName}</span>
-                <small>{event.runType.replace('-', ' ')} | {event.role.toUpperCase()} | {event.status.replace('_', ' ')}</small>
-              </div>
-              <label>
-                <span>Character</span>
-                <select
-                  value={getAssignmentForEvent(event.id)?.charId || ''}
-                  on:change={(changeEvent) => assignCharacter(event, (changeEvent.currentTarget as HTMLSelectElement).value)}
+            {#if isRaidTrain(event)}
+              <article class="calendar-event raid-train-event">
+                <button
+                  type="button"
+                  class="event-main raid-train-header"
+                  aria-expanded={expandedRaidTrains.has(event.id)}
+                  on:click={() => toggleRaidTrainExpansion(event.id)}
+                  on:keydown={(e) => handleRaidTrainKeydown(event.id, e)}
                 >
-                  <option value="">Not assigned</option>
-                  {#each getAvailableCharactersForEvent(event) as character}
-                    <option value={character.char_id}>{character.char_name}</option>
-                  {/each}
-                  {#if getAssignmentForEvent(event.id) && !getAvailableCharactersForEvent(event).find(c => c.char_id === getAssignmentForEvent(event.id)?.charId)}
-                    <option value={getAssignmentForEvent(event.id)?.charId}>{getAssignmentForEvent(event.id)?.charName} (already completed)</option>
-                  {/if}
-                </select>
-              </label>
-              {#if assignedCharacterName(event)}
-                <small class="assigned">Assigned: {assignedCharacterName(event)}</small>
-              {/if}
-            </article>
+                  <div class="raid-train-info">
+                    <strong>{event.title}</strong>
+                    <span>{event.startsAtLabel} | {event.sectionLabel}</span>
+                    <small>{event.runType.replace('-', ' ')} | {event.role.toUpperCase()} | {event.status.replace('_', ' ')}</small>
+                  </div>
+                  <span class="expand-toggle">
+                    {expandedRaidTrains.has(event.id) ? '▼' : '▶'}
+                  </span>
+                </button>
+                {#if expandedRaidTrains.has(event.id)}
+                  <div class="raid-train-sections">
+                    {#each getChildEvents(event) as childEvent}
+                      <div class="raid-train-section">
+                        <strong>{childEvent.sectionLabel || childEvent.raidName}</strong>
+                        <label>
+                          <span>Character</span>
+                          <select
+                            value={getAssignmentForEvent(childEvent.id)?.charId || ''}
+                            on:change={(changeEvent) => assignCharacter(childEvent, (changeEvent.currentTarget as HTMLSelectElement).value)}
+                          >
+                            <option value="">Not assigned</option>
+                            {#each getAvailableCharactersForEvent(childEvent) as character}
+                              <option value={character.char_id}>{character.char_name}</option>
+                            {/each}
+                            {#if getAssignmentForEvent(childEvent.id) && !getAvailableCharactersForEvent(childEvent).find(c => c.char_id === getAssignmentForEvent(childEvent.id)?.charId)}
+                              <option value={getAssignmentForEvent(childEvent.id)?.charId}>{getAssignmentForEvent(childEvent.id)?.charName} (already completed)</option>
+                            {/if}
+                          </select>
+                        </label>
+                        {#if assignedCharacterName(childEvent)}
+                          <small class="assigned">Assigned: {assignedCharacterName(childEvent)}</small>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </article>
+            {:else}
+              <article class="calendar-event">
+                <div class="event-main">
+                  <strong>{event.title}</strong>
+                  <span>{event.startsAtLabel} | {event.sectionLabel || event.raidName}</span>
+                  <small>{event.runType.replace('-', ' ')} | {event.role.toUpperCase()} | {event.status.replace('_', ' ')}</small>
+                </div>
+                <label>
+                  <span>Character</span>
+                  <select
+                    value={getAssignmentForEvent(event.id)?.charId || ''}
+                    on:change={(changeEvent) => assignCharacter(event, (changeEvent.currentTarget as HTMLSelectElement).value)}
+                  >
+                    <option value="">Not assigned</option>
+                    {#each getAvailableCharactersForEvent(event) as character}
+                      <option value={character.char_id}>{character.char_name}</option>
+                    {/each}
+                    {#if getAssignmentForEvent(event.id) && !getAvailableCharactersForEvent(event).find(c => c.char_id === getAssignmentForEvent(event.id)?.charId)}
+                      <option value={getAssignmentForEvent(event.id)?.charId}>{getAssignmentForEvent(event.id)?.charName} (already completed)</option>
+                    {/if}
+                  </select>
+                </label>
+                {#if assignedCharacterName(event)}
+                  <small class="assigned">Assigned: {assignedCharacterName(event)}</small>
+                {/if}
+              </article>
+            {/if}
           {/each}
         </div>
       {:else if totalCalendarItems === 0 && undatedReservations.length === 0}
@@ -394,17 +528,23 @@
     background: color-mix(in srgb, var(--md-sys-color-surface-container) 86%, transparent);
     color: var(--md-sys-color-on-surface);
     border-radius: 6px;
-    height: 30px;
-    min-width: 46px;
-    padding: 0 0.55rem;
+    height: 36px;
+    min-width: 54px;
+    padding: 0 0.65rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     cursor: pointer;
     font: inherit;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
+  }
+
+  .calendar-toggle img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
   }
 
   .calendar-toggle.has-events strong {
@@ -468,12 +608,12 @@
 
   .calendar-popover {
     position: fixed;
-    top: 50%;
+    top: 5rem;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     width: min(46rem, calc(100vw - 2rem));
-    max-height: min(42rem, calc(100vh - 2rem));
-    overflow: auto;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
     background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface);
@@ -667,6 +807,87 @@
 
   .assigned {
     grid-column: 1 / -1;
+  }
+
+  .raid-train-event {
+    grid-template-columns: 1fr;
+  }
+
+  .raid-train-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+    appearance: none;
+    border: none;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+  }
+
+  .raid-train-header:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+  }
+
+  .raid-train-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .expand-toggle {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
+    background: var(--md-sys-color-surface);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .raid-train-sections {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.4rem 0.4rem 0.4rem 1.2rem;
+    border-left: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+    margin-top: 0.4rem;
+  }
+
+  .raid-train-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem);
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.4rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 52%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 35%, transparent);
+  }
+
+  .raid-train-section label {
+    display: grid;
+    gap: 0.25rem;
+    font-size: 0.64rem;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .raid-train-section select {
+    min-width: 0;
+    height: 1.6rem;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: inherit;
+    font-size: 0.68rem;
   }
 
   @media (max-width: 760px) {

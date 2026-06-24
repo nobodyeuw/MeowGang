@@ -116,27 +116,76 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
     if (!isActiveEvent(startsAt)) continue;
 
     const selectedRaids = getRaidSignupSelectedRaids(sheet.raidIds, sheet.customRaids || []);
-    const sections = sheet.runType === 'raid-train'
-      ? (member.raidSections || [])
-      : [''];
 
-    for (const sectionCode of sections.length > 0 ? sections : ['']) {
-      const sectionIndex = sectionCode ? sectionCode.charCodeAt(0) - 65 : -1;
-      const sectionRaid = sectionIndex >= 0 ? selectedRaids[sectionIndex] : undefined;
-      const raidName = sectionRaid?.name || selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup';
-      const sectionLabel = sectionCode && sectionRaid ? `${sectionCode} - ${sectionRaid.name}` : undefined;
+    // For raid-train, create a single grouped event with all sections
+    if (sheet.runType === 'raid-train') {
+      // Auto-generate section codes based on number of raids if not set
+      const sections = member.raidSections && member.raidSections.length > 0
+        ? member.raidSections
+        : selectedRaids.map((_, index) => String.fromCharCode(65 + index)); // A, B, C, etc.
+      const sectionEvents: DashboardCalendarEvent[] = [];
 
-      events.push({
-        id: buildEventKey(sheet, sectionCode),
+      for (const sectionCode of sections) {
+        const sectionIndex = sectionCode ? sectionCode.charCodeAt(0) - 65 : -1;
+        const sectionRaid = sectionIndex >= 0 && sectionIndex < selectedRaids.length ? selectedRaids[sectionIndex] : undefined;
+        const raidName = sectionRaid?.name || selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup';
+        const sectionLabel = sectionCode && sectionRaid ? `${sectionCode} - ${sectionRaid.name}` : undefined;
+
+        sectionEvents.push({
+          id: buildEventKey(sheet, sectionCode),
+          sheetId: sheet.id,
+          eventId: sheet.eventId,
+          title: sheet.title,
+          startsAt,
+          startsAtLabel: formatDateTime(startsAt),
+          runType: sheet.runType,
+          raidName,
+          sectionCode: sectionCode || undefined,
+          sectionLabel,
+          role: member.role,
+          status: member.status
+        });
+      }
+
+      // Create a single parent event for the raid-train
+      const parentEvent: DashboardCalendarEvent = {
+        id: buildEventKey(sheet, ''), // Use empty section code for parent
         sheetId: sheet.id,
         eventId: sheet.eventId,
         title: sheet.title,
         startsAt,
         startsAtLabel: formatDateTime(startsAt),
         runType: sheet.runType,
-        raidName,
-        sectionCode: sectionCode || undefined,
-        sectionLabel,
+        raidName: 'Raid Train',
+        sectionCode: undefined,
+        sectionLabel: `${selectedRaids.length} sections`,
+        role: member.role,
+        status: member.status
+      };
+
+      // Store child events as a property (this is a workaround since we can't modify the interface)
+      (parentEvent as any).childEvents = sectionEvents;
+      events.push(parentEvent);
+
+      // Also add child events to the main events array so they can be assigned individually
+      for (const sectionEvent of sectionEvents) {
+        (sectionEvent as any).isChildOfRaidTrain = true;
+        (sectionEvent as any).parentEventId = parentEvent.id;
+        events.push(sectionEvent);
+      }
+    } else {
+      // For non-raid-train events, create individual events as before
+      events.push({
+        id: buildEventKey(sheet, ''),
+        sheetId: sheet.id,
+        eventId: sheet.eventId,
+        title: sheet.title,
+        startsAt,
+        startsAtLabel: formatDateTime(startsAt),
+        runType: sheet.runType,
+        raidName: selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup',
+        sectionCode: undefined,
+        sectionLabel: undefined,
         role: member.role,
         status: member.status
       });
@@ -146,6 +195,16 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
   // Remove assignments for events that no longer exist (user signed off)
   const currentAssignments = getDashboardCalendarAssignments();
   const validEventKeys = new Set(events.map((event) => event.id));
+
+  // Also include child event keys from raid-trains
+  for (const event of events) {
+    if ((event as any).childEvents) {
+      for (const childEvent of (event as any).childEvents) {
+        validEventKeys.add(childEvent.id);
+      }
+    }
+  }
+
   const assignmentsToRemove = currentAssignments.filter((assignment) => !validEventKeys.has(assignment.eventKey));
   if (assignmentsToRemove.length > 0) {
     for (const assignment of assignmentsToRemove) {

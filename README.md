@@ -2,7 +2,7 @@
 
 **A lightweight desktop companion for Lost Ark roster, raid, gold, and task tracking.**
 
-[![Version](https://img.shields.io/badge/version-1.3.12-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
+[![Version](https://img.shields.io/badge/version-1.3.13-blue.svg)](https://github.com/nobodyeuw/MeowGang/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](#)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-lightgrey.svg)](https://tauri.app/)
