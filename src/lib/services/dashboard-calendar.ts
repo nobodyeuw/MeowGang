@@ -24,6 +24,7 @@ export interface DashboardCalendarEvent {
   sectionLabel?: string;
   role: RaidSignupPreRegisteredMember['role'];
   status: RaidSignupPreRegisteredMember['status'];
+  roleSummary?: string;
 }
 
 export interface DashboardCalendarAssignment {
@@ -85,14 +86,40 @@ function formatDateTime(timestamp: number): string {
   }).format(new Date(timestamp));
 }
 
-function buildEventKey(sheet: RaidSignupSheet, sectionCode = ''): string {
-  return sectionCode ? `${sheet.id}:${sectionCode}` : sheet.id;
+function buildEventKey(sheet: RaidSignupSheet, sectionCode = '', role = ''): string {
+  if (!sectionCode) return sheet.id;
+  return role ? `${sheet.id}:${sectionCode}:${role}` : `${sheet.id}:${sectionCode}`;
 }
 
-function getSignedMember(sheet: RaidSignupSheet, discordId: string): RaidSignupPreRegisteredMember | undefined {
+function getSignedMembers(sheet: RaidSignupSheet, discordId: string): RaidSignupPreRegisteredMember[] {
   const normalizedId = String(discordId || '').trim();
-  if (!normalizedId) return undefined;
-  return (sheet.preRegisteredMembers || []).find((member) => member.discordId === normalizedId);
+  if (!normalizedId) return [];
+  return (sheet.preRegisteredMembers || []).filter((member) => member.discordId === normalizedId);
+}
+
+function isCalendarSignupMember(member: RaidSignupPreRegisteredMember): boolean {
+  return member.status !== 'can_help';
+}
+
+function buildRaidTrainRoleSummary(members: RaidSignupPreRegisteredMember[]): string {
+  const counts = new Map<string, number>();
+
+  for (const member of members) {
+    if (!isCalendarSignupMember(member) || member.status === 'leader') continue;
+    const sectionCount = member.raidSections?.length || 0;
+    if (sectionCount <= 0) continue;
+
+    const label = member.role === 'support' ? 'SUP' : member.role.toUpperCase();
+    counts.set(label, (counts.get(label) || 0) + sectionCount);
+  }
+
+  return Array.from(counts.entries())
+    .map(([role, count]) => `${count} ${role}`)
+    .join(' · ');
+}
+
+function formatSignupRoleLabel(role: RaidSignupPreRegisteredMember['role']): string {
+  return role === 'support' ? 'SUP' : role.toUpperCase();
 }
 
 function isActiveEvent(timestamp: number): boolean {
@@ -109,47 +136,65 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
   const events: DashboardCalendarEvent[] = [];
 
   for (const sheet of sheets) {
-    const member = getSignedMember(sheet, normalizedDiscordId);
-    if (!member) continue;
+    const signedMembers = getSignedMembers(sheet, normalizedDiscordId);
+    const signupMembers = signedMembers.filter(isCalendarSignupMember);
+    if (signupMembers.length === 0) continue;
 
     const startsAt = parseDiscordTimestamp(sheet.startsAt);
     if (!isActiveEvent(startsAt)) continue;
 
     const selectedRaids = getRaidSignupSelectedRaids(sheet.raidIds, sheet.customRaids || []);
+    const primaryMember = signupMembers.find((member) => member.status !== 'leader') || signupMembers[0];
 
-    // For raid-train, create a single grouped event with all sections
+    // For raid-train, create a single grouped event with all signed sections/roles
     if (sheet.runType === 'raid-train') {
-      // Auto-generate section codes based on number of raids if not set
-      const sections = member.raidSections && member.raidSections.length > 0
-        ? member.raidSections
-        : selectedRaids.map((_, index) => String.fromCharCode(65 + index)); // A, B, C, etc.
       const sectionEvents: DashboardCalendarEvent[] = [];
+      const seenEventKeys = new Set<string>();
 
-      for (const sectionCode of sections) {
-        const sectionIndex = sectionCode ? sectionCode.charCodeAt(0) - 65 : -1;
-        const sectionRaid = sectionIndex >= 0 && sectionIndex < selectedRaids.length ? selectedRaids[sectionIndex] : undefined;
-        const raidName = sectionRaid?.name || selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup';
-        const sectionLabel = sectionCode && sectionRaid ? `${sectionCode} - ${sectionRaid.name}` : undefined;
+      for (const member of signupMembers) {
+        if (member.status === 'leader' && (!member.raidSections || member.raidSections.length === 0)) {
+          continue;
+        }
 
-        sectionEvents.push({
-          id: buildEventKey(sheet, sectionCode),
-          sheetId: sheet.id,
-          eventId: sheet.eventId,
-          title: sheet.title,
-          startsAt,
-          startsAtLabel: formatDateTime(startsAt),
-          runType: sheet.runType,
-          raidName,
-          sectionCode: sectionCode || undefined,
-          sectionLabel,
-          role: member.role,
-          status: member.status
-        });
+        const sections = member.raidSections && member.raidSections.length > 0
+          ? member.raidSections
+          : selectedRaids.map((_, index) => String.fromCharCode(65 + index));
+
+        for (const sectionCode of sections) {
+          const eventKey = buildEventKey(sheet, sectionCode, member.role);
+          if (seenEventKeys.has(eventKey)) continue;
+          seenEventKeys.add(eventKey);
+
+          const sectionIndex = sectionCode ? sectionCode.charCodeAt(0) - 65 : -1;
+          const sectionRaid = sectionIndex >= 0 && sectionIndex < selectedRaids.length ? selectedRaids[sectionIndex] : undefined;
+          const raidName = sectionRaid?.name || selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup';
+          const roleLabel = formatSignupRoleLabel(member.role);
+          const sectionLabel = sectionCode && sectionRaid
+            ? `${sectionCode} - ${sectionRaid.name} · ${roleLabel}`
+            : roleLabel;
+
+          sectionEvents.push({
+            id: eventKey,
+            sheetId: sheet.id,
+            eventId: sheet.eventId,
+            title: sheet.title,
+            startsAt,
+            startsAtLabel: formatDateTime(startsAt),
+            runType: sheet.runType,
+            raidName,
+            sectionCode: sectionCode || undefined,
+            sectionLabel,
+            role: member.role,
+            status: member.status
+          });
+        }
       }
+
+      const roleSummary = buildRaidTrainRoleSummary(signupMembers);
 
       // Create a single parent event for the raid-train
       const parentEvent: DashboardCalendarEvent = {
-        id: buildEventKey(sheet, ''), // Use empty section code for parent
+        id: buildEventKey(sheet, ''),
         sheetId: sheet.id,
         eventId: sheet.eventId,
         title: sheet.title,
@@ -158,9 +203,10 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
         runType: sheet.runType,
         raidName: 'Raid Train',
         sectionCode: undefined,
-        sectionLabel: `${selectedRaids.length} sections`,
-        role: member.role,
-        status: member.status
+        sectionLabel: roleSummary || `${sectionEvents.length} signup${sectionEvents.length === 1 ? '' : 's'}`,
+        role: primaryMember.role,
+        status: primaryMember.status,
+        roleSummary: roleSummary || undefined
       };
 
       // Store child events as a property (this is a workaround since we can't modify the interface)
@@ -186,8 +232,8 @@ export async function loadUserDashboardCalendarEvents(discordId: string): Promis
         raidName: selectedRaids.map((raid) => raid.name).join(', ') || 'Raid signup',
         sectionCode: undefined,
         sectionLabel: undefined,
-        role: member.role,
-        status: member.status
+        role: primaryMember.role,
+        status: primaryMember.status
       });
     }
   }

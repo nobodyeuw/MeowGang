@@ -1,25 +1,33 @@
 {
   "versions": [
     {
-      "version": "1.3.13",
-      "date": "2026-06-24",
+      "version": "1.3.14",
+      "date": "2026-06-26",
       "changes": [
         {
           "type": "Added",
-          "description": "Calendar icon",
-          "details": "Added calendar icon to the dashboard stats row."
+          "description": "Custom raid name suggestions",
+          "details": "Added a new feature in raid-management which gives pre-registered raid name options for custom raids."
         },
-        
         {
           "type": "Added",
-          "description": "Raid train handling",
-          "details": "Raid train sections are now displayed when expanding the raid train event in the calendar widget, with individual character assignments shown for each section."
+          "description": "Total role slot tracking",
+          "details": "Added a new feature to allow users to see the total number of players in each role."
         },
-
         {
           "type": "Fixed",
-          "description": "right-click reservation handling",
-          "details": "Fixed right-click reservation handling, now only shows date/time in the reservation dialog & gives the option to save once for this weekly cycle or for all future occurrences."
+          "description": "Raid train role display",
+          "details": "Fixed an issue where raid-train would only show the first role in the list, instead of all roles."
+        },
+        {
+          "type": "Fixed",
+          "description": "Raid train role player counting",
+          "details": "Fixed an issue where the raid-train would not show the correct number of players in each role."
+        },
+        {
+          "type": "Changed",
+          "description": "Dependency tracking",
+          "details": "Updated dependencies to the latest versions."
         }
       ]
     }

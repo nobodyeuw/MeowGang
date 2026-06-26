@@ -21,7 +21,9 @@
   } from '$lib/services/raid-management';
   import {
     RAID_SIGNUP_RAIDS,
+    RAID_NAME_ALIASES,
     buildRaidSignupComposition,
+    getRaidNameAliasSuggestions,
     getRaidSignupRaid,
     getRaidSignupSelectedRaids,
     getRaidSignupTotalDpsSpots,
@@ -74,6 +76,8 @@
   let customRaidName = '';
   let customRaidDpsSpots = 6;
   let customRaidSupportSpots = 2;
+  let showRaidSuggestions = false;
+  let raidSuggestions: string[] = [];
   let startsAtLocal = '';
   let dpsSpots = 6;
   let supportSpots = 2;
@@ -125,6 +129,13 @@
     preRegisteredMembers = preRegisteredMembers.map(member => 
       member.role === 'any' ? { ...member, role: 'dps' as RaidSignupRole } : member
     );
+  }
+  $: if (runType === 'raid-train' && customRaidName) {
+    raidSuggestions = getRaidNameAliasSuggestions(customRaidName);
+    showRaidSuggestions = raidSuggestions.length > 0;
+  } else {
+    raidSuggestions = [];
+    showRaidSuggestions = false;
   }
   $: accessibleWhitelistMembers = whitelistMembers.filter(
     (member) => !accessMembers.some((access) => access.discordId === member.id)
@@ -354,16 +365,70 @@
   }
 
   function getSheetMainSignupCount(sheet: RaidSignupSheet) {
+    if (sheet.runType === 'raid-train') {
+      return (sheet.preRegisteredMembers || [])
+        .filter(isMainSignupMember)
+        .reduce((total, member) => {
+          if (isFixedSignupMember(member)) {
+            // FIXED users count as being in all sections
+            return total + getSheetRaidCount(sheet);
+          }
+          return total + (member.raidSections?.length || 0);
+        }, 0);
+    }
     return (sheet.preRegisteredMembers || []).filter(isMainSignupMember).length;
   }
 
+  function getSheetTrainTotalCapacity(sheet: RaidSignupSheet) {
+    return getRaidSignupSelectedRaids(sheet.raidIds, sheet.customRaids || [])
+      .reduce((total, raid) => total + raid.dpsSpots + raid.supportSpots, 0);
+  }
+
   function getSheetTotalCapacity(sheet: RaidSignupSheet) {
+    if (sheet.runType === 'raid-train') return getSheetTrainTotalCapacity(sheet);
     return sheet.dpsSpots + sheet.supportSpots + sheet.anySpots;
+  }
+
+  function countSheetRoleSections(sheet: RaidSignupSheet, role: RaidSignupRole) {
+    return (sheet.preRegisteredMembers || [])
+      .filter((member) =>
+        (member.role === role || (role !== 'any' && member.role === 'any')) &&
+        member.status !== 'can_help' &&
+        member.status !== 'leader'
+      )
+      .reduce((total, member) => {
+        if (isFixedSignupMember(member)) {
+          // FIXED users count as being in all sections
+          return total + getSheetRaidCount(sheet);
+        }
+        return total + (member.raidSections?.length || 0);
+      }, 0);
+  }
+
+  function getSheetRoleCapacity(sheet: RaidSignupSheet, role: RaidSignupRole) {
+    if (sheet.runType === 'raid-train') {
+      if (role === 'dps') return getRaidSignupTotalDpsSpots(sheet.raidIds, sheet.customRaids || []);
+      if (role === 'support') return getRaidSignupTotalSupportSpots(sheet.raidIds, sheet.customRaids || []);
+      return 0;
+    }
+    if (role === 'dps') return sheet.dpsSpots;
+    if (role === 'support') return sheet.supportSpots;
+    return sheet.anySpots;
+  }
+
+  function formatSheetRoleColumnTitle(sheet: RaidSignupSheet, role: RaidSignupRole, label: string) {
+    const count = sheet.runType === 'raid-train'
+      ? countSheetRoleSections(sheet, role)
+      : getSheetMemberCount(sheet, role);
+    const capacity = getSheetRoleCapacity(sheet, role);
+    return count > 0 ? `${label} (${count}/${capacity})` : label;
   }
 
   function getSheetMembers(sheet: RaidSignupSheet, role: RaidSignupRole) {
     const members = (sheet.preRegisteredMembers || []).filter((member) =>
-      member.role === role && member.status !== 'can_help'
+      member.role === role &&
+      member.status !== 'can_help' &&
+      member.status !== 'leader'
     );
     // Deduplicate entries by userId within each role to prevent showing the same user multiple times
     const merged = new Map<string, RaidSignupPreRegisteredMember>();
@@ -386,16 +451,14 @@
       return (sheet.preRegisteredMembers || []).filter((member) =>
         (member.role === role || member.role === 'any') &&
         member.status !== 'can_help' &&
-        member.status !== 'leader' &&
-        !isFixedSignupMember(member)
+        member.status !== 'leader'
       ).length;
     }
     // For "any" role, only count actual "any" entries
     return (sheet.preRegisteredMembers || []).filter((member) =>
       member.role === role &&
       member.status !== 'can_help' &&
-      member.status !== 'leader' &&
-      !isFixedSignupMember(member)
+      member.status !== 'leader'
     ).length;
   }
 
@@ -447,10 +510,13 @@
     return role === 'fixed' ? 'FIXED' : role.toUpperCase();
   }
 
-  function getMemberDisplayName(member: RaidSignupPreRegisteredMember) {
-    const sectionSuffix = member.raidSections && Array.isArray(member.raidSections) && member.raidSections.length > 0
-      ? ` [${member.raidSections.join(',')}]`
-      : '';
+  function getMemberDisplayName(member: RaidSignupPreRegisteredMember, sheetRunType?: RaidManagementRunType) {
+    let sectionSuffix = '';
+    if (member.raidSections && Array.isArray(member.raidSections) && member.raidSections.length > 0) {
+      sectionSuffix = ` [${member.raidSections.join(',')}]`;
+    } else if (member.role === 'fixed' && sheetRunType === 'raid-train') {
+      sectionSuffix = ' [All sections]';
+    }
     return `${member.displayName}${sectionSuffix}`;
   }
 
@@ -586,9 +652,16 @@
               ? 'experienced'
               : 'learner';
 
-    // Handle FIXED role - no sections for fixed users
+    // Handle FIXED role - assign to all sections by default in raid-train mode
     const isFixed = preRegisterRole === 'fixed';
-    const raidSections = isFixed ? [] : (preRegisterSection ? [preRegisterSection] : []);
+    let raidSections: string[] = [];
+    if (isFixed && runType === 'raid-train' && selectedRaids.length > 0) {
+      // FIXED users in raid-train mode get assigned to all sections automatically
+      raidSections = selectedRaids.map((_, index) => getTrainSectionName(index));
+    } else if (preRegisterSection) {
+      // Non-FIXED users or non-raid-train mode with specific section
+      raidSections = [preRegisterSection];
+    }
 
     const nextMember: RaidSignupPreRegisteredMember = {
       discordId: discordIdValue,
@@ -606,7 +679,7 @@
 
         // Same user - check if we should remove this entry
         if (isFixed) {
-          // FIXED users replace all their existing entries
+          // FIXED users replace all their existing entries with the new one
           return false;
         }
 
@@ -976,7 +1049,33 @@
 
             {#if selectedRaidOption === 'custom'}
               <div class="custom-raid-inputs">
-                <input bind:value={customRaidName} placeholder={runType === 'raid-train' ? 'e.g. Armoche NM' : 'e.g. Random reclear train'} />
+                <div class="custom-raid-name-input">
+                  <input 
+                    bind:value={customRaidName} 
+                    placeholder={runType === 'raid-train' ? 'e.g. Armoche NM' : 'e.g. Random reclear train'}
+                    on:focus={() => showRaidSuggestions = runType === 'raid-train' && customRaidName.length > 0}
+                    on:blur={() => setTimeout(() => showRaidSuggestions = false, 200)}
+                  />
+                  {#if showRaidSuggestions && raidSuggestions.length > 0}
+                    <div class="raid-suggestions" role="listbox">
+                      {#each raidSuggestions as suggestion}
+                        <button 
+                          type="button"
+                          class="raid-suggestion"
+                          role="option"
+                          aria-selected="false"
+                          on:click={() => {
+                            customRaidName = suggestion;
+                            showRaidSuggestions = false;
+                          }}
+                          on:mousedown={(e) => e.preventDefault()}
+                        >
+                          {suggestion}
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
                 <input type="number" min="0" bind:value={customRaidDpsSpots} aria-label="Custom DPS spots" />
                 <input type="number" min="0" bind:value={customRaidSupportSpots} aria-label="Custom support spots" />
                 <div class="custom-raid-add">
@@ -1089,6 +1188,8 @@
                     <option value={getTrainSectionName(index)}>Section {getTrainSectionName(index)}</option>
                   {/each}
                 </select>
+              {:else if runType === 'raid-train' && preRegisterRole === 'fixed'}
+                <span class="fixed-all-sections">Auto-assigned to all sections</span>
               {/if}
               <button type="button" disabled={!preRegisterDiscordId.trim()} on:click={addPreRegisteredMember}>
                 Add
@@ -1099,7 +1200,7 @@
               <div class="pre-register-list">
                 {#each preRegisteredMembers as member}
                   <button type="button" on:click={() => removePreRegisteredMember(member.discordId)}>
-                    {member.displayName}
+                    {getMemberDisplayName(member, runType)}
                     <small>{formatPreRegisterRoleLabel(member.role)} | {member.status.replace('_', ' ')}</small>
                   </button>
                 {/each}
@@ -1193,7 +1294,7 @@
                       {#each getSheetFixedMembers(sheet) as member}
                         <p class="signup-member">
                           <img src={roleIcons.fixed} alt="" />
-                          {getMemberDisplayName(member)}
+                          {getMemberDisplayName(member, sheet.runType)}
                           {#if getStatusIcon(member.status)}
                             <img src={getStatusIcon(member.status)} alt="" />
                           {/if}
@@ -1229,12 +1330,12 @@
 
                   <div class="discord-signup-columns">
                     <div>
-                      <strong>DPS</strong>
+                      <strong>{formatSheetRoleColumnTitle(sheet, 'dps', 'DPS')}</strong>
                       {#if getSheetMembers(sheet, 'dps').length}
                         {#each getSheetMembers(sheet, 'dps') as member}
                           <span class="signup-member">
                             <img src={getRoleIcon(member.role)} alt="" />
-                                {getMemberDisplayName(member)}
+                                {getMemberDisplayName(member, sheet.runType)}
                             {#if getStatusIcon(member.status)}
                               <img src={getStatusIcon(member.status)} alt="" />
                             {/if}
@@ -1245,12 +1346,12 @@
                       {/if}
                     </div>
                     <div>
-                      <strong>SUP</strong>
+                      <strong>| {formatSheetRoleColumnTitle(sheet, 'support', 'SUP')}</strong>
                       {#if getSheetMembers(sheet, 'support').length}
                         {#each getSheetMembers(sheet, 'support') as member}
                           <span class="signup-member">
                             <img src={getRoleIcon(member.role)} alt="" />
-                            {member.displayName}
+                            {getMemberDisplayName(member, sheet.runType)}
                             {#if getStatusIcon(member.status)}
                               <img src={getStatusIcon(member.status)} alt="" />
                             {/if}
@@ -1260,22 +1361,24 @@
                         <span>-</span>
                       {/if}
                     </div>
-                    <div>
-                      <strong>ANY</strong>
-                      {#if getSheetMembers(sheet, 'any').length}
-                        {#each getSheetMembers(sheet, 'any') as member}
-                          <span class="signup-member">
-                            <img src={getRoleIcon(member.role)} alt="" />
-                            {member.displayName}
-                            {#if getStatusIcon(member.status)}
-                              <img src={getStatusIcon(member.status)} alt="" />
-                            {/if}
-                          </span>
-                        {/each}
-                      {:else}
-                        <span>-</span>
-                      {/if}
-                    </div>
+                    {#if sheet.runType !== 'raid-train'}
+                      <div>
+                        <strong>| {formatSheetRoleColumnTitle(sheet, 'any', 'ANY')}</strong>
+                        {#if getSheetMembers(sheet, 'any').length}
+                          {#each getSheetMembers(sheet, 'any') as member}
+                            <span class="signup-member">
+                              <img src={getRoleIcon(member.role)} alt="" />
+                              {getMemberDisplayName(member, sheet.runType)}
+                              {#if getStatusIcon(member.status)}
+                                <img src={getStatusIcon(member.status)} alt="" />
+                              {/if}
+                            </span>
+                          {/each}
+                        {:else}
+                          <span>-</span>
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
 
                   <div class="discord-backup">
@@ -1298,7 +1401,9 @@
                   <div class="discord-preview-actions">
                     <span><img src={roleIcons.dps} alt="" /> DPS</span>
                     <span><img src={roleIcons.support} alt="" /> SUP</span>
-                    <span>ANY</span>
+                    {#if sheet.runType !== 'raid-train'}
+                      <span>ANY</span>
+                    {/if}
                     <span class="danger">Sign Off</span>
                     <small>
                       {#if getSheetMainSignupCount(sheet) > 0}
@@ -1306,7 +1411,9 @@
                       {:else}
                         No signups yet -
                       {/if}
-                      {getSheetRaidCount(sheet)} raid{getSheetRaidCount(sheet) === 1 ? '' : 's'}
+                      {sheet.runType === 'raid-train'
+                        ? `${getSheetRaidCount(sheet)} section${getSheetRaidCount(sheet) === 1 ? '' : 's'}`
+                        : `${getSheetRaidCount(sheet)} raid${getSheetRaidCount(sheet) === 1 ? '' : 's'}`}
                     </small>
                   </div>
                   {#if sheet.runType === 'learning'}
@@ -1494,7 +1601,7 @@
                             {#each group.members as member}
                               <button type="button" on:click={() => deleteSignupMember(sheet, member)}>
                                 <img src={getRoleIcon(member.role)} alt="" />
-                                {member.displayName}
+                                {getMemberDisplayName(member, sheet.runType)}
                                 {#if getStatusIcon(member.status)}
                                   <img src={getStatusIcon(member.status)} alt="" />
                                 {/if}
@@ -1914,8 +2021,47 @@
 
   .custom-raid-inputs {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(3.75rem, 4.5rem) minmax(3.75rem, 4.5rem) max-content;
+    grid-template-columns: minmax(0, 2fr) minmax(3.75rem, 4.5rem) minmax(3.75rem, 4.5rem) max-content;
     gap: 0.4rem;
+    align-items: center;
+  }
+
+  .custom-raid-name-input {
+    position: relative;
+  }
+
+  .custom-raid-name-input input {
+    width: 100%;
+  }
+
+  .raid-suggestions {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    background: var(--md-sys-color-surface-container-high);
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .raid-suggestion {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+  }
+
+  .raid-suggestion:hover {
+    background: var(--md-sys-color-surface-container-highest);
   }
 
   .custom-raid-add {
@@ -2019,6 +2165,14 @@
     gap: 0.1rem;
     padding: 0.4rem 0.55rem;
     text-align: left;
+  }
+
+  .fixed-all-sections {
+    padding: 0.45rem 0.6rem;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
   }
 
   .sheet-summary {

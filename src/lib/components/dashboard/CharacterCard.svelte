@@ -109,12 +109,21 @@
   $: compactWeeklyTasks = !isMinimalCard && displayRaids.length > 0 ? trackedWeeklyTasks : [];
   $: trackedWeeklyTaskCount = trackedWeeklyTasks.length;
   $: hasCompactLabels = displayRaids.length > 0 || displayWeeklyTasks.length > 0;
-  $: characterReservations = readEffectiveReservations().filter(
-    (reservation) => reservation.charId === character.char_id
-  );
-  // Trigger reactivity when reservationRefreshKey changes
-  $: if (reservationRefreshKey) characterReservations;
   $: characterAssignments = calendarAssignments.filter((assignment) => assignment.charId === character.char_id);
+  $: characterReservations = (reservationRefreshKey, raidReservations, readEffectiveReservations().filter(
+    (reservation) => reservation.charId === character.char_id
+  ));
+  $: raidReservationByKey = Object.fromEntries(
+    characterReservations.map((reservation) => [
+      `${reservation.contentId}-${reservation.difficulty}`,
+      reservation
+    ])
+  );
+  $: raidAssignmentByContentId = Object.fromEntries(
+    characterAssignments
+      .filter((assignment) => assignment.raidContentId)
+      .map((assignment) => [assignment.raidContentId as string, assignment])
+  );
 
 type CombinedReservation = DashboardRaidReservation | {
   isAssignment: true;
@@ -337,17 +346,8 @@ $: allReservations = [
     return '';
   }
 
-  function getRaidAssignment(raid: any): DashboardCalendarAssignment | undefined {
-    return characterAssignments.find((assignment) =>
-      assignment.raidContentId === raid.content_id
-    );
-  }
-
-  function getRaidReservation(raid: any): DashboardRaidReservation | undefined {
-    reservationRefreshKey;
-    return characterReservations.find((reservation) =>
-      reservation.contentId === raid.content_id && reservation.difficulty === raid.difficulty
-    );
+  function getRaidAssignment(raid: { content_id: string }) {
+    return raidAssignmentByContentId[raid.content_id];
   }
 
   function extractContentIdFromRaidName(raidName: string): string | null {
@@ -407,8 +407,15 @@ $: allReservations = [
 
   onMount(() => {
     const handleWindowClick = () => closeRaidActionMenu();
+    const handleCalendarChanged = () => {
+      bumpReservationRefresh();
+    };
     window.addEventListener('click', handleWindowClick);
-    return () => window.removeEventListener('click', handleWindowClick);
+    window.addEventListener('dashboard-calendar:changed', handleCalendarChanged);
+    return () => {
+      window.removeEventListener('click', handleWindowClick);
+      window.removeEventListener('dashboard-calendar:changed', handleCalendarChanged);
+    };
   });
 
   async function undoDashboardRaidGate(raid: any, event?: MouseEvent) {
@@ -596,9 +603,10 @@ $: allReservations = [
                 {#if getRaidAssignment(raid)}
                   <span class="planned-badge">Plan</span>
                 {/if}
-                {#if getRaidReservation(raid)}
+                {#if raidReservationByKey[`${raid.content_id}-${raid.difficulty}`]}
+                  {@const reservation = raidReservationByKey[`${raid.content_id}-${raid.difficulty}`]}
                   <span class="calendar-reservation-badge">
-                    {getRaidReservation(raid)?.recurringWeekly ? getRaidReservation(raid)?.label : 'Reserved'}
+                    {reservation.recurringWeekly ? reservation.label : 'Reserved'}
                   </span>
                 {/if}
               </div>
@@ -784,9 +792,10 @@ $: allReservations = [
                 {#if getRaidAssignment(raid)}
                   <span class="planned-badge">Plan</span>
                 {/if}
-                {#if getRaidReservation(raid)}
+                {#if raidReservationByKey[`${raid.content_id}-${raid.difficulty}`]}
+                  {@const reservation = raidReservationByKey[`${raid.content_id}-${raid.difficulty}`]}
                   <span class="calendar-reservation-badge">
-                    {getRaidReservation(raid)?.recurringWeekly ? getRaidReservation(raid)?.label : 'Reserved'}
+                    {reservation.recurringWeekly ? reservation.label : 'Reserved'}
                   </span>
                 {/if}
               </div>

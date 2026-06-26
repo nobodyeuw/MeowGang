@@ -54,6 +54,14 @@
     return assignments.find((assignment) => assignment.eventKey === event.id)?.charName || '';
   }
 
+  function formatEventRole(event: DashboardCalendarEvent): string {
+    return event.roleSummary || formatSignupRoleLabel(event.role);
+  }
+
+  function formatSignupRoleLabel(role: DashboardCalendarEvent['role']): string {
+    return role === 'support' ? 'SUP' : role.toUpperCase();
+  }
+
   function toggleRaidTrainExpansion(eventId: string) {
     if (expandedRaidTrains.has(eventId)) {
       expandedRaidTrains.delete(eventId);
@@ -397,7 +405,7 @@
                   <div class="raid-train-info">
                     <strong>{event.title}</strong>
                     <span>{event.startsAtLabel} | {event.sectionLabel}</span>
-                    <small>{event.runType.replace('-', ' ')} | {event.role.toUpperCase()} | {event.status.replace('_', ' ')}</small>
+                    <small>{event.runType.replace('-', ' ')} | {formatEventRole(event)} | {event.status.replace('_', ' ')}</small>
                   </div>
                   <span class="expand-toggle">
                     {expandedRaidTrains.has(event.id) ? '▼' : '▶'}
@@ -436,7 +444,7 @@
                 <div class="event-main">
                   <strong>{event.title}</strong>
                   <span>{event.startsAtLabel} | {event.sectionLabel || event.raidName}</span>
-                  <small>{event.runType.replace('-', ' ')} | {event.role.toUpperCase()} | {event.status.replace('_', ' ')}</small>
+                  <small>{event.runType.replace('-', ' ')} | {formatEventRole(event)} | {event.status.replace('_', ' ')}</small>
                 </div>
                 <label>
                   <span>Character</span>

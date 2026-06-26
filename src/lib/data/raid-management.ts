@@ -95,6 +95,30 @@ export const RAID_SIGNUP_RAIDS: RaidSignupSheetRaid[] = [
   { id: 'cathedral', name: 'Cathedral', spots: 4, dpsSpots: 3, supportSpots: 1 }
 ];
 
+export const RAID_NAME_ALIASES: Record<string, string[]> = {
+  Armoche: ['Armoche NM', 'Armoche HM'],
+  Kazeros: ['Kaz NM', 'Kaz HM', 'Kazeros NM', 'Kazeros HM'],
+  Serca: ['Serca NM', 'Serca HM', 'Serca Nightmare'],
+  Cathedral: ['Cath Lv1', 'Cath Lv2', 'Cath Lv3']
+};
+
+export function getRaidNameAliasSuggestions(input: string): string[] {
+  const normalizedInput = input.toLowerCase().trim();
+  if (!normalizedInput) return [];
+  
+  const suggestions: string[] = [];
+  
+  for (const [raidName, aliases] of Object.entries(RAID_NAME_ALIASES)) {
+    for (const alias of aliases) {
+      if (alias.toLowerCase().startsWith(normalizedInput)) {
+        suggestions.push(alias);
+      }
+    }
+  }
+  
+  return suggestions.sort();
+}
+
 // Add your Discord id here if you want the app to ship with one permanent
 // bootstrap admin. Until the bot/backend exists, extra access grants are local.
 export const RAID_MANAGEMENT_BOOTSTRAP_ADMIN_DISCORD_IDS: string[] = ['330010523863220225'];
