@@ -544,8 +544,53 @@ export async function loadRaidSignupSheetsFromSupabase(): Promise<RaidSignupShee
   });
 }
 
+function parseBerlinLocalDateTimeToIso(value: string): string | null {
+  const trimmed = String(value || '').trim();
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute] = match;
+  const utcDate = new Date(Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    0,
+    0
+  ));
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(utcDate).reduce((result, part) => {
+    if (part.type) result[part.type] = part.value;
+    return result;
+  }, {} as Record<string, string>);
+
+  const berlinUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+
+  const offsetMinutes = Math.round((berlinUtc - utcDate.getTime()) / 60000);
+  return new Date(utcDate.getTime() - offsetMinutes * 60000).toISOString();
+}
+
 export async function updateRaidSignupSheetStart(sheetId: string, startsAtLocal: string): Promise<void> {
-  const startsAt = startsAtLocal ? new Date(startsAtLocal).toISOString() : null;
+  const startsAt = startsAtLocal ? parseBerlinLocalDateTimeToIso(startsAtLocal) : null;
   const { error } = await supabase
     .from('raid_signup_sheets')
     .update({ starts_at: startsAt })

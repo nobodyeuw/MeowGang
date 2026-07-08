@@ -126,7 +126,7 @@
     preRegisterRole = 'dps';
   }
   $: if (runType === 'raid-train') {
-    preRegisteredMembers = preRegisteredMembers.map(member => 
+    preRegisteredMembers = preRegisteredMembers.map(member =>
       member.role === 'any' ? { ...member, role: 'dps' as RaidSignupRole } : member
     );
   }
@@ -203,12 +203,70 @@
     }
   }
 
+  function getBerlinOffsetMinutes(date: Date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).formatToParts(date).reduce((result, part) => {
+      if (part.type) result[part.type] = part.value;
+      return result;
+    }, {} as Record<string, string>);
+
+    const utc = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second)
+    );
+
+    return Math.round((utc - date.getTime()) / 60000);
+  }
+
+  function parseBerlinLocalDateTime(value: string): number | null {
+    const trimmed = String(value || '').trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2})?)?$/);
+    if (!match || !match[4] || !match[5]) return null;
+
+    const [, year, month, day, hour, minute] = match;
+    const utcDate = new Date(Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      0,
+      0
+    ));
+    const offsetMinutes = getBerlinOffsetMinutes(utcDate);
+    return Math.floor((utcDate.getTime() - offsetMinutes * 60000));
+  }
+
+  function formatBerlinLocalDateTimeInput(date: Date) {
+    const offsetMinutes = getBerlinOffsetMinutes(date);
+    const berlinDate = new Date(date.getTime() + offsetMinutes * 60000);
+    return berlinDate.toISOString().slice(0, 16);
+  }
+
   function formatDiscordTimestamp(value: string, style: 'F' | 'R') {
     if (!value) return '';
-    const date = new Date(value);
-    const timestamp = Math.floor(date.getTime() / 1000);
-    if (!Number.isFinite(timestamp)) return '';
-    return `<t:${timestamp}:${style}>`;
+    let timestamp: number | null = null;
+
+    if (value.startsWith('<t:')) {
+      timestamp = parseDiscordTimestamp(value);
+    } else {
+      timestamp = parseBerlinLocalDateTime(value);
+    }
+
+    if (!timestamp) return '';
+    return `<t:${Math.floor(timestamp / 1000)}:${style}>`;
   }
 
   function formatRunType(value: RaidManagementRunType) {
@@ -222,36 +280,18 @@
     return Number(match[1]) * 1000;
   }
 
-  function isSheetUpcomingOrOngoing(sheet: RaidSignupSheet) {
-    const startTime = parseDiscordTimestamp(sheet.startsAt);
-    if (!startTime) return false;
-    const now = Date.now();
-    const ongoingUntil = startTime + 1000 * 60 * 60 * 2;
-    return now <= ongoingUntil;
-  }
-
-  function formatDateTime(value: number) {
-    return new Intl.DateTimeFormat(undefined, {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(value));
-  }
-
   function toLocalDateTimeInput(value: string) {
     const timestamp = parseDiscordTimestamp(value);
     if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
+    return formatBerlinLocalDateTimeInput(new Date(timestamp));
   }
 
   function formatLocalDateTimeDisplay(value: string) {
     const timestamp = parseDiscordTimestamp(value);
     if (!timestamp) return value;
     const date = new Date(timestamp);
+    const offsetMinutes = getBerlinOffsetMinutes(date);
+    const berlinDate = new Date(date.getTime() + offsetMinutes * 60000);
     const options: Intl.DateTimeFormatOptions = {
       weekday: 'short',
       year: 'numeric',
@@ -260,12 +300,11 @@
       hour: '2-digit',
       minute: '2-digit'
     };
-    return date.toLocaleString('en-US', options);
+    return berlinDate.toLocaleString('en-US', options);
   }
 
   function dateToLocalDateTimeInput(date: Date) {
-    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
+    return formatBerlinLocalDateTimeInput(date);
   }
 
   function parseServerDateTimeRequest(dateValue: string, timeValue: string): string {
@@ -291,18 +330,27 @@
       return '';
     }
 
-    const date = new Date(year, month - 1, day, hour, minute, 0, 0);
-    if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month - 1 ||
-      date.getDate() !== day ||
-      date.getHours() !== hour ||
-      date.getMinutes() !== minute
-    ) {
-      return '';
-    }
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    if (!parseBerlinLocalDateTime(iso)) return '';
+    return iso;
+  }
 
-    return dateToLocalDateTimeInput(date);
+  function isSheetUpcomingOrOngoing(sheet: RaidSignupSheet) {
+    const startTime = parseDiscordTimestamp(sheet.startsAt);
+    if (!startTime) return false;
+    const now = Date.now();
+    const ongoingUntil = startTime + 1000 * 60 * 60 * 2;
+    return now <= ongoingUntil;
+  }
+
+  function formatDateTime(value: number) {
+    return new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(value));
   }
 
   function formatReviewerName(discordIdValue: string) {
@@ -1050,8 +1098,8 @@
             {#if selectedRaidOption === 'custom'}
               <div class="custom-raid-inputs">
                 <div class="custom-raid-name-input">
-                  <input 
-                    bind:value={customRaidName} 
+                  <input
+                    bind:value={customRaidName}
                     placeholder={runType === 'raid-train' ? 'e.g. Armoche NM' : 'e.g. Random reclear train'}
                     on:focus={() => showRaidSuggestions = runType === 'raid-train' && customRaidName.length > 0}
                     on:blur={() => setTimeout(() => showRaidSuggestions = false, 200)}
@@ -1059,7 +1107,7 @@
                   {#if showRaidSuggestions && raidSuggestions.length > 0}
                     <div class="raid-suggestions" role="listbox">
                       {#each raidSuggestions as suggestion}
-                        <button 
+                        <button
                           type="button"
                           class="raid-suggestion"
                           role="option"
