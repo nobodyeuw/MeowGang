@@ -1,15 +1,15 @@
 {
-  "version": "1.3.15",
-  "notes": "### v1.3.15\n\n#### Fixed\n- Fixed an issue where the application would not correctly convert times to the user's local time zone.\n- Fixed an issue where raid-train would still show the 'ANY' role in the thread creation message.\n\n#### Changed\n- Updated dependencies to the latest versions.",
-  "pub_date": "2026-07-08T00:00:00.000Z",
+  "version": "1.4.0",
+  "notes": "### v1.4.0\n\n#### New Features\n- Added support for the new difficulty \"Matching\" for Serca.\n- Updated existing raid data to include the new Solo difficulty for Armoche and Kazeros.\n\n#### Improvements\n- Improved performance and stability of the application.\n- Updated UI elements for better user experience.\n\n#### Bug Fixes\n- Fixed an issue where certain raid gates were not displaying correctly.\n- Resolved minor bugs reported by users.",
+  "pub_date": "2026-07-17T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2tqWEpaeks3Ty80UWVjMDVRay9BS0pGSEQ0bkV4TVBydHc2bmdTd0x6NFg5cFVJWTgxMDZGSnBuWGdRaFJSWlp0cGxrclV5aXZndENxU2drMldvSkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDk2MDkxCWZpbGU6TE9BIFRyYWNrZXJfMS4zLjE1X3g2NC1zZXR1cC5leGUKbzZ6dHdYSVNRb0ZCTnlDRWs2dkdMdkRucEoyVlV2b3p2YVEvWDQ2T3FSVjJiUmt2dTFPa2hpVnlyR1ZyV2xBa3FEK0hFN3p2cTc3Zk5wcWlyWlUwREE9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.3.15/LOA.Tracker_1.3.15_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.0/LOA.Tracker_1.4.0_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2tqWEpaeks3Ty80UWVjMDVRay9BS0pGSEQ0bkV4TVBydHc2bmdTd0x6NFg5cFVJWTgxMDZGSnBuWGdRaFJSWlp0cGxrclV5aXZndENxU2drMldvSkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDk2MDkxCWZpbGU6TE9BIFRyYWNrZXJfMS4zLjE1X3g2NC1zZXR1cC5leGUKbzZ6dHdYSVNRb0ZCTnlDRWs2dkdMdkRucEoyVlV2b3p2YVEvWDQ2T3FSVjJiUmt2dTFPa2hpVnlyR1ZyV2xBa3FEK0hFN3p2cTc3Zk5wcWlyWlUwREE9PQo=",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.3.15/LOA.Tracker_1.3.15_x64-setup.exe"
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.0/LOA.Tracker_1.4.0_x64-setup.exe"
     }
   }
 }

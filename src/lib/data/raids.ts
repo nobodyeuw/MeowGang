@@ -11,7 +11,7 @@ export interface RaidGate {
 export interface Raid {
   id: string;
   name: string;
-  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare" | "Level 1" | "Level 2" | "Level 3";
+  difficulty: "Solo" | "Normal" | "Hard" | "Nightmare" | "Level 1" | "Level 2" | "Level 3" | "Matching";
   gates: RaidGate[];
   sortOrder: number; // Explicit ordering index to ensure correct raid progression display
 }
@@ -130,6 +130,19 @@ export const RAIDS: Raid[] = [
       { gate: "Gate 2", minIlvl: 1620, tradableGold: 0, boundGold: 4200, boxPrice: 700 }
     ]
   },
+
+  {
+    id: "act_4_armoche",
+    name: "Armoche",
+    difficulty: "Solo",
+    sortOrder: 6,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 6250, boundGold: 6250, boxPrice: 4000 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 10250, boundGold: 10250, boxPrice: 6560 }
+    ]
+
+  },
+
   {
     id: "act_4_armoche",
     name: "Armoche",
@@ -150,6 +163,19 @@ export const RAIDS: Raid[] = [
       { gate: "Gate 2", minIlvl: 1720, tradableGold: 27000, boundGold: 0, boxPrice: 8640 }
     ]
   },
+
+  {
+    id: "denouement_final_day",
+    name: "Kazeros",
+    difficulty: "Solo",
+    sortOrder: 7,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 13000, boundGold: 13000, boxPrice: 8320 }
+    ]
+
+  },
+
   {
     id: "denouement_final_day",
     name: "Kazeros",
@@ -170,6 +196,19 @@ export const RAIDS: Raid[] = [
       { gate: "Gate 2", minIlvl: 1730, tradableGold: 35000, boundGold: 0, boxPrice: 11200 }
     ]
   },
+
+  {
+    id :"shadow_serca",
+    name: "Serca",
+    difficulty: "Matching",
+    sortOrder: 8,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
+    ]
+
+  },
+
   {
     id: "shadow_serca",
     name: "Serca",

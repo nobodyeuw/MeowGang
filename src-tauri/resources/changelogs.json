@@ -2,58 +2,26 @@
   "versions": [
 
     {
-      "version": "1.3.15",
-      "date": "2026-07-08",
+      "version": "1.4.0",
+      "date": "2026-07-17",
       "changes": [
         {
-          "type": "Fixed",
-          "description": "Time-zone conversion",
-          "details": "Fixed an issue where the application would not correctly convert times to the user's local time zone."
+          "type": "New Features",
+          "description": "Added support for the new difficulty \"Matching\" for Serca.",
+          "details": "Updated existing raid data to include the new Solo difficulty for Armoche and Kazeros."
         },
         {
-          "type": "Fixed",
-          "description": "Raid train thread creation message",
-          "details": "Fixed an issue where raid-train would still show the 'ANY' role in the thread creation message."
+          "type": "Improvements",
+          "description": "Improved performance and stability of the application.",
+          "details": "Updated UI elements for better user experience."
         },
         {
-          "type": "Changed",
-          "description": "Dependency tracking",
-          "details": "Updated dependencies to the latest versions."
+          "type": "Bug Fixes",
+          "description": "Fixed an issue where certain raid gates were not displaying correctly.",
+          "details": "Resolved minor bugs reported by users."
         }
       ]
 
-    },
-
-    {
-      "version": "1.3.14",
-      "date": "2026-06-26",
-      "changes": [
-        {
-          "type": "Added",
-          "description": "Custom raid name suggestions",
-          "details": "Added a new feature in raid-management which gives pre-registered raid name options for custom raids."
-        },
-        {
-          "type": "Added",
-          "description": "Total role slot tracking",
-          "details": "Added a new feature to allow users to see the total number of players in each role."
-        },
-        {
-          "type": "Fixed",
-          "description": "Raid train role display",
-          "details": "Fixed an issue where raid-train would only show the first role in the list, instead of all roles."
-        },
-        {
-          "type": "Fixed",
-          "description": "Raid train role player counting",
-          "details": "Fixed an issue where the raid-train would not show the correct number of players in each role."
-        },
-        {
-          "type": "Changed",
-          "description": "Dependency tracking",
-          "details": "Updated dependencies to the latest versions."
-        }
-      ]
     }
   ]
 }
