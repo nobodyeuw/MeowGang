@@ -2,7 +2,11 @@ import type { AppTab } from '$lib/types/app-shell';
 // Temporarily disabled due to Supabase realtime message limits
 // import type { MeowConnectHeaderState } from '$lib/types/app-shell';
 
-export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'raid-management', 'updates'];
+export const RAID_MANAGEMENT_FEATURE_ENABLED = false;
+
+export const VALID_APP_TABS: AppTab[] = RAID_MANAGEMENT_FEATURE_ENABLED
+  ? ['dashboard', 'todo', 'marketplace', 'settings', 'raid-management', 'updates']
+  : ['dashboard', 'todo', 'marketplace', 'settings', 'updates'];
 // Temporarily disabled due to Supabase realtime message limits
 // export const VALID_APP_TABS: AppTab[] = ['dashboard', 'todo', 'marketplace', 'settings', 'meow-connect', 'raid-management', 'updates'];
 

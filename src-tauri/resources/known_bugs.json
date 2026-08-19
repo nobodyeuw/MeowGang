@@ -5,11 +5,6 @@
     "description": "Metadata only. Keep this file valid JSON because the app and live gist parser read it directly."
   },
   "knownIssues": [
-    {
-      "severity": "Low",
-      "description": "Extreme window sizes may affect layout.",
-      "details": "Full window sized app or extremely small window may cause some UI elements to be misaligned or overlap. This is due to the responsive design of the app and may vary based on screen resolution and aspect ratio. This app UI is optimized for 1/4 of 1440px and 1/2 of 1080px screen window size."
-    }
   ],
   "comingFeatures": [
     {

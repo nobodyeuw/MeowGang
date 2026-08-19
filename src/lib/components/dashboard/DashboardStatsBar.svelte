@@ -104,6 +104,9 @@
 
   function togglePopover(kind: PopoverKind, event: MouseEvent | KeyboardEvent) {
     event.stopPropagation();
+    const eventTarget = event.target as HTMLElement | null;
+    if (eventTarget?.closest('.stat-popover')) return;
+
     const target = event.currentTarget as HTMLElement | null;
     if (target) {
       const rect = target.getBoundingClientRect();
@@ -234,9 +237,9 @@
 {#if showStats}
   <div class="header-stats">
     {#if totalRaidsPossible > 0 || totalAdditionalRaidsPossible > 0}
-      {@const displayedRaidCompleted = totalRaidsPossible > 0 ? totalRaidsCompleted : totalAdditionalRaidsCompleted}
-      {@const displayedRaidPossible = totalRaidsPossible > 0 ? totalRaidsPossible : totalAdditionalRaidsPossible}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('raids', event)} on:keydown={(event) => handleCardKeydown('raids', event)}>
+      {@const displayedRaidCompleted = totalRaidsCompleted}
+      {@const displayedRaidPossible = totalRaidsPossible}
+      <div class="stat-card" class:popover-open={activePopover === 'raids'} role="button" tabindex="0" on:click={(event) => togglePopover('raids', event)} on:keydown={(event) => handleCardKeydown('raids', event)}>
         <div class="stat-card-main">
           <div class="stat-icon"><img src={statIcons.raid} alt="Raids" /></div>
           <div class="stat-content">
@@ -275,7 +278,7 @@
     {/if}
 
     {#if totalDailiesTracked > 0}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('dailies', event)} on:keydown={(event) => handleCardKeydown('dailies', event)}>
+      <div class="stat-card" class:popover-open={activePopover === 'dailies'} role="button" tabindex="0" on:click={(event) => togglePopover('dailies', event)} on:keydown={(event) => handleCardKeydown('dailies', event)}>
         <div class="stat-card-main">
           <div class="stat-icon"><img src={statIcons.daily} alt="Dailies" /></div>
           <div class="stat-content">
@@ -316,7 +319,7 @@
     {/if}
 
     {#if totalWeekliesPossible > 0}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('weeklies', event)} on:keydown={(event) => handleCardKeydown('weeklies', event)}>
+      <div class="stat-card" class:popover-open={activePopover === 'weeklies'} role="button" tabindex="0" on:click={(event) => togglePopover('weeklies', event)} on:keydown={(event) => handleCardKeydown('weeklies', event)}>
         <div class="stat-card-main">
           <div class="stat-icon"><img src={statIcons.weekly} alt="Weeklies" /></div>
           <div class="stat-content">
@@ -370,7 +373,7 @@
       </div>
     {/if}
 
-    <div class="stat-card calendar-event-card" role="button" tabindex="0" on:click={(event) => togglePopover('calendar', event)} on:keydown={(event) => handleCardKeydown('calendar', event)}>
+    <div class="stat-card calendar-event-card" class:popover-open={activePopover === 'calendar'} role="button" tabindex="0" on:click={(event) => togglePopover('calendar', event)} on:keydown={(event) => handleCardKeydown('calendar', event)}>
       <div class="stat-card-main">
         <div class="stat-icon event-icon-stack">
           {#each currentCalendarEventIcons as icon, iconIndex}
@@ -435,7 +438,7 @@
     </div>
 
     {#if goldEarnerCount > 0}
-      <div class="stat-card" role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
+      <div class="stat-card" class:popover-open={activePopover === 'gold-earners'} role="button" tabindex="0" on:click={(event) => togglePopover('gold-earners', event)} on:keydown={(event) => handleCardKeydown('gold-earners', event)}>
         <div class="stat-card-main">
           <div class="stat-icon"><img src={statIcons.gold} alt="Gold Earners" /></div>
           <div class="stat-content"><div class="stat-value">{goldEarnerCount}</div></div>
@@ -466,10 +469,10 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.38rem;
+    gap: 0.45rem;
     width: var(--dashboard-frame-width);
     box-sizing: border-box;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
   }
 
   .stat-card {
@@ -478,22 +481,25 @@
     max-width: 156px;
     box-sizing: border-box;
     background: var(--surface-variant);
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
-    border-radius: 8px;
-    padding: 0.38rem 0.48rem 0.34rem;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 10px;
+    padding: 0.42rem 0.5rem 0.38rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.14rem;
+    gap: 0.16rem;
     position: relative;
     cursor: pointer;
+    transition:
+      border-color var(--app-transition-fast, 0.16s ease),
+      box-shadow var(--app-transition-fast, 0.16s ease);
   }
 
   .stat-card:hover,
   .stat-card:focus-visible {
     border-color: var(--app-dashboard-accent-border);
-    box-shadow: var(--app-shadow-sm);
+    box-shadow: var(--app-shadow-sm), 0 0 0 1px color-mix(in srgb, var(--app-dashboard-accent) 22%, transparent);
   }
 
   .stat-card-main {
@@ -518,14 +524,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--primary);
-    border-radius: 8px;
+    background: linear-gradient(155deg,
+      color-mix(in srgb, var(--app-dashboard-accent) 18%, var(--md-sys-color-surface-container-high)),
+      color-mix(in srgb, var(--app-dashboard-accent) 10%, var(--md-sys-color-surface-container))
+    );
+    border: 1px solid color-mix(in srgb, var(--app-dashboard-accent) 20%, transparent);
+    border-radius: 7px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
   }
 
   .stat-icon img {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     object-fit: contain;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
   }
 
   .event-icon-stack {
@@ -550,10 +562,11 @@
 
   .stat-value {
     font-size: clamp(1rem, 1.4vw, 1.25rem);
-    font-weight: 700;
+    font-weight: 800;
     color: var(--on-surface);
     line-height: 1;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .stat-status {
@@ -569,17 +582,18 @@
   }
 
   .stat-open-count {
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 800;
     color: var(--on-surface);
+    font-variant-numeric: tabular-nums;
   }
 
   .stat-open-label {
     color: var(--on-surface-variant);
     font-size: 0.58rem;
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0;
+    letter-spacing: 0.04em;
   }
 
   .stat-status.done,
@@ -611,9 +625,12 @@
 
   .stat-label {
     align-self: stretch;
-    font-size: 0.54rem;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
     color: var(--on-surface-variant);
-    margin-top: 0;
+    margin-top: 0.06rem;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
@@ -640,15 +657,19 @@
     background: var(--md-sys-color-surface-container-high);
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: 8px;
-    padding: 0.7rem;
-    box-shadow: var(--app-shadow-md);
+    border-radius: 10px;
+    padding: 0.75rem;
+    box-shadow: var(--app-shadow-md), 0 0 0 1px color-mix(in srgb, var(--app-dashboard-accent) 12%, transparent);
   }
 
   .stat-popover strong {
     display: block;
-    font-size: 0.78rem;
-    margin-bottom: 0.45rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
 
   .stat-popover p {
@@ -671,7 +692,7 @@
     border-radius: 6px;
     background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface);
-    padding: 0.36rem 0.4rem;
+    padding: 0.38rem 0.5rem;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -679,11 +700,16 @@
     text-align: left;
     font: inherit;
     cursor: pointer;
+    transition: border-color var(--app-transition-fast, 0.16s ease), background var(--app-transition-fast, 0.16s ease);
   }
 
   .popover-row:hover {
     border-color: var(--app-dashboard-accent-border);
     background: var(--app-dashboard-accent-soft);
+  }
+
+  .popover-row span {
+    font-weight: 600;
   }
 
   .popover-row span {
@@ -744,15 +770,25 @@
     border-radius: 5px;
     background: var(--app-dashboard-accent-soft);
     color: var(--md-sys-color-on-surface);
-    font-size: 0.65rem;
-    padding: 0.2rem 0.34rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 0.22rem 0.4rem;
     white-space: nowrap;
     cursor: pointer;
+    transition: background var(--app-transition-fast, 0.16s ease), border-color var(--app-transition-fast, 0.16s ease);
+  }
+
+  .mini-action:hover:not(:disabled) {
+    border-color: var(--app-dashboard-accent);
+    background: color-mix(in srgb, var(--app-dashboard-accent) 20%, var(--app-dashboard-accent-soft));
   }
 
   .mini-action:disabled {
     cursor: default;
-    opacity: 0.72;
+    opacity: 0.65;
+    font-weight: 600;
     color: var(--md-sys-color-on-surface-variant);
   }
 </style>

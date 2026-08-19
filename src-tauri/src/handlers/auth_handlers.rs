@@ -24,6 +24,7 @@ const DEFAULT_DISCORD_CLIENT_ID: &str = "1506247060142166076";
 const LEGACY_AUTH_FILE_NAME: &str = "meowgang_auth.txt";
 const LEGACY_UPDATE_FIRST_SEEN_FILE_NAME: &str = "update_first_seen.json";
 const LEGACY_PARTY_PLANS_FILE_NAME: &str = "party_plans.json";
+const FALLBACK_WHITELIST_JSON: &str = include_str!("../../resources/whitelist.json");
 
 #[derive(Debug, Serialize)]
 pub struct DiscordAuthResult {
@@ -235,24 +236,50 @@ async fn verify_token_against_whitelist(
 
 /// Fetches the JSON whitelist and normalizes supported whitelist shapes.
 async fn fetch_whitelist(whitelist_url: &str) -> Result<HashMap<String, Option<String>>, String> {
-    let client = reqwest::Client::builder()
+    let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
-        .map_err(|e| format!("Failed to create whitelist client: {}", e))?;
+    {
+        Ok(client) => client,
+        Err(error) => return fallback_whitelist(&format!("Failed to create whitelist client: {}", error)),
+    };
 
-    let whitelist = client
+    let whitelist = match client
         .get(whitelist_url)
         .header("User-Agent", "LOA Tracker")
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch Discord whitelist: {}", e))?
-        .error_for_status()
-        .map_err(|e| format!("Discord whitelist request failed: {}", e))?
+    {
+        Ok(response) => match response.error_for_status() {
+            Ok(response) => response,
+            Err(error) => return fallback_whitelist(&format!("Discord whitelist request failed: {}", error)),
+        },
+        Err(error) => return fallback_whitelist(&format!("Failed to fetch Discord whitelist: {}", error)),
+    };
+
+    let whitelist = match whitelist
         .json::<Value>()
         .await
-        .map_err(|e| format!("Failed to parse Discord whitelist JSON: {}", e))?;
+    {
+        Ok(whitelist) => whitelist,
+        Err(error) => return fallback_whitelist(&format!("Failed to parse Discord whitelist JSON: {}", error)),
+    };
 
     Ok(extract_whitelisted_users(&whitelist))
+}
+
+fn fallback_whitelist(reason: &str) -> Result<HashMap<String, Option<String>>, String> {
+    crate::log_warn!("Using bundled Discord whitelist fallback: {}", reason);
+
+    let whitelist = serde_json::from_str::<Value>(FALLBACK_WHITELIST_JSON)
+        .map_err(|e| format!("Bundled Discord whitelist fallback is invalid: {}; original error: {}", e, reason))?;
+
+    let users = extract_whitelisted_users(&whitelist);
+    if users.is_empty() {
+        return Err(format!("Bundled Discord whitelist fallback is empty; original error: {}", reason));
+    }
+
+    Ok(users)
 }
 
 /// Exchanges a Discord authorization code using PKCE.

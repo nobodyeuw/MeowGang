@@ -87,6 +87,11 @@ export function getRaidDefinition(raidId: string, difficulty: string) {
     ?? RAIDS.find((raid) => raid.id === raidId);
 }
 
+export function getRaidGates(raidId: string, difficulty: string): string[] {
+  const raidDef = getRaidDefinition(raidId, difficulty);
+  return raidDef?.gates.map(gate => gate.gate) ?? [];
+}
+
 export function isRaidGateCompleted(
   completionStatus: CharacterCardCompletionEntry[],
   raidId: string,
@@ -97,6 +102,11 @@ export function isRaidGateCompleted(
     Number(entry.is_completed) === 1 &&
     (entry.session_id ?? '') === `${raidId}_${gate}`
   );
+}
+
+export function getGateDisplayName(gate: string): string {
+  const match = gate.match(/Gate (\d+)/);
+  return match ? `G${match[1]}` : gate;
 }
 
 export function getRaidGateProgress(
@@ -237,9 +247,10 @@ export function buildDisplayRaids(options: {
     return {
       ...raid,
       isGoldRaid: Number(raid.take_gold) === 1 && options.characterEarnsGold,
+      isGoldCharacterTrackedRaid: Number(raid.is_tracked) === 1 && options.characterEarnsGold && Number(raid.take_gold) === 0,
       isStaticReserved: options.showStaticBadges && Number(raid.reserved_for_static) === 1,
       staticBadgeText: String(raid.static_group_tag || '').trim() || 'Static',
-      isTrackedRaid: Number(raid.is_tracked) === 1 && !options.characterEarnsGold,
+      isTrackedRaid: Number(raid.is_tracked) === 1,
       completed: fullyCompleted,
       gateProgress,
       completionMismatch: mismatch,
@@ -251,12 +262,13 @@ export function buildDisplayRaids(options: {
 
   if (options.characterEarnsGold) {
     return raids
-      .filter((raid) => Number(raid.take_gold) === 1)
-      .slice(0, 3);
+      .filter((raid) => Number(raid.take_gold) === 1 || Number(raid.is_tracked) === 1)
+      .slice(0, 4);
   }
 
   return raids
-    .filter((raid) => Number(raid.is_tracked) === 1);
+    .filter((raid) => Number(raid.is_tracked) === 1)
+    .slice(0, 4);
 }
 
 export function buildTrackedWeeklyTasks(

@@ -75,9 +75,6 @@
 
   .characters-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 180px);
-    grid-auto-flow: dense;
-    grid-auto-rows: 72px;
     gap: 1rem;
     align-items: stretch;
     width: 100%;
@@ -86,14 +83,15 @@
     justify-content: center;
   }
 
-  .characters-list:not(.compact-list) :global(.character-card) {
-    grid-column: span 2;
-    grid-row: span 2;
-    min-height: 0;
+  .characters-list:not(.compact-list) {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+    max-width: calc(3 * 320px + 2 * 1rem);
   }
 
-  .characters-list:not(.compact-list) :global(.character-card.minimal-card) {
-    grid-row: span 1;
+  .characters-list:not(.compact-list) :global(.character-card) {
+    grid-column: auto;
+    grid-row: auto;
+    width: 100%;
   }
 
   .characters-list.compact-list {
@@ -109,18 +107,24 @@
   }
 
   .roster-section {
-    --roster-border-color: color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent);
+    --roster-border-color: color-mix(in srgb, var(--md-sys-color-primary) 32%, var(--md-sys-color-outline-variant));
     --roster-hover-color: color-mix(in srgb, var(--app-color-highlight-text) 55%, transparent);
     box-sizing: border-box;
     background: var(--surface-variant);
-    border-radius: 8px;
-    padding: 0.7rem 0.75rem 0.75rem;
+    border-radius: 12px;
+    padding: 0.75rem 0.85rem 0.85rem;
     box-shadow: var(--app-shadow-sm);
     transition: box-shadow 0.18s ease, border-color 0.18s ease;
     border: 1px solid var(--roster-border-color);
     position: relative;
+    width: fit-content;
+    min-width: min(100%, 340px);
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .roster-section:has(.compact-list) {
     width: 100%;
-    max-width: none;
   }
 
   .roster-section::after {
@@ -148,17 +152,19 @@
   }
 
   .roster-title {
-    margin: 0 0 0.65rem;
+    margin: 0 0 0.7rem;
     color: var(--roster-border-color);
     font-size: 0.68rem;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     text-transform: uppercase;
-    letter-spacing: 0;
+    letter-spacing: 0.08em;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--roster-border-color) 45%, transparent);
   }
 
   .roster-title-text {
@@ -176,12 +182,12 @@
 
   .character-count {
     flex: 0 0 auto;
-    background: transparent;
+    background: color-mix(in srgb, var(--roster-border-color) 16%, transparent);
     color: inherit;
-    padding: 0;
-    border-radius: 0;
-    font-size: 0.62rem;
-    font-weight: 500;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--app-radius-pill, 999px);
+    font-size: 0.6rem;
+    font-weight: 700;
   }
 
   .empty-state {

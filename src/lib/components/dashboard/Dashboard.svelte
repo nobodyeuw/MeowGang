@@ -52,10 +52,6 @@
   let totalWeekliesPossible = 0;
   let totalCalendarEventsCompleted = 0;
   let totalCalendarEventsPossible = 0;
-  let totalArgeosTracked = 0;
-  let totalArgeosAvailableToday = 0;
-  let totalArgeosDoneToday = 0;
-  let totalArgeosFullyDone = 0;
   let progressPercentage = 0;
   let earnedGoldPercentage = 0;
   let actualGoldDisplay = 0;
@@ -65,8 +61,7 @@
   let remainingGoldDisplay = 0;
   let dashboardView: DashboardViewMode = 'compact';
   let showDashboardStaticBadges = true;
-  let mismatchGoldLost = 0;
-  let mismatchGoldBonus = 0;
+  let mismatchGoldNet = 0;
   let raidDetails: DashboardRaidDetail[] = [];
   let additionalRaidDetails: DashboardRaidDetail[] = [];
   let dailyDetails: DashboardDailyDetail[] = [];
@@ -78,21 +73,15 @@
   let raidReservations: DashboardRaidReservation[] = [];
   let calendarLoading = false;
   let loadedCalendarDiscordId = '';
-  $: argeosStatusKind = resolveArgeosStatusKind(
-    totalArgeosTracked,
-    totalArgeosAvailableToday,
-    totalArgeosDoneToday,
-    totalArgeosFullyDone
-  );
 
   // Load characters for ALL rosters
   async function loadAllCharacters() {
     visibleCharacters = $characters.filter(char => !char.hide_from_dashboard);
     loading = false;
-    
+
     // Calculate stats from all characters so hidden dashboard entries still count for daily/weekly progress.
     await calculateGlobalStats($characters);
-    
+
     // Update header
     if (setHeaderContent) {
       setHeaderContent('');
@@ -137,10 +126,6 @@
       totalWeekliesPossible = stats.totalWeekliesPossible;
       totalCalendarEventsCompleted = stats.totalCalendarEventsCompleted;
       totalCalendarEventsPossible = stats.totalCalendarEventsPossible;
-      totalArgeosTracked = stats.totalArgeosTracked;
-      totalArgeosAvailableToday = stats.totalArgeosAvailableToday;
-      totalArgeosDoneToday = stats.totalArgeosDoneToday;
-      totalArgeosFullyDone = stats.totalArgeosFullyDone;
       progressPercentage = stats.progressPercentage;
       earnedGoldPercentage = stats.earnedGoldPercentage;
       actualGoldDisplay = stats.actualGoldDisplay;
@@ -148,15 +133,13 @@
       actualTradableGoldDisplay = stats.actualTradableGoldDisplay;
       estimatedGoldDisplay = stats.estimatedGoldDisplay;
       remainingGoldDisplay = stats.remainingGoldDisplay;
-      mismatchGoldLost = stats.mismatchGoldLost;
-      mismatchGoldBonus = stats.mismatchGoldBonus;
+      mismatchGoldNet = stats.mismatchGoldNet;
       characterDataMap = stats.characterDataMap;
       raidDetails = stats.raidDetails;
       additionalRaidDetails = stats.additionalRaidDetails;
       dailyDetails = stats.dailyDetails;
       weeklyTaskDetails = stats.weeklyTaskDetails;
       calendarEventDetails = stats.calendarEventDetails;
-      argeosDetails = stats.argeosDetails;
     } catch (error) {
       console.error('Failed to calculate global stats:', error);
     }
@@ -170,14 +153,14 @@
       await loadAllCharacters();
       await loadDashboardCalendar();
     })();
-    
+
     // Listen for raid settings updates
     const handleRaidSettingsUpdate = async () => {
       // Add small delay to ensure database updates are committed
       await new Promise(resolve => setTimeout(resolve, 100));
       await calculateGlobalStats($characters);
     };
-    
+
     // Listen for raid completions
     const handleRaidCompleted = async () => {
       await calculateGlobalStats($characters);
@@ -221,7 +204,7 @@
     window.addEventListener('dashboard-view:changed', handleDashboardViewChanged);
     window.addEventListener('dashboard-static-badges:changed', handleStaticBadgesChanged);
     window.addEventListener('dashboard-calendar:changed', handleCalendarChanged);
-    
+
     // Cleanup on unmount
     return () => {
       window.removeEventListener('raid-settings-updated', handleRaidSettingsUpdate);
@@ -255,12 +238,12 @@
   $: charactersByRoster = (() => {
     const grouped: { [key: string]: Character[] } = {};
     const allRosters = $rosters;
-    
+
     // Initialize groups for all rosters
     allRosters.forEach(roster => {
       grouped[roster.id] = [];
     });
-    
+
     // Group characters by roster
     visibleCharacters.forEach(character => {
       const rosterId = character.roster_id;
@@ -268,12 +251,12 @@
         grouped[rosterId].push(character);
       }
     });
-    
+
     // Sort each group by display_order
     Object.keys(grouped).forEach(rosterId => {
       grouped[rosterId].sort((a, b) => a.display_order - b.display_order);
     });
-    
+
     return grouped;
   })();
 
@@ -297,8 +280,7 @@
       {remainingGoldDisplay}
       {actualBoundGoldDisplay}
       {actualTradableGoldDisplay}
-      {mismatchGoldLost}
-      {mismatchGoldBonus}
+      {mismatchGoldNet}
     />
 
 <DashboardStatsBar
@@ -363,16 +345,21 @@
     justify-content: center;
     padding: 4rem 2rem;
     text-align: center;
+    color: var(--on-surface-variant);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--surface-variant);
-    border-top: 4px solid var(--primary);
+    width: 34px;
+    height: 34px;
+    border: 3px solid var(--surface-variant);
+    border-top: 3px solid var(--primary);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.85s linear infinite;
     margin-bottom: 1rem;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 25%, transparent);
   }
 
   @keyframes spin {

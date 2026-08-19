@@ -16,11 +16,13 @@
     formatItemLevel,
     getClassIconUrl,
     getDailyIconTitle,
-    getLastCompletedGate,
-    getNextOpenGate,
+    getGateDisplayName,
+    getRaidDefinition,
     getRaidDisplayName,
+    getRaidGates,
     getRaidName,
     getTaskIcon,
+    isRaidGateCompleted,
     normalizeDifficulty,
     type CharacterCardCompletionEntry,
     type CharacterCardRaidConfig,
@@ -176,12 +178,23 @@ $: allReservations = [
   function handleCharacterClick() {
     // Set active filter character in global store
     activeFilterCharId.set(character.char_id);
-    
+
     // Set active roster to this character's roster
     activeRosterId.set(character.roster_id);
-    
+
     // Navigate to ToDo tab
     goto(`/?tab=todo&char=${character.char_id}`);
+  }
+
+  function handleRaidClick(raid: any) {
+    // Set active filter character in global store
+    activeFilterCharId.set(character.char_id);
+
+    // Set active roster to this character's roster
+    activeRosterId.set(character.roster_id);
+
+    // Navigate to ToDo tab with this raid
+    goto(`/?tab=todo&char=${character.char_id}&raid=${raid.content_id}`);
   }
 
   async function completeDashboardTask(contentId: string, completed: boolean, event?: MouseEvent) {
@@ -196,16 +209,32 @@ $: allReservations = [
     dispatchDashboardCompletionUpdate();
   }
 
-  async function completeDashboardRaidGate(raid: any, event?: MouseEvent) {
+  async function toggleGateCompletion(raid: any, gate: string, event?: MouseEvent | KeyboardEvent) {
     event?.preventDefault();
-    if (raid.completed) {
-      await undoDashboardRaidGate(raid, event as MouseEvent);
-      return;
-    }
-    const nextGate = getNextOpenGate(completionStatus, raid.content_id, raid.difficulty);
-    if (!nextGate) return;
+    event?.stopPropagation();
 
-    await updateTodoRaidGateStatus(character.char_id, raid.content_id, nextGate, raid.content_id, true);
+    const allGates = getRaidGates(raid.content_id, raid.difficulty);
+    const gateIndex = allGates.indexOf(gate);
+    const isCompleted = isRaidGateCompleted(completionStatus, raid.content_id, gate);
+
+    if (isCompleted) {
+      // Undo: mark this gate and all subsequent gates as not completed
+      for (let i = gateIndex; i < allGates.length; i++) {
+        const currentGate = allGates[i];
+        if (isRaidGateCompleted(completionStatus, raid.content_id, currentGate)) {
+          await updateTodoRaidGateStatus(character.char_id, raid.content_id, currentGate, raid.content_id, false);
+        }
+      }
+    } else {
+      // Complete: mark this gate and all previous gates as completed
+      for (let i = 0; i <= gateIndex; i++) {
+        const currentGate = allGates[i];
+        if (!isRaidGateCompleted(completionStatus, raid.content_id, currentGate)) {
+          await updateTodoRaidGateStatus(character.char_id, raid.content_id, currentGate, raid.content_id, true);
+        }
+      }
+    }
+
     window.dispatchEvent(new CustomEvent('raid-completed'));
     dispatchDashboardCompletionUpdate();
   }
@@ -418,21 +447,10 @@ $: allReservations = [
     };
   });
 
-  async function undoDashboardRaidGate(raid: any, event?: MouseEvent) {
-    event?.preventDefault();
-    const gateToUndo = getLastCompletedGate(completionStatus, raid.content_id, raid.difficulty);
-    if (!gateToUndo) return;
-
-    await updateTodoRaidGateStatus(character.char_id, raid.content_id, gateToUndo, raid.content_id, false);
-    window.dispatchEvent(new CustomEvent('raid-completed'));
-    dispatchDashboardCompletionUpdate();
-  }
-
   function dispatchDashboardCompletionUpdate() {
     window.dispatchEvent(new CustomEvent('character-data-complete'));
   }
 
-  
 </script>
 
 <div class="character-card"
@@ -575,9 +593,9 @@ $: allReservations = [
               title={raid.completionTooltip ?? (raid.isStaticReserved ? `Reserved for ${raid.staticBadgeText}` : '')}
               role="button"
               tabindex="0"
-              on:click={(event) => completeDashboardRaidGate(raid, event)}
+              on:click={() => handleRaidClick(raid)}
               on:contextmenu={(event) => openRaidActionMenu(raid, event)}
-              on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
+              on:keydown={(event) => event.key === 'Enter' && handleRaidClick(raid)}
             >
               <div class="raid-content">
                 <img src={raidIcon} alt="Raid" class="raid-icon">
@@ -585,18 +603,23 @@ $: allReservations = [
                   <span>{getRaidName(raid.content_id, raid.difficulty)}</span>
                   <span class="compact-raid-difficulty">{normalizeDifficulty(raid.difficulty)}</span>
                 </span>
-                {#if raid.gateProgress.total > 0}
-                  <span
-                    class="gate-progress"
-                    class:gate-progress-done={raid.completed}
-                    class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
-                  >
-                    {raid.gateProgress.completed}/{raid.gateProgress.total}
-                  </span>
-                {/if}
                 {#if raid.isGoldRaid}
                   <img src={goldIcon} alt="Gold" class="gold-icon">
                 {/if}
+                <div class="gates-container">
+                  {#each getRaidGates(raid.content_id, raid.difficulty) as gate}
+                    <button
+                      class="gate-indicator"
+                      class:gate-completed={isRaidGateCompleted(completionStatus, raid.content_id, gate)}
+                      tabindex="0"
+                      on:click={(event) => toggleGateCompletion(raid, gate, event)}
+                      on:keydown={(event) => event.key === 'Enter' && toggleGateCompletion(raid, gate)}
+                      title={isRaidGateCompleted(completionStatus, raid.content_id, gate) ? `${gate} completed - click to undo` : `${gate} not completed - click to mark as done`}
+                    >
+                      {getGateDisplayName(gate)}
+                    </button>
+                  {/each}
+                </div>
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
@@ -767,25 +790,30 @@ $: allReservations = [
               title={raid.completionTooltip ?? (raid.isStaticReserved ? `Reserved for ${raid.staticBadgeText}` : '')}
               role="button"
               tabindex="0"
-              on:click={(event) => completeDashboardRaidGate(raid, event)}
+              on:click={() => handleRaidClick(raid)}
               on:contextmenu={(event) => openRaidActionMenu(raid, event)}
-              on:keydown={(event) => event.key === 'Enter' && completeDashboardRaidGate(raid)}
+              on:keydown={(event) => event.key === 'Enter' && handleRaidClick(raid)}
             >
               <div class="raid-content">
                 <img src={raidIcon} alt="Raid" class="raid-icon">
                 <span class="raid-name">{getRaidDisplayName(raid.content_id, raid.difficulty)}</span>
-                {#if raid.gateProgress.total > 0}
-                  <span
-                    class="gate-progress"
-                    class:gate-progress-done={raid.completed}
-                    class:gate-progress-partial={!raid.completed && raid.gateProgress.completed > 0}
-                  >
-                    {raid.gateProgress.completed}/{raid.gateProgress.total}
-                  </span>
-                {/if}
                 {#if raid.isGoldRaid}
                   <img src={goldIcon} alt="Gold" class="gold-icon">
                 {/if}
+                <div class="gates-container">
+                  {#each getRaidGates(raid.content_id, raid.difficulty) as gate}
+                    <button
+                      class="gate-indicator"
+                      class:gate-completed={isRaidGateCompleted(completionStatus, raid.content_id, gate)}
+                      tabindex="0"
+                      on:click={(event) => toggleGateCompletion(raid, gate, event)}
+                      on:keydown={(event) => event.key === 'Enter' && toggleGateCompletion(raid, gate)}
+                      title={isRaidGateCompleted(completionStatus, raid.content_id, gate) ? `${gate} completed - click to undo` : `${gate} not completed - click to mark as done`}
+                    >
+                      {getGateDisplayName(gate)}
+                    </button>
+                  {/each}
+                </div>
                 {#if raid.isStaticReserved}
                   <span class="static-badge">{raid.staticBadgeText}</span>
                 {/if}
@@ -935,12 +963,17 @@ $: allReservations = [
     border-radius: 12px;
     padding: 0.8rem;
     box-shadow: var(--app-shadow-sm);
+    transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
     position: relative;
     overflow: hidden;
     border: 2px solid transparent;
-    min-height: 124px;
+    min-height: 148px;
     display: flex;
     flex-direction: column;
+  }
+
+  .character-card:hover {
+    box-shadow: var(--app-shadow-md);
   }
 
   .character-card:global(.dashboard-focus-highlight) {
@@ -1170,11 +1203,12 @@ $: allReservations = [
   .compact-daily-icon {
     width: 22px;
     height: 22px;
-    border-radius: 5px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
     background: color-mix(in srgb, var(--surface) 86%, black);
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
     overflow: hidden;
   }
 
@@ -1247,7 +1281,7 @@ $: allReservations = [
 
   .compact-raid-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: clamp(0.25rem, 0.6vw, 0.4rem);
     min-width: 0;
   }
@@ -1304,7 +1338,7 @@ $: allReservations = [
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    box-shadow: var(--app-shadow-sm);
+    box-shadow: var(--app-shadow-sm), 0 0 0 1px color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
   }
 
   .character-card.minimal-card:not(.compact) .class-icon {
@@ -1323,8 +1357,10 @@ $: allReservations = [
     margin: 0 0 0.25rem 0;
     color: var(--on-surface);
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: -0.005em;
     line-height: 1.2;
+    transition: color 0.15s ease;
   }
 
   .character-card.minimal-card:not(.compact) .character-name {
@@ -1338,15 +1374,17 @@ $: allReservations = [
   }
 
   .item-level {
-    font-weight: 500;
+    font-weight: 600;
     color: color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .combat-power {
-    font-weight: 500;
+    font-weight: 600;
     color: var(--app-color-accent-muted);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .activity-section {
@@ -1446,11 +1484,12 @@ $: allReservations = [
   .activity-icon {
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
     transition: all 0.2s ease;
   }
 
@@ -1514,29 +1553,35 @@ $: allReservations = [
   }
 
   .raid-item {
-    padding: 0.2rem 0.45rem;
+    padding: 0.22rem 0.5rem;
     background: var(--surface);
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: 5px;
     font-size: 0.75rem;
     color: var(--on-surface-variant);
-    font-weight: 500;
-    transition: all 0.2s ease;
+    font-weight: 600;
+    transition: all 0.15s ease;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
+  .raid-item:hover {
+    filter: brightness(1.08);
+  }
+
   .raid-item.gold-raid {
-    background: var(--app-color-raid-gold-surface);
-    border: 1px solid color-mix(in srgb, var(--app-color-gold) 30%, transparent);
+    background: color-mix(in srgb, var(--app-color-raid-gold-surface) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-color-gold) 50%, transparent);
     color: var(--app-color-gold);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--app-color-gold) 20%, transparent);
   }
 
   .raid-item.tracked-raid {
-    background: var(--app-color-raid-tracked-surface);
-    border: 1px solid color-mix(in srgb, var(--app-color-tracked) 28%, transparent);
-    color: var(--app-color-on-tracked);
+    background: color-mix(in srgb, var(--app-color-raid-tracked-surface) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-color-tracked) 45%, transparent);
+    color: color-mix(in srgb, var(--app-color-on-tracked) 90%, var(--on-surface-variant));
   }
 
   .raid-item.static-reserved {
@@ -1560,12 +1605,13 @@ $: allReservations = [
     opacity: 0.4;
     text-decoration: line-through;
     color: color-mix(in srgb, var(--app-color-gold) 60%, transparent);
+    box-shadow: none;
   }
 
   .raid-item.tracked-raid.completed {
     opacity: 0.42;
     text-decoration: line-through;
-    color: color-mix(in srgb, var(--app-color-on-tracked) 60%, transparent);
+    color: color-mix(in srgb, var(--app-color-on-tracked) 60%, var(--on-surface-variant) 40%);
   }
 
   .raid-item.weekly-task.completed {
@@ -1595,18 +1641,46 @@ $: allReservations = [
     min-width: 0;
   }
 
-  .gate-progress {
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 0 0.25rem;
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
-    color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent);
-    white-space: nowrap;
+  .gates-container {
+    display: flex;
+    gap: 0.15rem;
+    align-items: center;
     flex-shrink: 0;
+    margin-left: 0.15rem;
   }
-  .gate-progress-partial { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent); }
-  .gate-progress-done    { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); color: color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent); }
+
+  .gate-indicator {
+    font-size: 0.63rem;
+    font-weight: 700;
+    padding: 0.1rem 0.32rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 48%, transparent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    min-width: 1.2rem;
+    text-align: center;
+  }
+
+  .gate-indicator:hover {
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 15%, transparent);
+    border-color: color-mix(in srgb, var(--md-sys-color-on-surface) 30%, transparent);
+    color: color-mix(in srgb, var(--md-sys-color-on-surface) 65%, transparent);
+  }
+
+  .gate-indicator.gate-completed {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 55%, transparent);
+    color: var(--md-sys-color-primary);
+    box-shadow: 0 0 5px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent);
+  }
+
+  .gate-indicator.gate-completed:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 60%, transparent);
+  }
 
   .raid-icon {
     width: 14px;
@@ -1627,17 +1701,20 @@ $: allReservations = [
     width: 12px;
     height: 12px;
     border-radius: 2px;
+    margin-right: 0.35rem;
     flex-shrink: 0;
   }
 
   .static-badge {
     flex-shrink: 0;
     border-radius: 3px;
-    padding: 0.05rem 0.25rem;
-    background: color-mix(in srgb, var(--app-color-static) 18%, transparent);
+    padding: 0.06rem 0.3rem;
+    background: color-mix(in srgb, var(--app-color-static) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-color-static) 40%, transparent);
     color: var(--app-color-on-static);
     font-size: 0.58rem;
     font-weight: 800;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
   }
 
@@ -1645,9 +1722,10 @@ $: allReservations = [
   .calendar-reservation-badge {
     flex-shrink: 0;
     border-radius: 3px;
-    padding: 0.05rem 0.25rem;
+    padding: 0.06rem 0.3rem;
     font-size: 0.56rem;
     font-weight: 800;
+    letter-spacing: 0.02em;
     line-height: 1.15;
     text-transform: uppercase;
     text-decoration: none;
@@ -1858,6 +1936,12 @@ $: allReservations = [
       padding-inline: 0.4rem;
     }
 
+    .compact .gate-indicator {
+      font-size: 0.6rem;
+      padding: 0.05rem 0.2rem;
+      min-width: 1rem;
+    }
+
     .compact .character-name {
       font-size: 0.85rem;
     }
@@ -1897,6 +1981,12 @@ $: allReservations = [
   @media (max-width: 900px) {
     .compact-raid-difficulty {
       display: none;
+    }
+
+    .gate-indicator {
+      font-size: 0.6rem;
+      padding: 0.05rem 0.2rem;
+      min-width: 1rem;
     }
   }
 
@@ -1996,7 +2086,8 @@ $: allReservations = [
   }
 
   .clear-reservation-dialog {
-    background: #1e1e1e;
+    background: var(--md-sys-color-surface-container-high);
+    border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: 12px;
     padding: 1.5rem;
     max-width: 500px;
@@ -2005,7 +2096,7 @@ $: allReservations = [
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    box-shadow: var(--app-shadow-lg);
+    box-shadow: var(--app-shadow-md);
   }
 
   .clear-reservation-dialog header {

@@ -44,8 +44,7 @@ export interface DashboardStatsResult {
   actualTradableGoldDisplay: number;
   estimatedGoldDisplay: number;
   remainingGoldDisplay: number;
-  mismatchGoldLost: number;
-  mismatchGoldBonus: number;
+  mismatchGoldNet: number;
   characterDataMap: Record<string, DashboardCharacterData>;
   raidDetails: DashboardRaidDetail[];
   additionalRaidDetails: DashboardRaidDetail[];
@@ -236,13 +235,17 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
       if (!character.hide_from_dashboard) {
         const raidConfigs = rosterSnapshot.raid_configs_by_character?.[key] || [];
         const goldRaids = raidConfigs.filter((raid: any) => raid.take_gold === 1);
-        const additionalTrackedRaidIds = character.earns_gold
-          ? []
-          : trackingStatus
-              .filter((tracking: any) => Number(tracking.is_tracked) === 1 && RAIDS.some((raid) => raid.id === tracking.content_id))
-              .map((tracking: any) => tracking.content_id);
         const uniqueRaidIds = [...new Set(goldRaids.map((raid: any) => raid.content_id))];
-        const uniqueAdditionalRaidIds = [...new Set(additionalTrackedRaidIds)];
+        const goldRaidIdSet = new Set(uniqueRaidIds);
+        const uniqueAdditionalRaidIds = [...new Set(
+          trackingStatus
+            .filter((tracking: any) =>
+              Number(tracking.is_tracked) === 1 &&
+              RAIDS.some((raid) => raid.id === tracking.content_id) &&
+              !goldRaidIdSet.has(tracking.content_id)
+            )
+            .map((tracking: any) => tracking.content_id)
+        )];
         raidsPossible += uniqueRaidIds.length;
         additionalRaidsPossible += uniqueAdditionalRaidIds.length;
 
@@ -290,6 +293,10 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
     totalWeekliesPossible: weekliesPossible,
     totalCalendarEventsCompleted: calendarEventsCompleted,
     totalCalendarEventsPossible: calendarEventsPossible,
+    totalArgeosTracked: 0,
+    totalArgeosAvailableToday: 0,
+    totalArgeosDoneToday: 0,
+    totalArgeosFullyDone: 0,
     progressPercentage,
     earnedGoldPercentage,
     actualGoldDisplay: goldProgress.actualGold,
@@ -297,8 +304,7 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
     actualTradableGoldDisplay: goldProgress.actualTradableGold,
     estimatedGoldDisplay: goldProgress.plannedGold,
     remainingGoldDisplay,
-    mismatchGoldLost: goldProgress.lostGold,
-    mismatchGoldBonus: goldProgress.bonusGold,
+    mismatchGoldNet: goldProgress.bonusGold - goldProgress.lostGold,
     characterDataMap,
     raidDetails,
     additionalRaidDetails,
@@ -307,5 +313,3 @@ if (isRosterTaskTracked(snapshot, 'ship_shop')) {
     calendarEventDetails
   };
 }
-
-

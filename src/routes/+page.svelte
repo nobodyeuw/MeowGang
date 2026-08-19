@@ -51,7 +51,7 @@
   import type { AppTab, DiscordAuthState } from '$lib/types/app-shell';
   // Temporarily disabled due to Supabase realtime message limits
   // import type { MeowConnectHeaderState, MeowConnectSection } from '$lib/types/app-shell';
-  import { formatResetCountdown, isAppTab } from '$lib/utils/app-shell';
+  import { RAID_MANAGEMENT_FEATURE_ENABLED, formatResetCountdown, isAppTab } from '$lib/utils/app-shell';
   // Temporarily disabled due to Supabase realtime message limits
   // import { getMeowConnectHeaderLabel } from '$lib/utils/app-shell';
   import { cleanupLegacyBrowserStorage } from '$lib/utils/browser-storage';
@@ -131,8 +131,13 @@
 
   $: raidManagementLocalAccess = hasRaidManagementAccess(discordAuthUserId);
   $: raidManagementVisible =
-    discordAuthState === 'approved' && (raidManagementLocalAccess || raidManagementAccessGranted);
-  $: if (discordAuthState === 'approved' && discordAuthUserId && raidManagementAccessUserId !== discordAuthUserId) {
+    RAID_MANAGEMENT_FEATURE_ENABLED && discordAuthState === 'approved' && (raidManagementLocalAccess || raidManagementAccessGranted);
+  $: if (
+    RAID_MANAGEMENT_FEATURE_ENABLED &&
+    discordAuthState === 'approved' &&
+    discordAuthUserId &&
+    raidManagementAccessUserId !== discordAuthUserId
+  ) {
     void refreshRaidManagementAccess(discordAuthUserId);
   }
   $: if (!raidManagementVisible && activeTab === 'raid-management') {
@@ -427,6 +432,13 @@
   // }
 
   async function refreshRaidManagementAccess(userId: string) {
+    if (!RAID_MANAGEMENT_FEATURE_ENABLED) {
+      raidManagementAccessUserId = userId;
+      raidManagementAccessGranted = false;
+      raidManagementAccessLoading = false;
+      return;
+    }
+
     raidManagementAccessUserId = userId;
     raidManagementAccessLoading = true;
     try {

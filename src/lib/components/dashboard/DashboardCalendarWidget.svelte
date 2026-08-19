@@ -532,21 +532,28 @@
 
   .calendar-toggle {
     appearance: none;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
-    background: color-mix(in srgb, var(--md-sys-color-surface-container) 86%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--surface-variant);
     color: var(--md-sys-color-on-surface);
-    border-radius: 6px;
+    border-radius: 8px;
     height: 36px;
     min-width: 54px;
-    padding: 0 0.65rem;
+    padding: 0 0.7rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
     cursor: pointer;
     font: inherit;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.74rem;
+    font-weight: 700;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  }
+
+  .calendar-toggle:hover {
+    border-color: var(--app-dashboard-accent-border);
+    box-shadow: var(--app-shadow-sm);
+    transform: translateY(-1px);
   }
 
   .calendar-toggle img {
@@ -622,12 +629,12 @@
     width: min(46rem, calc(100vw - 2rem));
     max-height: calc(100vh - 6rem);
     overflow-y: auto;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface);
-    border-radius: 8px;
-    box-shadow: var(--app-shadow-md);
-    padding: 0.75rem;
+    border-radius: 10px;
+    box-shadow: var(--app-shadow-md), 0 0 0 1px color-mix(in srgb, var(--app-dashboard-accent) 12%, transparent);
+    padding: 0.8rem;
     z-index: 100;
   }
 

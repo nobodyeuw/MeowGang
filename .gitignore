@@ -49,6 +49,7 @@ src-tauri/gen/
 CLEANUP_PLAN.md
 RAID_MANAGEMENT_BOT_PLAN.md
 private/
+whitelist.json
 
 # Private scraper implementations kept local to avoid unnecessary traffic to third-party services.
 src-tauri/private/
