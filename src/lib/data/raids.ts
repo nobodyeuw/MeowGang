@@ -93,9 +93,9 @@ export const RAIDS: Raid[] = [
     difficulty: "Solo",
     sortOrder: 5,
     gates: [
-      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 2400 },
-      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 3200 },
-      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 4200 }
+      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 1300 },
+      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 2350 },
+      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 3360 }
     ]
   },
   {
@@ -104,9 +104,9 @@ export const RAIDS: Raid[] = [
     difficulty: "Normal",
     sortOrder: 5,
     gates: [
-      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 2400 },
-      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 3200 },
-      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 4200 }
+      { gate: "Gate 1", minIlvl: 1680, tradableGold: 2000, boundGold: 2000, boxPrice: 1300 },
+      { gate: "Gate 2", minIlvl: 1680, tradableGold: 3500, boundGold: 3500, boxPrice: 2350 },
+      { gate: "Gate 3", minIlvl: 1680, tradableGold: 5000, boundGold: 5000, boxPrice: 3360 }
     ]
   },
   {
@@ -137,8 +137,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Solo",
     sortOrder: 6,
     gates: [
-      { gate: "Gate 1", minIlvl: 1700, tradableGold: 6250, boundGold: 6250, boxPrice: 4000 },
-      { gate: "Gate 2", minIlvl: 1700, tradableGold: 10250, boundGold: 10250, boxPrice: 6560 }
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 5000, boundGold: 5000, boxPrice: 3200 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 8500, boundGold: 8500, boxPrice: 5440 }
     ]
 
   },
@@ -149,8 +149,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Normal",
     sortOrder: 6,
     gates: [
-      { gate: "Gate 1", minIlvl: 1700, tradableGold: 6250, boundGold: 6250, boxPrice: 4000 },
-      { gate: "Gate 2", minIlvl: 1700, tradableGold: 10250, boundGold: 10250, boxPrice: 6560 }
+      { gate: "Gate 1", minIlvl: 1700, tradableGold: 5000, boundGold: 5000, boxPrice: 3200 },
+      { gate: "Gate 2", minIlvl: 1700, tradableGold: 8500, boundGold: 8500, boxPrice: 5440 }
     ]
   },
   {
@@ -159,8 +159,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Hard",
     sortOrder: 6,
     gates: [
-      { gate: "Gate 1", minIlvl: 1720, tradableGold: 15000, boundGold: 0, boxPrice: 4800 },
-      { gate: "Gate 2", minIlvl: 1720, tradableGold: 27000, boundGold: 0, boxPrice: 8640 }
+      { gate: "Gate 1", minIlvl: 1720, tradableGold: 13500, boundGold: 0, boxPrice: 4320 },
+      { gate: "Gate 2", minIlvl: 1720, tradableGold: 24500, boundGold: 0, boxPrice: 7840 }
     ]
   },
 
@@ -170,8 +170,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Solo",
     sortOrder: 7,
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 13000, boundGold: 13000, boxPrice: 8320 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 5500, boundGold: 5500, boxPrice: 3520 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
     ]
 
   },
@@ -182,8 +182,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Normal",
     sortOrder: 7,
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 13000, boundGold: 13000, boxPrice: 8320 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 5500, boundGold: 5500, boxPrice: 3520 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
     ]
   },
   {
@@ -192,8 +192,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Hard",
     sortOrder: 7,
     gates: [
-      { gate: "Gate 1", minIlvl: 1730, tradableGold: 17000, boundGold: 0, boxPrice: 5440 },
-      { gate: "Gate 2", minIlvl: 1730, tradableGold: 35000, boundGold: 0, boxPrice: 11200 }
+      { gate: "Gate 1", minIlvl: 1730, tradableGold: 16000, boundGold: 0, boxPrice: 5120 },
+      { gate: "Gate 2", minIlvl: 1730, tradableGold: 32000, boundGold: 0, boxPrice: 10240 }
     ]
   },
 
@@ -203,8 +203,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Matching",
     sortOrder: 8,
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 6500, boundGold: 6500, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 9500, boundGold: 9500, boxPrice: 6720 }
     ]
 
   },
@@ -215,8 +215,8 @@ export const RAIDS: Raid[] = [
     difficulty: "Normal",
     sortOrder: 8,
     gates: [
-      { gate: "Gate 1", minIlvl: 1710, tradableGold: 7000, boundGold: 7000, boxPrice: 4480 },
-      { gate: "Gate 2", minIlvl: 1710, tradableGold: 10500, boundGold: 10500, boxPrice: 6720 }
+      { gate: "Gate 1", minIlvl: 1710, tradableGold: 6500, boundGold: 6500, boxPrice: 4480 },
+      { gate: "Gate 2", minIlvl: 1710, tradableGold: 9500, boundGold: 9500, boxPrice: 6720 }
     ]
   },
   {

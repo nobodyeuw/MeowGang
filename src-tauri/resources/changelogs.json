@@ -1,23 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.4.1",
-      "date": "2026-08-19",
+      "version": "1.4.2",
+      "date": "2026-09-16",
       "changes": [
         {
-          "type": "New Features",
-          "description": "Added fallback whitelist support.",
-          "details": "Added fallback whitelist resource integration for authentication in case gists are unavailable."
-        },
-        {
-          "type": "Improvements",
-          "description": "Refined Weekly Gold Progress card and dashboard UI components.",
-          "details": "Enhanced gold progress breakdown with clearer tradable/bound gold segments and net mismatch calculations, along with modernized UI styling."
-        },
-        {
-          "type": "Bug Fixes",
-          "description": "Temporarily disabled raid management feature flag and stabilized tab navigation.",
-          "details": "Streamlined navigation and access handling when raid management is disabled."
+          "type": "Adjustments",
+          "description": "Adjusted gold values",
+          "details": "Adjusted gold values for Armoche, Kazeros and Serca + their Reward-Box prices"
         }
       ]
     }

@@ -1,15 +1,15 @@
 {
-  "version": "1.4.1",
-  "notes": "### v1.4.1\n\n#### New Features\n- Added fallback whitelist support.\n- Added fallback whitelist resource integration for authentication.\n\n#### Improvements\n- Refined Weekly Gold Progress card and dashboard UI components.\n- Enhanced gold progress breakdown with clearer tradable/bound gold segments and net mismatch calculations, along with modernized UI styling.\n\n#### Bug Fixes\n- Temporarily disabled raid management feature flag and stabilized tab navigation.\n- Streamlined navigation and access handling when raid management is disabled.",
-  "pub_date": "2026-08-19T00:00:00.000Z",
+  "version": "1.4.2",
+  "notes": "### v1.4.2\n\n#### Adjustments\n- Adjusted gold values for Armoche, Kazeros and Serca + their Reward-Box prices.",
+  "pub_date": "2026-09-16T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3NjVGdjVlhIOTlTVEVyQnRDUyt4QUJaK3NGVXBsL0ZpeEtEQVNQb3d3NDZ1eXQ1eWlEU1dJRUhaTGQ2Y3pQUi9tU2hkVER2TXdGUXgramlHVS9WZGdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTM2MDQyCWZpbGU6TE9BIFRyYWNrZXJfMS40LjFfeDY0LXNldHVwLmV4ZQpRanE5cTlRbFZRQWd3Z3ZXR1JKY3g1OVJHVllWT0FrOWhuVlJNQnRzRlJFV1dyTWU1N1A2Ynd2RjU0MkFiWVlUWXlqTDN5RTIwbVNzYnk3d1Y0eWVBdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.1/LOA.Tracker_1.4.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3Q0UG1hNWZzS0dZR0pQY0U3bEpxZ1duUHkwZCtYbUxyUlVwd0p2bVNmQ280RXQ4VUpXem8wMyt6b1MyVkpFRG1UOVluRzJhWU1tOEtjcXVaTnRRMWdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTQ5ODA1CWZpbGU6TE9BIFRyYWNrZXJfMS40LjJfeDY0LXNldHVwLmV4ZQpXL2JyeUpIZFZtS2R2OXRsYkN4M3hpWmN5NnBlMDFRVnJ3T0oxVjRESVBqakRvZ0IrZ1doellOQ0lQZlBFT3VJNStSclpNVzhQdTNFbEtlMTMrTkpDQT09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.2/LOA.Tracker_1.4.2_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3NjVGdjVlhIOTlTVEVyQnRDUyt4QUJaK3NGVXBsL0ZpeEtEQVNQb3d3NDZ1eXQ1eWlEU1dJRUhaTGQ2Y3pQUi9tU2hkVER2TXdGUXgramlHVS9WZGdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTM2MDQyCWZpbGU6TE9BIFRyYWNrZXJfMS40LjFfeDY0LXNldHVwLmV4ZQpRanE5cTlRbFZRQWd3Z3ZXR1JKY3g1OVJHVllWT0FrOWhuVlJNQnRzRlJFV1dyTWU1N1A2Ynd2RjU0MkFiWVlUWXlqTDN5RTIwbVNzYnk3d1Y0eWVBdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.1/LOA.Tracker_1.4.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3Q0UG1hNWZzS0dZR0pQY0U3bEpxZ1duUHkwZCtYbUxyUlVwd0p2bVNmQ280RXQ4VUpXem8wMyt6b1MyVkpFRG1UOVluRzJhWU1tOEtjcXVaTnRRMWdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTQ5ODA1CWZpbGU6TE9BIFRyYWNrZXJfMS40LjJfeDY0LXNldHVwLmV4ZQpXL2JyeUpIZFZtS2R2OXRsYkN4M3hpWmN5NnBlMDFRVnJ3T0oxVjRESVBqakRvZ0IrZ1doellOQ0lQZlBFT3VJNStSclpNVzhQdTNFbEtlMTMrTkpDQT09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.2/LOA.Tracker_1.4.2_x64-setup.exe"
     }
   }
 }
