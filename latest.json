@@ -1,15 +1,15 @@
 {
-  "version": "1.4.2",
-  "notes": "### v1.4.2\n\n#### Adjustments\n- Adjusted gold values for Armoche, Kazeros and Serca + their Reward-Box prices.",
-  "pub_date": "2026-09-16T00:00:00.000Z",
+  "version": "1.4.3",
+  "notes": "### v1.4.3\n\n#### Added\n- Added support for the new Dimensionalist class.",
+  "pub_date": "2026-09-17T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3Q0UG1hNWZzS0dZR0pQY0U3bEpxZ1duUHkwZCtYbUxyUlVwd0p2bVNmQ280RXQ4VUpXem8wMyt6b1MyVkpFRG1UOVluRzJhWU1tOEtjcXVaTnRRMWdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTQ5ODA1CWZpbGU6TE9BIFRyYWNrZXJfMS40LjJfeDY0LXNldHVwLmV4ZQpXL2JyeUpIZFZtS2R2OXRsYkN4M3hpWmN5NnBlMDFRVnJ3T0oxVjRESVBqakRvZ0IrZ1doellOQ0lQZlBFT3VJNStSclpNVzhQdTNFbEtlMTMrTkpDQT09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.2/LOA.Tracker_1.4.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24zbWhMSngxUGpla1RHUmtFV0JwaVpFVHJJV3I4bzBRVlliVzFGRnA4cXEyVlA4SWJTU2M1U3graGxYZWxCZFU1S1NIVFlKUlEzcWZTSVRyUXBMQ1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTk4Mzc0CWZpbGU6TE9BIFRyYWNrZXJfMS40LjNfeDY0LXNldHVwLmV4ZQpUbnJ4bkRRZ1c2SHkvaDhGUVQ4SnZ6RW9jNkZHdFZRUUJRZUI2eHBkU2FsazZpaVMzczljY1U2MFFJbnFRcEJNMlBuV0t0ZmVTZWl2cHIybTVMTmtDQT09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.3/LOA.Tracker_1.4.3_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3Q0UG1hNWZzS0dZR0pQY0U3bEpxZ1duUHkwZCtYbUxyUlVwd0p2bVNmQ280RXQ4VUpXem8wMyt6b1MyVkpFRG1UOVluRzJhWU1tOEtjcXVaTnRRMWdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTQ5ODA1CWZpbGU6TE9BIFRyYWNrZXJfMS40LjJfeDY0LXNldHVwLmV4ZQpXL2JyeUpIZFZtS2R2OXRsYkN4M3hpWmN5NnBlMDFRVnJ3T0oxVjRESVBqakRvZ0IrZ1doellOQ0lQZlBFT3VJNStSclpNVzhQdTNFbEtlMTMrTkpDQT09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.2/LOA.Tracker_1.4.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24zbWhMSngxUGpla1RHUmtFV0JwaVpFVHJJV3I4bzBRVlliVzFGRnA4cXEyVlA4SWJTU2M1U3graGxYZWxCZFU1S1NIVFlKUlEzcWZTSVRyUXBMQ1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTk4Mzc0CWZpbGU6TE9BIFRyYWNrZXJfMS40LjNfeDY0LXNldHVwLmV4ZQpUbnJ4bkRRZ1c2SHkvaDhGUVQ4SnZ6RW9jNkZHdFZRUUJRZUI2eHBkU2FsazZpaVMzczljY1U2MFFJbnFRcEJNMlBuV0t0ZmVTZWl2cHIybTVMTmtDQT09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.3/LOA.Tracker_1.4.3_x64-setup.exe"
     }
   }
 }

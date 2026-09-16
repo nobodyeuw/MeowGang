@@ -1,13 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.4.2",
-      "date": "2026-09-16",
+      "version": "1.4.3",
+      "date": "2026-09-17",
       "changes": [
         {
-          "type": "Adjustments",
-          "description": "Adjusted gold values",
-          "details": "Adjusted gold values for Armoche, Kazeros and Serca + their Reward-Box prices"
+          "type": "Added",
+          "description": "Dimensionalist class support",
+          "details": "Added support for the new Dimensionalist class."
         }
       ]
     }

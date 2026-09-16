@@ -34,7 +34,8 @@ export const GAME_CLASSES: Record<string, GameClass> = {
   "alchemist": { id: "alchemist", displayName: "Wildsoul", iconId: "604" },
   "dragon_knight": { id: "dragon_knight", displayName: "Guardianknight", iconId: "702" },
   "holyknight_female": { id: "holyknight_female", displayName: "Valkyrie", iconId: "113" },
-  "infighter": { id: "infighter", displayName: "Scraper", iconId: "303" }
+  "infighter": { id: "infighter", displayName: "Scraper", iconId: "303" },
+  "dimensionalist": { id: "dimensionalist", displayName: "Dimensionalist", iconId: "612" }
 };
 
 const CLASS_ALIASES: Record<string, string> = {
@@ -60,7 +61,8 @@ const CLASS_ALIASES: Record<string, string> = {
   wildsoul: 'alchemist',
   guardianknight: 'dragon_knight',
   valkyrie: 'holyknight_female',
-  scraper: 'infighter'
+  scraper: 'infighter',
+  dimensionalist: 'dimensionalist'
 };
 
 export function normalizeClassId(classId: string): string {
