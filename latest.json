@@ -1,15 +1,15 @@
 {
-  "version": "1.4.3",
-  "notes": "### v1.4.3\n\n#### Added\n- Added support for the new Dimensionalist class.",
-  "pub_date": "2026-09-17T00:00:00.000Z",
+  "version": "1.4.4",
+  "notes": "### v1.4.4\n\n#### Fixed\n- Fixed translation for the Dimensionalist class from the assumption 'dimensionalist' to 'dimension_master'.",
+  "pub_date": "2026-09-18T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24zbWhMSngxUGpla1RHUmtFV0JwaVpFVHJJV3I4bzBRVlliVzFGRnA4cXEyVlA4SWJTU2M1U3graGxYZWxCZFU1S1NIVFlKUlEzcWZTSVRyUXBMQ1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTk4Mzc0CWZpbGU6TE9BIFRyYWNrZXJfMS40LjNfeDY0LXNldHVwLmV4ZQpUbnJ4bkRRZ1c2SHkvaDhGUVQ4SnZ6RW9jNkZHdFZRUUJRZUI2eHBkU2FsazZpaVMzczljY1U2MFFJbnFRcEJNMlBuV0t0ZmVTZWl2cHIybTVMTmtDQT09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.3/LOA.Tracker_1.4.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24wemhBdHNRdituYy9OOGdSWnJ3KzBINmRlZHpHMDlOdGJyNFdCNFhQTVY4M1dmVGZ4dXNBQWFjc0ZSTVlJMXJaVHdjVmRxc2lSVnVFcGo4Mk5mYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NzI3MTM4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjRfeDY0LXNldHVwLmV4ZQp1UzEzT0NhMUhkN1hRUXdDVWYxckU2dTRFZWhnUnBuK0RkU1V0d1kzRytjRWxwaVhyWXd6cXA3MkVmZ1lKYjVjNFROeHlRZXk3QUhrWFVzNVBKMUhEZz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.4/LOA.Tracker_1.4.4_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24zbWhMSngxUGpla1RHUmtFV0JwaVpFVHJJV3I4bzBRVlliVzFGRnA4cXEyVlA4SWJTU2M1U3graGxYZWxCZFU1S1NIVFlKUlEzcWZTSVRyUXBMQ1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTk4Mzc0CWZpbGU6TE9BIFRyYWNrZXJfMS40LjNfeDY0LXNldHVwLmV4ZQpUbnJ4bkRRZ1c2SHkvaDhGUVQ4SnZ6RW9jNkZHdFZRUUJRZUI2eHBkU2FsazZpaVMzczljY1U2MFFJbnFRcEJNMlBuV0t0ZmVTZWl2cHIybTVMTmtDQT09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.3/LOA.Tracker_1.4.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24wemhBdHNRdituYy9OOGdSWnJ3KzBINmRlZHpHMDlOdGJyNFdCNFhQTVY4M1dmVGZ4dXNBQWFjc0ZSTVlJMXJaVHdjVmRxc2lSVnVFcGo4Mk5mYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NzI3MTM4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjRfeDY0LXNldHVwLmV4ZQp1UzEzT0NhMUhkN1hRUXdDVWYxckU2dTRFZWhnUnBuK0RkU1V0d1kzRytjRWxwaVhyWXd6cXA3MkVmZ1lKYjVjNFROeHlRZXk3QUhrWFVzNVBKMUhEZz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.4/LOA.Tracker_1.4.4_x64-setup.exe"
     }
   }
 }

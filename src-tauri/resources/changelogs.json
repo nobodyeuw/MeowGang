@@ -1,13 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.4.3",
-      "date": "2026-09-17",
+      "version": "1.4.4",
+      "date": "2026-09-18",
       "changes": [
         {
-          "type": "Added",
-          "description": "Dimensionalist class support",
-          "details": "Added support for the new Dimensionalist class."
+          "type": "Fixed",
+          "description": "Fixed Dimensionalist class translation",
+          "details": "Fixed translation for the Dimensionalist class from the assumption 'dimensionalist' to 'dimension_master'."
         }
       ]
     }

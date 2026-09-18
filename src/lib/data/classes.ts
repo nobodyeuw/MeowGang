@@ -35,7 +35,7 @@ export const GAME_CLASSES: Record<string, GameClass> = {
   "dragon_knight": { id: "dragon_knight", displayName: "Guardianknight", iconId: "702" },
   "holyknight_female": { id: "holyknight_female", displayName: "Valkyrie", iconId: "113" },
   "infighter": { id: "infighter", displayName: "Scraper", iconId: "303" },
-  "dimensionalist": { id: "dimensionalist", displayName: "Dimensionalist", iconId: "612" }
+  "dimension_master": { id: "dimension_master", displayName: "Dimensionalist", iconId: "612" }
 };
 
 const CLASS_ALIASES: Record<string, string> = {
@@ -62,7 +62,7 @@ const CLASS_ALIASES: Record<string, string> = {
   guardianknight: 'dragon_knight',
   valkyrie: 'holyknight_female',
   scraper: 'infighter',
-  dimensionalist: 'dimensionalist'
+  dimensionalist: 'dimension_master'
 };
 
 export function normalizeClassId(classId: string): string {
