@@ -52,5 +52,10 @@ overture_echidna: {
   horizon_cathedral: {
     "Horizon Cathedral G1": ["Archbishop Arcenos"],
     "Horizon Cathedral G2": ["Arcenos, Vanguard of Fanaticism"]
+  },
+
+  belgardin: {
+    "Belgardin G1": ["Belgardin, Arbiter of Death"],
+    "Belgardin G2": ["Phaetus An Kragma"]
   }
 }

@@ -1,15 +1,15 @@
 {
-  "version": "1.4.4",
-  "notes": "### v1.4.4\n\n#### Fixed\n- Fixed translation for the Dimensionalist class from the assumption 'dimensionalist' to 'dimension_master'.",
-  "pub_date": "2026-09-18T00:00:00.000Z",
+  "version": "1.4.5",
+  "notes": "### v1.4.5\n\n#### Added\n- Added Belgardin raid content\n  - Added the Belgardin raid with its gates and difficulty settings.",
+  "pub_date": "2026-10-24T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24wemhBdHNRdituYy9OOGdSWnJ3KzBINmRlZHpHMDlOdGJyNFdCNFhQTVY4M1dmVGZ4dXNBQWFjc0ZSTVlJMXJaVHdjVmRxc2lSVnVFcGo4Mk5mYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NzI3MTM4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjRfeDY0LXNldHVwLmV4ZQp1UzEzT0NhMUhkN1hRUXdDVWYxckU2dTRFZWhnUnBuK0RkU1V0d1kzRytjRWxwaVhyWXd6cXA3MkVmZ1lKYjVjNFROeHlRZXk3QUhrWFVzNVBKMUhEZz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.4/LOA.Tracker_1.4.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2dZTzJONHdqczNCKzRMZUJKRFhJanRtUmlkMUc5KzNpM05tdEZaSjdaRXd4WUZrdDFNZ3ZqSkpTalFJMUVFUzd0MWZBNVgwUTcyczlSS0xFYlh5NlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODQzMTE3CWZpbGU6TE9BIFRyYWNrZXJfMS40LjVfeDY0LXNldHVwLmV4ZQpGNCtmNjJHTy9manVrR0hUSlJLdzJkbFV2TWh6Um51eGNENks4K0ZZYnY4R0FLdi9OaTlBeGJORVgzSVVXVE4wbEd4b2M3aXdOSzB3MUZxaG53N2NCdz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.5/LOA.Tracker_1.4.5_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa24wemhBdHNRdituYy9OOGdSWnJ3KzBINmRlZHpHMDlOdGJyNFdCNFhQTVY4M1dmVGZ4dXNBQWFjc0ZSTVlJMXJaVHdjVmRxc2lSVnVFcGo4Mk5mYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NzI3MTM4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjRfeDY0LXNldHVwLmV4ZQp1UzEzT0NhMUhkN1hRUXdDVWYxckU2dTRFZWhnUnBuK0RkU1V0d1kzRytjRWxwaVhyWXd6cXA3MkVmZ1lKYjVjNFROeHlRZXk3QUhrWFVzNVBKMUhEZz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.4/LOA.Tracker_1.4.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2dZTzJONHdqczNCKzRMZUJKRFhJanRtUmlkMUc5KzNpM05tdEZaSjdaRXd4WUZrdDFNZ3ZqSkpTalFJMUVFUzd0MWZBNVgwUTcyczlSS0xFYlh5NlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODQzMTE3CWZpbGU6TE9BIFRyYWNrZXJfMS40LjVfeDY0LXNldHVwLmV4ZQpGNCtmNjJHTy9manVrR0hUSlJLdzJkbFV2TWh6Um51eGNENks4K0ZZYnY4R0FLdi9OaTlBeGJORVgzSVVXVE4wbEd4b2M3aXdOSzB3MUZxaG53N2NCdz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.5/LOA.Tracker_1.4.5_x64-setup.exe"
     }
   }
 }

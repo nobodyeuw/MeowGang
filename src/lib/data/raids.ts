@@ -288,5 +288,46 @@ export const RAIDS: Raid[] = [
       { gate: "Gate 1", minIlvl: 1620, tradableGold: 1100, boundGold: 1100, boxPrice: 1250 },
       { gate: "Gate 2", minIlvl: 1620, tradableGold: 2500, boundGold: 2500, boxPrice: 2000 }
     ]
+  },
+  {
+    id: "belgardin",
+    name: "Belgardin",
+    difficulty: "Matching",
+    sortOrder: 10,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1750, tradableGold: 10000, boundGold: 10000, boxPrice: 6400 },
+      { gate: "Gate 2", minIlvl: 1750, tradableGold: 15000, boundGold: 15000, boxPrice: 9600 }
+    ]
+  },
+  {
+    id: "belgardin",
+    name: "Belgardin",
+    difficulty: "Normal",
+    sortOrder: 10,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1750, tradableGold: 20000, boundGold: 0, boxPrice: 6400 },
+      { gate: "Gate 2", minIlvl: 1750, tradableGold: 30000, boundGold: 0, boxPrice: 9600 }
+    ]
+  },
+  {
+    id: "belgardin",
+    name: "Belgardin",
+    difficulty: "Hard",
+    sortOrder: 10,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1770, tradableGold: 25000, boundGold: 0, boxPrice: 8000 },
+      { gate: "Gate 2", minIlvl: 1770, tradableGold: 37000, boundGold: 0, boxPrice: 11840 }
+    ]
+  },
+  {
+    id: "belgardin",
+    name: "Belgardin",
+    difficulty: "Nightmare",
+    sortOrder: 10,
+    gates: [
+      { gate: "Gate 1", minIlvl: 1780, tradableGold: 30000, boundGold: 0, boxPrice: 9600 },
+      { gate: "Gate 2", minIlvl: 1780, tradableGold: 45000, boundGold: 0, boxPrice: 14400 }
+    ]
   }
+
 ];
