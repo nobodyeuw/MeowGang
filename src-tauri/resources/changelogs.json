@@ -1,13 +1,13 @@
 {
   "versions": [
     {
-      "version": "1.4.5",
-      "date": "2026-10-24",
+      "version": "1.4.6",
+      "date": "2026-10-26",
       "changes": [
         {
-          "type": "Added",
-          "description": "Added Belgardin raid content",
-          "details": "Added the Belgardin raid with its gates and difficulty settings."
+          "type": "Fixed",
+          "description": "Boss mapping for Belgardin raid content",
+          "details": "Fixed the boss mapping for the Belgardin raid content, ensuring that the correct bosses are associated with their respective gates and difficulty settings."
         }
       ]
     }

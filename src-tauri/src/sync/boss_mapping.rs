@@ -131,6 +131,10 @@ impl BossMapper {
         //Cathedral
         self.add_mapping("horizon_cathedral", 1, vec!["Archbishop Arcenos".to_string()]);
         self.add_mapping("horizon_cathedral", 2, vec!["Arcenos, Vanguard of Fanaticism".to_string()]);
+
+        // Belgardin
+        self.add_mapping("belgardin", 1, vec!["Belgardin, Arbiter of Death".to_string()]);
+        self.add_mapping("belgardin", 2, vec!["Phaetus An Kragma".to_string()]);
     }
 
     /// Adds every alias for a gate as a direct lookup key.

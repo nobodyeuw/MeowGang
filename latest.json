@@ -1,15 +1,15 @@
 {
-  "version": "1.4.5",
-  "notes": "### v1.4.5\n\n#### Added\n- Added Belgardin raid content\n  - Added the Belgardin raid with its gates and difficulty settings.",
+  "version": "1.4.6",
+  "notes": "### v1.4.6\n\n#### Fixed\n- Fixed Belgardin raid content\n  - Fixed the boss mapping for the Belgardin raid content, ensuring that the correct bosses are associated with their respective gates and difficulty settings.",
   "pub_date": "2026-10-24T00:00:00.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2dZTzJONHdqczNCKzRMZUJKRFhJanRtUmlkMUc5KzNpM05tdEZaSjdaRXd4WUZrdDFNZ3ZqSkpTalFJMUVFUzd0MWZBNVgwUTcyczlSS0xFYlh5NlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODQzMTE3CWZpbGU6TE9BIFRyYWNrZXJfMS40LjVfeDY0LXNldHVwLmV4ZQpGNCtmNjJHTy9manVrR0hUSlJLdzJkbFV2TWh6Um51eGNENks4K0ZZYnY4R0FLdi9OaTlBeGJORVgzSVVXVE4wbEd4b2M3aXdOSzB3MUZxaG53N2NCdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.5/LOA.Tracker_1.4.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZjS01yQWRUVzVHQjdMc01YQWVhdVFDclZKWmN1dDh3K1gwV3NscnlIbDlOS1dITnNUSlYrSDZlWXFYOXUvUHFrb09OWm5tNE1PYU1FUXpsVWR1b1E0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM0NjA4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjZfeDY0LXNldHVwLmV4ZQpJOCttQ05idlhRZGVZTDFhcGxGeWJVOW5KVmZRZmVISjBpYWZtSDN3d01rT1JTSXRNVVRKYnVjYmNjdmJiUmJ4ZE1DaEVFcXlJeHhPTVRkRHpXY0xEZz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.6/LOA.Tracker_1.4.6_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa2dZTzJONHdqczNCKzRMZUJKRFhJanRtUmlkMUc5KzNpM05tdEZaSjdaRXd4WUZrdDFNZ3ZqSkpTalFJMUVFUzd0MWZBNVgwUTcyczlSS0xFYlh5NlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODQzMTE3CWZpbGU6TE9BIFRyYWNrZXJfMS40LjVfeDY0LXNldHVwLmV4ZQpGNCtmNjJHTy9manVrR0hUSlJLdzJkbFV2TWh6Um51eGNENks4K0ZZYnY4R0FLdi9OaTlBeGJORVgzSVVXVE4wbEd4b2M3aXdOSzB3MUZxaG53N2NCdz09Cg==",
-      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.5/LOA.Tracker_1.4.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUbnljSUFWa2lSa3ZjS01yQWRUVzVHQjdMc01YQWVhdVFDclZKWmN1dDh3K1gwV3NscnlIbDlOS1dITnNUSlYrSDZlWXFYOXUvUHFrb09OWm5tNE1PYU1FUXpsVWR1b1E0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM0NjA4CWZpbGU6TE9BIFRyYWNrZXJfMS40LjZfeDY0LXNldHVwLmV4ZQpJOCttQ05idlhRZGVZTDFhcGxGeWJVOW5KVmZRZmVISjBpYWZtSDN3d01rT1JTSXRNVVRKYnVjYmNjdmJiUmJ4ZE1DaEVFcXlJeHhPTVRkRHpXY0xEZz09Cg==",
+      "url": "https://github.com/nobodyeuw/MeowGang/releases/download/v1.4.6/LOA.Tracker_1.4.6_x64-setup.exe"
     }
   }
 }
